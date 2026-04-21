@@ -1,30 +1,13 @@
-<!-- Thanks for contributing! Please fill in the sections below so reviewers have context. -->
+## Description
+Please include a summary of the change and which issue is fixed.
 
-## Summary
+## Type of change
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 
-<!-- What does this PR do, and why? 1–3 bullets or a short paragraph. -->
-
-## Linked issues
-
-<!-- e.g. Closes #123, Refs #456 -->
-
-## Changes
-
-- [ ] <short change 1>
-- [ ] <short change 2>
-
-## Screenshots / recordings
-
-<!-- For UI changes, attach before/after screenshots or a short clip. Delete this section if not applicable. -->
-
-## Test plan
-
-- [ ] `npm run lint` passes
-- [ ] `npm test -- --watch=false --browsers=ChromeHeadlessNoSandbox` passes
-- [ ] Manually verified the affected flow in `npm run dev`
-
-## Checklist
-
-- [ ] Branch is rebased on latest `main`
-- [ ] No new warnings or linter errors introduced
-- [ ] Public-facing changes are documented (README / CHANGELOG / code comments on non-obvious intent)
+## Checklist:
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] My changes generate no new warnings
