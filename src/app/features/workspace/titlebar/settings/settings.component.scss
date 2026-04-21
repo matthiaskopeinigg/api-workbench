@@ -606,6 +606,14 @@ label:has(input[type="checkbox"]) {
   }
 }
 
+.cert-hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.82;
+  margin: 0 0 14px;
+  max-width: 58ch;
+}
+
 .file-selectors {
   display: flex;
   flex-direction: column;

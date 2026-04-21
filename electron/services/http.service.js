@@ -260,6 +260,24 @@ async function clearAllCookies() {
 }
 
 /**
+ * Builds the TLS `ca` list. If `customCaPaths` is set, those PEM files are used;
+ * when `useSystemCaStore` is not false (default), they are merged with Node's
+ * bundled root store. Passing only custom PEMs without merging replaces the
+ * default store and breaks public HTTPS with UNABLE_TO_GET_ISSUER_CERT_LOCALLY.
+ */
+async function resolveCaForRequest(request) {
+    if (!request.customCaPaths || request.customCaPaths.length === 0) {
+        return undefined;
+    }
+    const files = await Promise.all(request.customCaPaths.map((p) => fsp.readFile(p)));
+    const useSystem = request.useSystemCaStore !== false;
+    if (useSystem && tls.rootCertificates && tls.rootCertificates.length) {
+        return [...tls.rootCertificates, ...files];
+    }
+    return files;
+}
+
+/**
  * Main entry point for HTTP requests from the renderer process.
  * Always utilizes the Node.js HTTP/HTTPS stack.
  */
@@ -276,6 +294,12 @@ async function handleHttpRequest(request) {
             if (probeUrl.protocol === 'https:') {
                 const port = Number(probeUrl.port) || 443;
                 const alpnAgentOptions = { rejectUnauthorized: !request.ignoreInvalidSsl };
+                try {
+                    const ca = await resolveCaForRequest(request);
+                    if (ca) alpnAgentOptions.ca = ca;
+                } catch (err) {
+                    logError('ALPN probe: failed to load CA bundle', err);
+                }
                 const alpn = await probeAlpn(probeUrl.hostname, port, alpnAgentOptions);
                 if (alpn === 'h2') useHttp2 = true;
             }
@@ -435,13 +459,12 @@ async function executeNodeRequest(request) {
             }
         }
 
-        if (request.customCaPaths && request.customCaPaths.length > 0) {
-            try {
-                const cas = await Promise.all(request.customCaPaths.map(p => fsp.readFile(p)));
-                agentOptions.ca = cas;
-            } catch (err) {
-                logError('Failed to read CA bundle files', err);
-            }
+        try {
+            const ca = await resolveCaForRequest(request);
+            if (ca) agentOptions.ca = ca;
+        } catch (err) {
+            logError('Failed to read CA bundle files', err);
+            throw new Error(`CA bundle error: ${err.message}`);
         }
     }
 
@@ -753,13 +776,12 @@ async function executeHttp2Request(request) {
         }
     }
 
-    if (request.customCaPaths && request.customCaPaths.length > 0) {
-        try {
-            const cas = await Promise.all(request.customCaPaths.map(p => fsp.readFile(p)));
-            connectOptions.ca = cas;
-        } catch (err) {
-            logError('Failed to read CA bundle files', err);
-        }
+    try {
+        const ca = await resolveCaForRequest(request);
+        if (ca) connectOptions.ca = ca;
+    } catch (err) {
+        logError('Failed to read CA bundle files', err);
+        throw new Error(`CA bundle error: ${err.message}`);
     }
 
     const headers = { ...request.headers };

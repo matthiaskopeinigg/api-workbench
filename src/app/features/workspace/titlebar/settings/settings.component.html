@@ -210,6 +210,7 @@
         </div>
 
         <h3 class="settings-section">Managed Certificates</h3>
+        <p class="cert-hint">Client cert for each hostname (mTLS), like Postman. Server TLS still uses the built-in CA list unless you enable <strong>Ignore invalid SSL</strong> above.</p>
         <ul class="certificate-list">
           <li *ngFor="let cert of certificates.controls; let i = index" (click)="editCertificate(i)"
             [class.active]="editingIndex === i">
