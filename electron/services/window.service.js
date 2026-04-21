@@ -69,6 +69,11 @@ function resolveAsset(relativePath) {
     return path.join(app.getAppPath(), 'public', relativePath);
 }
 
+function resolveWindowIcon() {
+    if (process.platform === 'win32') return resolveAsset('icon.ico');
+    return resolveAsset('logo.png');
+}
+
 function createSplashWindow() {
     splashWindow = new BrowserWindow({
         width: 340,
@@ -76,7 +81,7 @@ function createSplashWindow() {
         frame: false,
         transparent: true,
         alwaysOnTop: true,
-        icon: resolveAsset("logo.png"),
+        icon: resolveWindowIcon(),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true
@@ -107,7 +112,7 @@ async function createWindow() {
         frame: false,
         titleBarStyle: "hidden",
         trafficLightPosition: { x: 12, y: 10 },
-        icon: resolveAsset("logo.png"),
+        icon: resolveWindowIcon(),
         show: false, 
         backgroundColor: getFirstPaintBackgroundColor(),
         webPreferences: {
