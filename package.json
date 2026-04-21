@@ -4,6 +4,7 @@
   "description": "A local-first, open-source Postman alternative for API testing and development.",
   "author": {
     "name": "Matthias Kopeinigg",
+    "email": "matthiaskopeinigg@gmail.com",
     "url": "https://github.com/matthiaskopeinigg"
   },
   "homepage": "https://matthiaskopeinigg.github.io/api-workbench/",
@@ -82,7 +83,8 @@
         "AppImage",
         "deb"
       ],
-      "icon": "public/icon.png"
+      "icon": "public/icon.png",
+      "category": "Development"
     },
     "mac": {
       "target": "dmg",
