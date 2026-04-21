@@ -69,8 +69,7 @@
         "portable"
       ],
       "icon": "public/icon.ico",
-      "forceCodeSigning": false,
-      "signAndEditExecutable": false
+      "forceCodeSigning": false
     },
     "nsis": {
       "oneClick": false,
