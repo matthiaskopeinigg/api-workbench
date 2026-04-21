@@ -155,7 +155,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         return `Downloading update\u2026 ${p}%`;
       }
       case 'downloaded': return `Version ${s.info?.version ?? ''} is ready to install.`;
-      case 'error': return `Update error: ${s.info?.message ?? 'unknown error'}`;
+      case 'error': return `Couldn\u2019t check for updates. Please try again later.`;
       case 'disabled': return s.info?.reason ?? 'Auto-update is disabled.';
       default: return '';
     }
@@ -166,7 +166,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     this.settingsForm = this.fb.group({
       ui: this.fb.group({
-        theme: [settings?.ui?.theme ?? Theme.DARK, Validators.required],
+        theme: [settings?.ui?.theme ?? Theme.SYSTEM, Validators.required],
         closeSidebarOnOutsideClick: [settings?.ui?.closeSidebarOnOutsideClick ?? true],
         saveOpenTabs: [settings?.ui?.saveOpenTabs ?? true],
         folderClickBehavior: [settings?.ui?.folderClickBehavior ?? 'both'],

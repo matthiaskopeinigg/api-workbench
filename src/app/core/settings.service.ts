@@ -4,7 +4,7 @@ import { HttpMethod } from '@models/request';
 
 const DEFAULT_SETTINGS: Settings = {
   ui: {
-    theme: Theme.LIGHT,
+    theme: Theme.SYSTEM,
     closeSidebarOnOutsideClick: false,
     saveOpenTabs: true,
     folderClickBehavior: 'both',
