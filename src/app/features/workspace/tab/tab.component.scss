@@ -1,0 +1,343 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--aw-surface-muted, var(--surface-alt));
+  padding: 0 4px;
+  z-index: 5;
+  user-select: none;
+  position: relative;
+  height: var(--aw-tabs-bar-height, 40px);
+  min-height: var(--aw-tabs-bar-height, 40px);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--aw-border, var(--border-color));
+
+  .tabs-container {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    align-items: center;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    height: 100%;
+    padding: 0 2px;
+  }
+
+  .scroll-button {
+    background: transparent;
+    border: 0;
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 40%);
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    border-radius: var(--aw-radius-sm, 6px);
+    transition: background-color var(--aw-duration-fast, 120ms) ease,
+      color var(--aw-duration-fast, 120ms) ease;
+    font-size: 1rem;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 92%);
+      color: var(--aw-text, var(--text-color));
+    }
+
+    &:focus { outline: none; }
+    &:focus-visible {
+      outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+      outline-offset: -2px;
+    }
+
+    &:disabled {
+      opacity: 0.25;
+      cursor: default;
+    }
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 0 12px;
+    height: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--aw-radius-sm, 6px);
+    cursor: pointer;
+    position: relative;
+    transition: background-color var(--aw-duration-fast, 120ms) ease,
+      color var(--aw-duration-fast, 120ms) ease,
+      border-color var(--aw-duration-fast, 120ms) ease;
+    white-space: nowrap;
+    min-width: 90px;
+    max-width: 200px;
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 30%);
+
+    &:hover {
+      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 92%);
+      color: var(--aw-text, var(--text-color));
+
+      .close-tab { opacity: 0.6; }
+    }
+
+    &.active {
+      background: var(--aw-surface, var(--surface));
+      color: var(--aw-text, var(--text-color));
+      font-weight: 600;
+      border-color: var(--aw-border, var(--border-color));
+      box-shadow: var(--aw-shadow-sm);
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: -1px;
+        height: 2px;
+        border-radius: 2px 2px 0 0;
+        background: var(--secondary-color);
+      }
+
+      .close-tab { opacity: 0.7; }
+    }
+
+    &.dragging,
+    &.dragging.active {
+      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 94%);
+      border: 1px dashed color-mix(in srgb, var(--secondary-color), transparent 55%);
+      color: transparent !important;
+      box-shadow: none;
+      transform: scale(0.98);
+      transition:
+        transform var(--aw-duration-fast, 120ms) ease,
+        background-color var(--aw-duration-fast, 120ms) ease,
+        border-color var(--aw-duration-fast, 120ms) ease;
+
+      .close-tab { opacity: 0 !important; pointer-events: none; }
+      &::after { opacity: 0; }
+    }
+
+    .tab-title {
+      font-size: 0.78rem;
+      color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      letter-spacing: -0.01em;
+    }
+
+    .close-tab {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      color: inherit;
+      font-size: 14px;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 4px;
+      opacity: 0;
+      transition: background-color var(--aw-duration-fast, 120ms) ease,
+        opacity var(--aw-duration-fast, 120ms) ease,
+        color var(--aw-duration-fast, 120ms) ease;
+
+      &:focus { outline: none; }
+      &:focus-visible {
+        outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+        outline-offset: 2px;
+        opacity: 1;
+      }
+
+      &:hover {
+        background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 80%);
+        color: var(--aw-text, var(--text-color));
+        opacity: 1 !important;
+      }
+    }
+  }
+}
+
+.tab-content {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  z-index: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+
+  app-request,
+  app-history,
+  app-folder,
+  app-environment {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+.context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: transparent;
+}
+
+.context-menu {
+  position: fixed;
+  background: var(--aw-surface, var(--surface));
+  border: 1px solid var(--aw-border, var(--border-color));
+  border-radius: var(--aw-radius-md, 8px);
+  box-shadow: var(--aw-shadow-lg);
+  padding: 4px;
+  min-width: 200px;
+  animation: scaleIn 0.12s var(--aw-ease-standard, ease-out);
+
+  .menu-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--aw-text, var(--text-color));
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color var(--aw-duration-fast, 120ms) ease,
+      color var(--aw-duration-fast, 120ms) ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--secondary-color), transparent 90%);
+      color: var(--secondary-color);
+    }
+
+    &.danger {
+      color: var(--aw-status-error, #ef4444);
+
+      &:hover {
+        background: color-mix(in srgb, var(--aw-status-error, #ef4444), transparent 90%);
+        color: var(--aw-status-error, #ef4444);
+      }
+    }
+  }
+
+  .menu-divider {
+    height: 1px;
+    background: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 30%);
+    margin: 4px 6px;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tab-defer-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  font-size: 13px;
+  color: var(--aw-text, var(--text-color));
+  background: var(--aw-surface-muted, var(--surface-alt));
+
+  .defer-label {
+    opacity: 0.7;
+  }
+}
+
+.defer-skeleton {
+  width: min(420px, 85%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.defer-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 35%);
+  width: 100%;
+
+  &.short {
+    width: 55%;
+  }
+
+  &.med {
+    width: 72%;
+  }
+}
+
+.defer-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.defer-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 88%),
+    transparent
+  );
+  animation: defer-shimmer-slide 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .defer-shimmer::after {
+    animation: none;
+    opacity: 0.35;
+    transform: none;
+  }
+}
+
+@keyframes defer-shimmer-slide {
+  100% {
+    transform: translateX(100%);
+  }
+}
+

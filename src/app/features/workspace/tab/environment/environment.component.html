@@ -1,0 +1,61 @@
+<div class="environment-tab disable-select">
+  <div class="key-value-label">
+    <span class="key-label">Key</span>
+    <span class="value-label">Value</span>
+    <span class="desc-label">Description</span>
+    <span></span>
+  </div>
+
+  <div class="variables-list">
+    <div class="variable-item" *ngFor="let variable of getValues(); let i = index; trackBy: trackByIndex">
+
+      <div class="input-group">
+        <input type="text" [value]="variable.key" (input)="updateValue($event, i, 'key')" (blur)="onBlur(i)"
+          placeholder="Key" />
+      </div>
+
+      <div class="input-group">
+        <input [type]="variable.visible ? 'text' : 'password'" [value]="variable.value"
+          (input)="updateValue($event, i, 'value')" (blur)="onBlur(i)" placeholder="Value"
+          style="padding-right: 36px;" />
+        <button class="visibility-btn" (click)="toggleVisibility(i)" tabindex="-1"
+                [attr.aria-label]="variable.visible ? 'Hide value' : 'Show value'">
+          <svg *ngIf="variable.visible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <svg *ngIf="!variable.visible" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+            <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+            <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="input-group">
+        <input type="text" [value]="variable.description || ''" (input)="updateValue($event, i, 'description')"
+          (blur)="onBlur(i)" placeholder="Description" />
+      </div>
+
+      <button class="delete-btn" (click)="removeValueEntry(i)" aria-label="Delete variable entry">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <button class="add-btn" (click)="addValueEntry()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Add variable
+  </button>
+</div>

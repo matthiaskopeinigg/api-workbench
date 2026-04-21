@@ -1,0 +1,25 @@
+<div class="dropdown-container" [class.open]="isOpen">
+    <button type="button" class="dropdown-trigger" (click)="toggle()" [attr.aria-expanded]="isOpen"
+            [class.is-placeholder]="!selectedLabel || selectedLabel === placeholder">
+        <span class="label">{{ selectedLabel }}</span>
+        <svg class="arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+            <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                stroke-linejoin="round" />
+        </svg>
+    </button>
+
+    <div class="backdrop" *ngIf="isOpen" (click)="close()"></div>
+
+    <div class="dropdown-menu" *ngIf="isOpen" [class.align-right]="align === 'right'" role="listbox">
+        <button type="button" class="dropdown-item" *ngFor="let option of options"
+                [class.selected]="option.value === value" role="option"
+                [attr.aria-selected]="option.value === value" (click)="select(option)">
+            <span class="dropdown-item-label">{{ option.label }}</span>
+            <svg class="dropdown-item-check" *ngIf="option.value === value" width="12" height="12"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </button>
+    </div>
+</div>

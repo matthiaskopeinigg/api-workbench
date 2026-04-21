@@ -1,0 +1,59 @@
+<nav class="sidebar disable-select">
+  <div class="sidebar-nav">
+    <ul>
+      <li *ngFor="let item of items" [class.active]="item.active">
+        <button type="button" class="sidebar-link" [title]="item.label"
+                [attr.aria-label]="item.label" (click)="selectItemFromClick(item)">
+          <span class="icon" *ngIf="item.icon">
+            <svg *ngIf="item.icon.length > 4; else emojiIcon" width="22" height="22" viewBox="0 0 24 24"
+                 aria-hidden="true">
+              <path [attr.d]="item.icon" fill="currentColor"></path>
+            </svg>
+            <ng-template #emojiIcon><span class="emoji">{{ item.icon }}</span></ng-template>
+          </span>
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  <div class="sidebar-tools" *ngIf="toolItems.length">
+    <ul>
+      <li *ngFor="let item of toolItems" [class.active]="item.active">
+        <button type="button" class="sidebar-link" [title]="item.label"
+                [attr.aria-label]="item.label" (click)="selectItemFromClick(item)">
+          <span class="icon" *ngIf="item.icon">
+            <svg *ngIf="item.icon.length > 4; else emojiIcon" width="22" height="22" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path [attr.d]="item.icon"></path>
+            </svg>
+            <ng-template #emojiIcon><span class="emoji">{{ item.icon }}</span></ng-template>
+          </span>
+        </button>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<aside *ngIf="!collapsed && selectedItem" class="secondary-sidebar disable-select" [class.compact]="isCompact"
+  [style.width.px]="secondarySidebarWidth">
+
+  <div class="secondary-header">
+    <div class="header-left">
+      {{ selectedItem.label }}
+    </div>
+    <button class="close-btn" (click)="closeSecondarySidebar()" aria-label="Close panel">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="secondary-body">
+    <ng-container *ngIf="selectedItem.component" [ngComponentOutlet]="selectedItem.component">
+    </ng-container>
+  </div>
+
+  <div class="resizer" (mousedown)="startResizing($event)"></div>
+</aside>

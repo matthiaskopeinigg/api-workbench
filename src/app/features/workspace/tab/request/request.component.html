@@ -1,0 +1,1028 @@
+<div class="request-area" #requestArea *ngIf="request">
+
+  <div class="request-controls disable-select">
+    <app-dropdown class="method-select" [options]="httpMethods" [value]="HttpMethod[request.httpMethod]"
+      (valueChange)="updateMethod($event)">
+    </app-dropdown>
+
+    <app-variable-input class="url-input" [placeholder]="'Enter URL'" [(ngModel)]="request.url"
+      (ngModelChange)="updateUrlManual($event)" [activeVariables]="activeVariables"
+      (onEnter)="sendRequest()"></app-variable-input>
+
+    <button class="btn btn-accent send-btn" (click)="sendRequest()" [disabled]="isLoading">
+      <ng-container *ngIf="!isLoading">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        <span>Send</span>
+      </ng-container>
+      <div class="btn-spinner" *ngIf="isLoading"></div>
+    </button>
+    <button class="btn code-btn" (click)="showSnippets = true" title="Generate Code Snippets">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="16 18 22 12 16 6"></polyline>
+        <polyline points="8 6 2 12 8 18"></polyline>
+      </svg>
+      <span>Code</span>
+    </button>
+  </div>
+
+  <app-code-snippets-dialog *ngIf="showSnippets" [request]="request" (close)="showSnippets = false">
+  </app-code-snippets-dialog>
+
+  <div class="request-tabs-container" *ngIf="!isRequestHidden">
+    <div class="tab-buttons">
+      <div class="tabs-group" role="tablist">
+        <button role="tab" [class.active]="activeRequestTab === 'params'" (click)="setActiveRequestTab('params')">
+          <span>Params</span>
+          <span class="tab-badge" *ngIf="(request.httpParameters?.length || 0) > 0">{{ request.httpParameters!.length }}</span>
+        </button>
+        <button role="tab" [class.active]="activeRequestTab === 'headers'" (click)="setActiveRequestTab('headers')">
+          <span>Headers</span>
+          <span class="tab-badge" *ngIf="(request.httpHeaders?.length || 0) > 0">{{ request.httpHeaders!.length }}</span>
+        </button>
+        <button role="tab" [class.active]="activeRequestTab === 'body'" (click)="setActiveRequestTab('body')">
+          <span>Body</span>
+          <span class="tab-dot" *ngIf="request.requestBody && request.requestBody.trim() !== '' && request.requestBody.trim() !== '{}'" aria-hidden="true"></span>
+        </button>
+        <button role="tab" [class.active]="activeRequestTab === 'scripts'" (click)="setActiveRequestTab('scripts')">
+          <span>Scripts</span>
+          <span class="tab-dot" *ngIf="(request.script?.preRequest || request.script?.postRequest)" aria-hidden="true"></span>
+        </button>
+        <button role="tab" [class.active]="activeRequestTab === 'auth'" (click)="setActiveRequestTab('auth')">
+          <span>Auth</span>
+          <span class="tab-dot" *ngIf="request.auth && request.auth.type !== 'none' && request.auth.type !== 'inherit'" aria-hidden="true"></span>
+        </button>
+        <button role="tab" [class.active]="activeRequestTab === 'settings'" (click)="setActiveRequestTab('settings')">
+          <span>Settings</span>
+        </button>
+      </div>
+
+      <div class="env-group">
+        <app-dropdown [options]="environmentOptions" [value]="selectedEnvironmentId || 'none'"
+          (valueChange)="onEnvironmentChange($event)" placeholder="Select Environment" align="right">
+        </app-dropdown>
+      </div>
+    </div>
+
+    <div class="tab-content">
+
+      <div *ngIf="activeRequestTab === 'params'" class="params-section tab-panel">
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <div class="panel-section-title">
+              <h4>Query Params</h4>
+              <span class="muted-count" *ngIf="queryParams.length > 0">{{ queryParams.length }}</span>
+            </div>
+            <button class="btn-ghost" (click)="toggleParamsBulkEdit()">
+              {{ isParamsBulkEdit ? 'Edit Form' : 'Bulk Edit' }}
+            </button>
+          </div>
+
+          <ng-container *ngIf="!isParamsBulkEdit">
+            <div class="kv-table" *ngIf="queryParams.length > 0">
+              <div class="kv-grid-header">
+                <span></span>
+                <span>Key</span>
+                <span>Value</span>
+                <span>Description</span>
+                <span></span>
+              </div>
+              <div *ngFor="let param of queryParams; let i = index; trackBy: trackByIndex" class="kv-row"
+                [class.disabled]="!param.enabled">
+                <input type="checkbox" [(ngModel)]="param.enabled" (ngModelChange)="onQueryParamChange()" />
+                <app-variable-input placeholder="Key" [(ngModel)]="param.key" (ngModelChange)="onQueryParamChange()"
+                  [activeVariables]="activeVariables"></app-variable-input>
+                <app-variable-input placeholder="Value" [(ngModel)]="param.value" (ngModelChange)="onQueryParamChange()"
+                  [activeVariables]="activeVariables"></app-variable-input>
+                <input type="text" placeholder="Description" [(ngModel)]="param.description"
+                  (ngModelChange)="saveRequest()" />
+                <button type="button" (click)="removeQueryParam(i)" class="btn-icon" title="Remove">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path>
+                    <path d="M10 11v6M14 11v6"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="empty-row" *ngIf="queryParams.length === 0">No query params yet</div>
+            <button type="button" class="btn-add-row" (click)="addQueryParam()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Param
+            </button>
+          </ng-container>
+
+          <ng-container *ngIf="isParamsBulkEdit">
+            <div class="bulk-editor">
+              <app-code-editor [content]="paramsBulkText" (contentChange)="paramsBulkText=$event" [language]="'plain'"
+                [activeVariables]="activeVariables" [hideToolbar]="true">
+              </app-code-editor>
+            </div>
+          </ng-container>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <div class="panel-section-title">
+              <h4>Path Variables</h4>
+              <span class="muted-count" *ngIf="pathParams.length > 0">{{ pathParams.length }}</span>
+            </div>
+            <button class="btn-ghost" (click)="togglePathBulkEdit()">
+              {{ isPathBulkEdit ? 'Edit Form' : 'Bulk Edit' }}
+            </button>
+          </div>
+
+          <ng-container *ngIf="!isPathBulkEdit">
+            <div class="kv-table" *ngIf="pathParams.length > 0">
+              <div class="kv-grid-header">
+                <span></span>
+                <span>Key</span>
+                <span>Value</span>
+                <span>Description</span>
+                <span></span>
+              </div>
+              <div *ngFor="let param of pathParams; let i = index; trackBy: trackByIndex" class="kv-row"
+                [class.disabled]="!param.enabled">
+                <input type="checkbox" [(ngModel)]="param.enabled" (ngModelChange)="saveRequest()" />
+                <span class="path-key" [title]="param.key">{{param.key}}</span>
+                <app-variable-input placeholder="Value" [(ngModel)]="param.value" (ngModelChange)="saveRequest()"
+                  [activeVariables]="activeVariables"></app-variable-input>
+                <input type="text" placeholder="Description" [(ngModel)]="param.description"
+                  (ngModelChange)="saveRequest()" />
+                <span></span>
+              </div>
+            </div>
+            <div class="empty-row" *ngIf="pathParams.length === 0">
+              Add <code>:variable</code> segments in the URL to define path variables
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="isPathBulkEdit">
+            <div class="bulk-editor">
+              <app-code-editor [content]="pathBulkText" (contentChange)="pathBulkText=$event" [language]="'plain'"
+                [activeVariables]="activeVariables" [hideToolbar]="true">
+              </app-code-editor>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <div *ngIf="activeRequestTab === 'headers'" class="headers-section tab-panel">
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <div class="panel-section-title">
+              <h4>Headers</h4>
+              <span class="muted-count" *ngIf="effectiveHeaders.length > 0">{{ effectiveHeaders.length }}</span>
+            </div>
+            <button class="btn-ghost" (click)="toggleHeadersBulkEdit()">
+              {{ isHeadersBulkEdit ? 'Edit Form' : 'Bulk Edit' }}
+            </button>
+          </div>
+
+          <ng-container *ngIf="!isHeadersBulkEdit">
+            <div class="kv-table" *ngIf="effectiveHeaders.length > 0">
+              <div class="kv-grid-header">
+                <span></span>
+                <span>Key</span>
+                <span>Value</span>
+                <span>Description</span>
+                <span></span>
+              </div>
+              <div *ngFor="let header of effectiveHeaders; trackBy: trackByIndex" class="kv-row"
+                [class.disabled]="!header.enabled"
+                [class.inherited-header]="header.isDefault"
+                [class.overridden-header]="header.isOverridden">
+                <input type="checkbox" [checked]="header.enabled" (change)="toggleHeaderEnabled(header)"
+                  [disabled]="header.isDefault && header.isOverridden" />
+
+                <app-variable-input *ngIf="!header.isDefault" placeholder="Key" [(ngModel)]="header.key"
+                  (ngModelChange)="saveRequest()" [activeVariables]="activeVariables"></app-variable-input>
+                <span *ngIf="header.isDefault" class="header-key-readonly" [title]="header.key">{{header.key}}</span>
+
+                <app-variable-input *ngIf="!header.isDefault" placeholder="Value" [(ngModel)]="header.value"
+                  (ngModelChange)="saveRequest()" [activeVariables]="activeVariables"></app-variable-input>
+                <span *ngIf="header.isDefault" class="header-key-readonly" [title]="header.value">{{header.value}}</span>
+
+                <input *ngIf="!header.isDefault" type="text" placeholder="Description" [(ngModel)]="header.description"
+                  (ngModelChange)="saveRequest()" />
+
+                <button type="button" class="btn-icon" *ngIf="!header.isDefault"
+                  (click)="removeHeader(header.index)" title="Remove">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path>
+                    <path d="M10 11v6M14 11v6"></path>
+                  </svg>
+                </button>
+                <span class="default-badge" *ngIf="header.isDefault">Default</span>
+              </div>
+            </div>
+            <div class="empty-row" *ngIf="effectiveHeaders.length === 0">No headers yet</div>
+            <button type="button" class="btn-add-row" (click)="addHeader()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Header
+            </button>
+          </ng-container>
+
+          <ng-container *ngIf="isHeadersBulkEdit">
+            <div class="bulk-editor">
+              <app-code-editor [content]="headersBulkText" (contentChange)="headersBulkText=$event" [language]="'plain'"
+                [activeVariables]="activeVariables" [hideToolbar]="true">
+              </app-code-editor>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+
+      <div *ngIf="activeRequestTab === 'auth'" class="auth-section tab-panel scrollable">
+        <div class="auth-config">
+          <div class="auth-type-selector">
+            <label>Auth Type</label>
+            <app-dropdown [options]="authTypeOptions" [(value)]="request.auth!.type" (valueChange)="onAuthTypeChange()">
+            </app-dropdown>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'bearer'">
+            <div class="auth-row">
+              <label>Token</label>
+              <app-variable-input [(ngModel)]="request.auth!.bearer!.token" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Token"></app-variable-input>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'basic'">
+            <div class="auth-row">
+              <label>Username</label>
+              <app-variable-input [(ngModel)]="request.auth!.basic!.username" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Username"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Password</label>
+              <app-variable-input [(ngModel)]="request.auth!.basic!.password" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Password" type="password"></app-variable-input>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'api_key'">
+            <div class="auth-row">
+              <label>Key</label>
+              <app-variable-input [(ngModel)]="request.auth!.apiKey!.key" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Key"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Value</label>
+              <app-variable-input [(ngModel)]="request.auth!.apiKey!.value" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Value"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Add to</label>
+              <app-dropdown [options]="apiKeyLocationOptions" [(value)]="request.auth!.apiKey!.addTo"
+                (valueChange)="saveRequest()">
+              </app-dropdown>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'oauth2'">
+            <div class="auth-row">
+              <label>Grant Type</label>
+              <app-dropdown [options]="oauthGrantTypeOptions" [(value)]="request.auth!.oauth2!.grantType"
+                (valueChange)="saveRequest()">
+              </app-dropdown>
+            </div>
+
+            <ng-container *ngIf="request.auth!.oauth2!.grantType === 'authorization_code'">
+              <div class="auth-row">
+                <label>Callback URL</label>
+                <input type="text" readonly value="http://127.0.0.1:4200/oauth/callback"
+                  style="opacity: 0.7; cursor: default; background: var(--surface-alt); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 12px; border-radius: 6px;">
+              </div>
+              <div class="auth-row">
+                <label>Auth URL</label>
+                <app-variable-input [(ngModel)]="request.auth!.oauth2!.authUrl" (ngModelChange)="saveRequest()"
+                  [activeVariables]="activeVariables"
+                  placeholder="https://api.example.com/oauth/authorize"></app-variable-input>
+              </div>
+            </ng-container>
+
+            <div class="auth-row">
+              <label>Access Token URL</label>
+              <app-variable-input [(ngModel)]="request.auth!.oauth2!.accessTokenUrl" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables"
+                placeholder="https://api.example.com/oauth/token"></app-variable-input>
+            </div>
+
+            <div class="auth-row">
+              <label>Client ID</label>
+              <app-variable-input [(ngModel)]="request.auth!.oauth2!.clientId" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Client ID"></app-variable-input>
+            </div>
+
+            <div class="auth-row">
+              <label>Client Secret</label>
+              <app-variable-input [(ngModel)]="request.auth!.oauth2!.clientSecret" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Client Secret" type="password"></app-variable-input>
+            </div>
+
+            <div class="auth-row">
+              <label>Scope</label>
+              <app-variable-input [(ngModel)]="request.auth!.oauth2!.scope" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="read:user write:user"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Access Token</label>
+              <app-variable-input [(ngModel)]="request.auth!.oauth2!.accessToken" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Access Token"></app-variable-input>
+            </div>
+            <button class="btn-primary" style="margin-top: 10px;" (click)="fetchOAuth2Token()">Get New Access
+              Token</button>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'digest'">
+            <div class="auth-row">
+              <label>Username</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.username" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Username"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Password</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.password" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Password" type="password"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Realm</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.realm" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="e.g. protected-area"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Nonce</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.nonce" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Server-issued nonce"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Algorithm</label>
+              <app-dropdown [options]="digestAlgorithmOptions" [(value)]="request.auth!.digest!.algorithm"
+                (valueChange)="saveRequest()"></app-dropdown>
+            </div>
+            <div class="auth-row">
+              <label>QOP</label>
+              <app-dropdown [options]="digestQopOptions" [(value)]="request.auth!.digest!.qop"
+                (valueChange)="saveRequest()"></app-dropdown>
+            </div>
+            <div class="auth-row">
+              <label>Nonce Count</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.nonceCount" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="00000001"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Client Nonce</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.clientNonce" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="(auto if empty)"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Opaque</label>
+              <app-variable-input [(ngModel)]="request.auth!.digest!.opaque" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'aws_sigv4'">
+            <div class="auth-row">
+              <label>Access Key ID</label>
+              <app-variable-input [(ngModel)]="request.auth!.awsSigV4!.accessKeyId" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="AKIA..."></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Secret Access Key</label>
+              <app-variable-input [(ngModel)]="request.auth!.awsSigV4!.secretAccessKey" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Secret" type="password"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Session Token</label>
+              <app-variable-input [(ngModel)]="request.auth!.awsSigV4!.sessionToken" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Region</label>
+              <app-variable-input [(ngModel)]="request.auth!.awsSigV4!.region" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="us-east-1"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Service</label>
+              <app-variable-input [(ngModel)]="request.auth!.awsSigV4!.service" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="execute-api"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Add Authorization to</label>
+              <app-dropdown [options]="awsAddToOptions" [(value)]="request.auth!.awsSigV4!.addTo"
+                (valueChange)="saveRequest()"></app-dropdown>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'hawk'">
+            <div class="auth-row">
+              <label>Hawk Auth ID</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.authId" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Auth ID"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Hawk Auth Key</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.authKey" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Shared secret" type="password"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Algorithm</label>
+              <app-dropdown [options]="hawkAlgorithmOptions" [(value)]="request.auth!.hawk!.algorithm"
+                (valueChange)="saveRequest()"></app-dropdown>
+            </div>
+            <div class="auth-row">
+              <label>User</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.user" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Nonce</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.nonce" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="(auto if empty)"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>ext</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.extData" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>app</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.app" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Delegated By (dlg)</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.delegatedBy" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Timestamp</label>
+              <app-variable-input [(ngModel)]="request.auth!.hawk!.timestamp" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="(auto if empty)"></app-variable-input>
+            </div>
+            <div class="auth-row checkbox-row">
+              <label>
+                <input type="checkbox" [(ngModel)]="request.auth!.hawk!.includePayloadHash"
+                  (ngModelChange)="saveRequest()" />
+                Include payload hash
+              </label>
+            </div>
+          </div>
+
+          <div class="auth-fields" *ngIf="request.auth!.type === 'ntlm'">
+            <div class="auth-notice" style="margin: 0;">
+              NTLM auth requires a multi-leg handshake against the target server and
+              is not yet supported. Requests will be sent without an Authorization
+              header.
+            </div>
+            <div class="auth-row">
+              <label>Username</label>
+              <app-variable-input [(ngModel)]="request.auth!.ntlm!.username" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Username"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Password</label>
+              <app-variable-input [(ngModel)]="request.auth!.ntlm!.password" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Password" type="password"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Domain</label>
+              <app-variable-input [(ngModel)]="request.auth!.ntlm!.domain" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+            <div class="auth-row">
+              <label>Workstation</label>
+              <app-variable-input [(ngModel)]="request.auth!.ntlm!.workstation" (ngModelChange)="saveRequest()"
+                [activeVariables]="activeVariables" placeholder="Optional"></app-variable-input>
+            </div>
+          </div>
+        </div>
+        <div class="auth-notice" *ngIf="request.auth!.type !== 'none'">
+          <p>Auth headers/params are automatically synthesized and shown as "Default" in their respective tabs.</p>
+        </div>
+      </div>
+
+      <div *ngIf="activeRequestTab === 'body'" class="body-section tab-panel">
+        <div class="body-type-selector segmented" role="tablist">
+          <button role="tab" [class.active]="bodyMode === 'json'" (click)="setBodyMode('json')">JSON</button>
+          <button role="tab" [class.active]="bodyMode === 'xml'" (click)="setBodyMode('xml')">XML</button>
+          <button role="tab" [class.active]="bodyMode === 'text'" (click)="setBodyMode('text')">Text</button>
+          <button role="tab" [class.active]="bodyMode === 'graphql'" (click)="setBodyMode('graphql')">GraphQL</button>
+          <button role="tab" [class.active]="bodyMode === 'form-data'" (click)="setBodyMode('form-data')">Form-data</button>
+          <button role="tab" [class.active]="bodyMode === 'urlencoded'" (click)="setBodyMode('urlencoded')">x-www-form-urlencoded</button>
+          <button role="tab" [class.active]="bodyMode === 'binary'" (click)="setBodyMode('binary')">Binary</button>
+        </div>
+
+        <div class="body-editor-shell" *ngIf="bodyMode === 'json' || bodyMode === 'xml' || bodyMode === 'text'">
+          <app-code-editor [content]="request.requestBody"
+            (contentChange)="updateBody($event)" [language]="getBodyLanguage()" title="Request Body"
+            [activeVariables]="activeVariables">
+          </app-code-editor>
+        </div>
+
+        <div *ngIf="bodyMode === 'graphql'" class="graphql-editor-container">
+          <app-code-editor [content]="request.graphqlQuery || ''"
+            (contentChange)="request.graphqlQuery=$event; saveRequest()" [language]="'graphql'" title="Query"
+            [activeVariables]="activeVariables" style="flex: 1;">
+          </app-code-editor>
+          <app-code-editor [content]="request.graphqlVariables || ''"
+            (contentChange)="request.graphqlVariables=$event; saveRequest()" [language]="'json'" title="Variables"
+            [activeVariables]="activeVariables" style="height: 150px;">
+          </app-code-editor>
+        </div>
+
+        <div *ngIf="bodyMode === 'form-data'" class="structured-body form-data">
+          <div class="kv-header">
+            <span>Key</span><span>Value</span><span>Type</span><span></span>
+          </div>
+          <div *ngFor="let f of formDataFields; let i = index; trackBy: trackByIndex" class="kv-row">
+            <label class="kv-enable" [attr.title]="f.enabled === false ? 'Disabled' : 'Enabled'">
+              <input type="checkbox" [checked]="f.enabled !== false" (change)="f.enabled = $any($event.target).checked; saveRequest()" />
+            </label>
+            <input class="kv-input" type="text" placeholder="key" [(ngModel)]="f.key" (ngModelChange)="saveRequest()" />
+            <ng-container [ngSwitch]="f.type">
+              <input *ngSwitchCase="'text'" class="kv-input" type="text" placeholder="value" [(ngModel)]="f.value" (ngModelChange)="saveRequest()" />
+              <div *ngSwitchCase="'file'" class="kv-file">
+                <span class="kv-file-path" [title]="f.filePath || ''">{{ f.filePath || 'No file selected' }}</span>
+                <button type="button" class="kv-file-btn" (click)="pickFormDataFile(i)">Choose…</button>
+              </div>
+            </ng-container>
+            <select class="kv-select" [ngModel]="f.type" (ngModelChange)="f.type = $event; saveRequest()">
+              <option value="text">Text</option>
+              <option value="file">File</option>
+            </select>
+            <button type="button" class="kv-remove" aria-label="Remove field" (click)="removeFormDataField(i)">×</button>
+          </div>
+          <div class="kv-actions">
+            <button type="button" class="add-btn" (click)="addFormDataField('text')">+ Text field</button>
+            <button type="button" class="add-btn" (click)="addFormDataField('file')">+ File field</button>
+          </div>
+        </div>
+
+        <div *ngIf="bodyMode === 'urlencoded'" class="structured-body urlencoded">
+          <div class="kv-header">
+            <span>Key</span><span>Value</span><span></span>
+          </div>
+          <div *ngFor="let f of urlencodedFields; let i = index; trackBy: trackByIndex" class="kv-row">
+            <label class="kv-enable">
+              <input type="checkbox" [checked]="f.enabled !== false" (change)="f.enabled = $any($event.target).checked; saveRequest()" />
+            </label>
+            <input class="kv-input" type="text" placeholder="key" [(ngModel)]="f.key" (ngModelChange)="saveRequest()" />
+            <input class="kv-input" type="text" placeholder="value" [(ngModel)]="f.value" (ngModelChange)="saveRequest()" />
+            <button type="button" class="kv-remove" aria-label="Remove field" (click)="removeUrlencodedField(i)">×</button>
+          </div>
+          <div class="kv-actions">
+            <button type="button" class="add-btn" (click)="addUrlencodedField()">+ Add field</button>
+          </div>
+        </div>
+
+        <div *ngIf="bodyMode === 'binary'" class="structured-body binary">
+          <div class="binary-row">
+            <div class="binary-path" [title]="request.body?.binary?.filePath || ''">
+              {{ request.body?.binary?.filePath || 'No file selected' }}
+            </div>
+            <button type="button" class="add-btn" (click)="pickBinaryFile()">Choose file…</button>
+            <button type="button" class="kv-remove" *ngIf="request.body?.binary?.filePath" (click)="clearBinaryFile()" aria-label="Clear">×</button>
+          </div>
+          <p class="binary-hint">The selected file will be sent as the raw request body. Content-Type is auto-detected from the file extension unless you set one in Headers.</p>
+        </div>
+      </div>
+
+      <div *ngIf="activeRequestTab === 'scripts'" class="scripts-section tab-panel">
+        <div class="script-block">
+          <app-code-editor [content]="request.script.preRequest || ''"
+            (contentChange)="request.script.preRequest=$event; saveRequest()" [language]="'javascript'"
+            title="Pre-request Script" [activeVariables]="activeVariables" class="script-editor">
+          </app-code-editor>
+        </div>
+
+        <div class="script-block">
+          <app-code-editor [content]="request.script.postRequest || ''"
+            (contentChange)="request.script.postRequest=$event; saveRequest()" [language]="'javascript'"
+            title="Post-request Script" [activeVariables]="activeVariables" class="script-editor">
+          </app-code-editor>
+        </div>
+      </div>
+
+      <div *ngIf="activeRequestTab === 'settings'" class="settings-section tab-panel scrollable">
+        <div class="settings-group">
+          <h4 class="group-title">Request Settings</h4>
+          <div class="setting-row">
+            <label class="setting-item">
+              <input type="checkbox" [(ngModel)]="request.settings!.followRedirects" (ngModelChange)="saveRequest()" />
+              <span class="setting-label">Follow Redirects</span>
+            </label>
+            <p class="setting-description">Automatically follow HTTP redirects.</p>
+          </div>
+          <div class="setting-row">
+            <label class="setting-item">
+              <input type="checkbox" [(ngModel)]="request.settings!.verifySsl" (ngModelChange)="saveRequest()" />
+              <span class="setting-label">SSL Verification</span>
+            </label>
+            <p class="setting-description">Verify SSL certificates for HTTPS requests.</p>
+          </div>
+          <div class="setting-row">
+            <label class="setting-item">
+              <input type="checkbox" [(ngModel)]="request.settings!.useCookies" (ngModelChange)="saveRequest()" />
+              <span class="setting-label">Manage Cookies</span>
+            </label>
+            <p class="setting-description">Enable automatic cookie management for this request.</p>
+          </div>
+        </div>
+
+        <div class="settings-group mock-settings">
+          <div class="mock-header">
+            <div class="mock-header-text">
+              <h4 class="group-title mock-title">
+                <span class="mock-title-icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 17l6-6 4 4 8-8"></path>
+                    <polyline points="14 7 22 7 22 15"></polyline>
+                  </svg>
+                </span>
+                Mock Variants
+              </h4>
+              <p class="setting-description mock-description">
+                Serve canned responses from the local mock server. Each variant gets a stable URL
+                you can point your client at.
+                <a class="mock-manage-link" (click)="openMockServerTab()" title="Open the Mock Server tab">
+                  Manage all in Mock Server →
+                </a>
+              </p>
+            </div>
+
+            <div class="mock-server-pill"
+                 [class.running]="mockStatus.status === 'running'"
+                 [class.error]="mockStatus.status === 'error'"
+                 [class.starting]="mockStatus.status === 'starting'">
+              <span class="mock-server-dot" aria-hidden="true"></span>
+              <div class="mock-server-info">
+                <span class="mock-server-state">
+                  {{ mockStatus.status === 'running' ? 'Server running'
+                      : (mockStatus.status === 'starting' ? 'Starting…'
+                      : (mockStatus.status === 'error' ? 'Server error' : 'Server stopped')) }}
+                </span>
+                <span class="mock-server-meta" *ngIf="mockStatus.status === 'running'">
+                  {{ mockStatus.baseUrl }}
+                </span>
+                <span class="mock-server-meta error-text" *ngIf="mockStatus.status === 'error' && mockStatus.error">
+                  {{ mockStatus.error }}
+                </span>
+              </div>
+              <button type="button" class="mock-server-toggle"
+                      *ngIf="mockStatus.status !== 'running'"
+                      (click)="startMockServer()">Start</button>
+              <button type="button" class="mock-server-toggle stop"
+                      *ngIf="mockStatus.status === 'running'"
+                      (click)="stopMockServer()">Stop</button>
+            </div>
+          </div>
+
+          <div class="mock-variant-list" *ngIf="request.mockVariants && request.mockVariants.length > 0">
+            <div class="mock-variant"
+                 *ngFor="let variant of request.mockVariants; let i = index; trackBy: trackByMockId"
+                 [class.is-active]="request.activeMockVariantId === variant.id">
+
+              <div class="mock-variant-head">
+                <button type="button"
+                        class="mock-variant-pin"
+                        [class.active]="request.activeMockVariantId === variant.id"
+                        [attr.aria-pressed]="request.activeMockVariantId === variant.id"
+                        [title]="request.activeMockVariantId === variant.id ? 'Active variant' : 'Set as active'"
+                        (click)="setActiveMockVariant(variant.id)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="12" r="6"></circle>
+                  </svg>
+                  <span class="mock-variant-pin-label">Active</span>
+                </button>
+
+                <div class="mock-variant-name-wrap">
+                  <input class="mock-variant-name" [(ngModel)]="variant.name"
+                         (ngModelChange)="onMockVariantChanged()"
+                         placeholder="Variant name" />
+                </div>
+
+                <div class="mock-variant-field" title="HTTP status code">
+                  <span class="mock-status-chip" [ngClass]="mockStatusClass(variant.statusCode)">
+                    {{ variant.statusCode || '—' }}
+                  </span>
+                  <input class="mock-variant-status" type="number" min="100" max="599"
+                         aria-label="Status code"
+                         [(ngModel)]="variant.statusCode"
+                         (ngModelChange)="onMockVariantChanged()" />
+                </div>
+
+                <label class="mock-variant-field with-label" title="Simulated latency in ms">
+                  <span class="mock-variant-suffix">ms</span>
+                  <input class="mock-variant-delay" type="number" min="0" step="50"
+                         aria-label="Delay in milliseconds"
+                         placeholder="0"
+                         [(ngModel)]="variant.delayMs"
+                         (ngModelChange)="onMockVariantChanged()" />
+                </label>
+
+                <div class="mock-variant-actions">
+                  <button type="button" class="icon-button" title="Duplicate variant"
+                          (click)="duplicateMockVariant(i)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  <button type="button" class="icon-button danger" title="Delete variant"
+                          (click)="removeMockVariant(i)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                      <path d="M10 11v6"></path>
+                      <path d="M14 11v6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mock-variant-url"
+                   *ngIf="mockStatus.status === 'running'"
+                   [class.is-active]="request.activeMockVariantId === variant.id">
+                <span class="mock-variant-url-label">URL</span>
+                <code class="mock-variant-url-code">{{ mockUrlFor(variant.id) }}</code>
+                <button type="button" class="mock-copy" (click)="copyMockUrl(variant.id)" title="Copy URL">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <div class="mock-variant-url offline" *ngIf="mockStatus.status !== 'running'">
+                <span class="mock-variant-url-hint">Start the server to get a shareable URL.</span>
+              </div>
+
+              <div class="mock-variant-body-wrap">
+                <div class="mock-variant-body-label">Response body</div>
+                <textarea class="mock-variant-body"
+                          [(ngModel)]="variant.body"
+                          (ngModelChange)="onMockVariantChanged()"
+                          rows="4"
+                          spellcheck="false"
+                          placeholder='{ "example": true }'></textarea>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="mock-add"
+                  [class.compact]="request.mockVariants && request.mockVariants.length > 0"
+                  (click)="addMockVariant()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span class="mock-add-text">Add variant</span>
+            <span class="mock-add-hint" *ngIf="!request.mockVariants || request.mockVariants.length === 0">
+              Define a fake response that this URL should return.
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="response-area" *ngIf="response && !isResponseHidden" [style.height.px]="responseHeight">
+
+    <div class="resize-handle" (mousedown)="onResizeStart($event)" title="Drag to resize">
+      <div class="handle-bar"></div>
+    </div>
+    <div class="response-section">
+      <div class="response-header-row">
+        <div class="response-title-group">
+          <button class="btn-hide-response" (click)="toggleResponseVisibility()" title="Hide Response">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <span class="response-label disable-select">Response</span>
+          <div class="response-tabs disable-select" role="tablist">
+            <button role="tab" [class.active]="activeResponseTab === 'body'" (click)="setActiveResponseTab('body')">Pretty</button>
+            <button role="tab" [class.active]="activeResponseTab === 'raw'" (click)="setActiveResponseTab('raw')">Raw</button>
+            <button role="tab" [class.active]="activeResponseTab === 'preview'" (click)="setActiveResponseTab('preview')">Preview</button>
+            <button role="tab" [class.active]="activeResponseTab === 'headers'" (click)="setActiveResponseTab('headers')">
+              <span>Headers</span>
+              <span class="tab-badge" *ngIf="response.headers.length > 0">{{ response.headers.length }}</span>
+            </button>
+            <button role="tab" [class.active]="activeResponseTab === 'cookies'" (click)="setActiveResponseTab('cookies')">
+              <span>Cookies</span>
+              <span class="tab-badge" *ngIf="response.cookies && response.cookies.length > 0">{{ response.cookies.length }}</span>
+            </button>
+            <button role="tab"
+                    [class.active]="activeResponseTab === 'tests'"
+                    *ngIf="response.testResults && response.testResults.length > 0"
+                    (click)="setActiveResponseTab('tests')">
+              <span>Tests</span>
+              <span class="tab-badge"
+                    [class.tab-badge-fail]="testSummary().failed > 0"
+                    [class.tab-badge-pass]="testSummary().failed === 0">
+                {{ testSummary().passed }}/{{ testSummary().total }}
+              </span>
+            </button>
+            <button role="tab" [class.active]="activeResponseTab === 'diff'" (click)="setActiveResponseTab('diff')">Diff</button>
+          </div>
+        </div>
+        <div class="status-bar">
+          <span class="status-chip" [ngClass]="{
+            'status-success': response.statusCode >= 200 && response.statusCode < 300,
+            'status-warning': response.statusCode >= 300 && response.statusCode < 400,
+            'status-error': response.statusCode >= 400 || response.statusCode === 0
+          }">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="code">{{ response.statusCode }}</span>
+            <span class="text" *ngIf="response.statusText">{{ response.statusText }}</span>
+          </span>
+          <span class="status-meta" title="Duration">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            {{ response.timeMs }} ms
+          </span>
+          <span class="status-meta" title="Size">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+            {{ response.size }} B
+          </span>
+          <span class="status-meta status-protocol" *ngIf="response.httpVersion" title="Wire protocol">
+            {{ response.httpVersion }}
+          </span>
+          <button class="status-action" type="button" (click)="openResponseSearch()" title="Find in response (Ctrl/Cmd+F)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Find
+          </button>
+          <button class="status-action" type="button" (click)="saveResponseToFile()" title="Save response body to file">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save
+          </button>
+        </div>
+      </div>
+
+      <div class="response-search-bar" *ngIf="isResponseSearchOpen && response">
+        <app-response-search
+          [isOpen]="isResponseSearchOpen"
+          [text]="response.body || ''"
+          (close)="closeResponseSearch()"
+          (segmentsChange)="onResponseSearchSegments($event)"
+          (matchesChange)="onResponseSearchMatches($event)"
+          (activeIndexChange)="onResponseSearchActive($event)">
+        </app-response-search>
+      </div>
+
+      <div class="response-content">
+        <div *ngIf="activeResponseTab === 'body'" class="response-body">
+          <ng-container *ngIf="!isResponseSearchOpen">
+            <app-code-editor [content]="response.body || ''" [language]="getResponseLanguage()" [readonly]="true"
+              [hideToolbar]="true" [activeVariables]="activeVariables">
+            </app-code-editor>
+          </ng-container>
+          <pre *ngIf="isResponseSearchOpen" class="response-search-body" aria-live="polite"><ng-container
+              *ngFor="let seg of responseSearchSegments; trackBy: trackByIndex"><mark
+              *ngIf="seg.matchIndex !== null"
+              [class.is-active]="seg.matchIndex === responseSearchActiveIndex">{{ seg.text }}</mark><span
+              *ngIf="seg.matchIndex === null">{{ seg.text }}</span></ng-container></pre>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'raw'" class="response-body">
+          <ng-container *ngIf="!isResponseSearchOpen">
+            <app-code-editor [content]="response.body || ''" [language]="'plain'" [readonly]="true" [hideToolbar]="true"
+              [activeVariables]="activeVariables">
+            </app-code-editor>
+          </ng-container>
+          <pre *ngIf="isResponseSearchOpen" class="response-search-body" aria-live="polite"><ng-container
+              *ngFor="let seg of responseSearchSegments; trackBy: trackByIndex"><mark
+              *ngIf="seg.matchIndex !== null"
+              [class.is-active]="seg.matchIndex === responseSearchActiveIndex">{{ seg.text }}</mark><span
+              *ngIf="seg.matchIndex === null">{{ seg.text }}</span></ng-container></pre>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'preview'" class="response-preview"
+          [class.image-preview]="previewKind === 'image'">
+          <iframe *ngIf="previewKind === 'html'" [attr.srcdoc]="htmlPreviewSrcdoc" sandbox=""
+            title="HTML response preview"></iframe>
+          <img *ngIf="previewKind === 'image'" [src]="binaryPreviewDataUri" alt="Response image preview" />
+          <iframe *ngIf="previewKind === 'pdf'" [src]="binaryPreviewSafeUrl" title="PDF response preview"></iframe>
+          <div *ngIf="previewKind === 'none'" class="empty-state">
+            Preview not available for this content type
+          </div>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'headers'" class="response-headers">
+          <div class="headers-list" *ngIf="response.headers.length > 0">
+            <div *ngFor="let header of response.headers; trackBy: trackByKey" class="header-item">
+              <div class="header-key">{{ header.key }}</div>
+              <div class="header-value">{{ header.value }}</div>
+            </div>
+          </div>
+          <div class="empty-state" *ngIf="response.headers.length === 0">
+            No headers received
+          </div>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'tests'" class="response-tests">
+          <div class="tests-summary" *ngIf="response.testResults && response.testResults.length > 0">
+            <span class="tests-summary-pass">{{ testSummary().passed }} passed</span>
+            <span class="tests-summary-sep">·</span>
+            <span class="tests-summary-fail" [class.is-zero]="testSummary().failed === 0">
+              {{ testSummary().failed }} failed
+            </span>
+          </div>
+          <ul class="tests-list" *ngIf="response.testResults && response.testResults.length > 0">
+            <li *ngFor="let t of response.testResults; trackBy: trackByTest"
+                class="test-item"
+                [class.test-pass]="t.passed"
+                [class.test-fail]="!t.passed">
+              <div class="test-name">
+                <span class="test-icon" aria-hidden="true">{{ t.passed ? '✓' : '✗' }}</span>
+                <span class="test-label">{{ t.name }}</span>
+                <span class="test-duration" *ngIf="t.durationMs !== undefined">{{ t.durationMs }} ms</span>
+              </div>
+              <pre class="test-message" *ngIf="!t.passed && t.message">{{ t.message }}</pre>
+            </li>
+          </ul>
+          <div class="empty-state"
+               *ngIf="!response.testResults || response.testResults.length === 0">
+            No tests were run for this response
+          </div>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'cookies'" class="response-cookies">
+          <div class="cookies-list" *ngIf="response.cookies && response.cookies.length > 0">
+            <div class="cookie-grid-header">
+              <span>Name</span>
+              <span>Value</span>
+              <span>Domain</span>
+              <span>Path</span>
+              <span>Expires</span>
+            </div>
+            <div *ngFor="let cookie of response.cookies" class="cookie-item">
+              <div class="cookie-name" [title]="cookie.key">{{ cookie.key }}</div>
+              <div class="cookie-value" [title]="cookie.value">{{ cookie.value }}</div>
+              <div class="cookie-domain">{{ cookie.domain || '-' }}</div>
+              <div class="cookie-path">{{ cookie.path || '-' }}</div>
+              <div class="cookie-expires">{{ cookie.expires || '-' }}</div>
+            </div>
+          </div>
+          <div class="empty-state" *ngIf="!response.cookies || response.cookies.length === 0">
+            No cookies received
+          </div>
+        </div>
+
+        <div *ngIf="activeResponseTab === 'diff'" class="response-diff">
+          <app-response-diff [requestId]="request.id" [current]="response"></app-response-diff>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="btn-show-section" *ngIf="isResponseHidden && response" (click)="toggleResponseVisibility()">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <polyline points="6 9 12 15 18 9"></polyline>
+  </svg>
+  Show Response
+</button>

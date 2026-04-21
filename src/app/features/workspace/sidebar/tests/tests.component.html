@@ -1,0 +1,54 @@
+<div class="tests-panel" (click)="closeContextMenu()">
+  <header class="panel-header">
+    <h3>Tests</h3>
+  </header>
+
+  <div class="sections">
+    <div class="section" *ngFor="let s of sections">
+      <button type="button" class="section-header" (click)="toggle(s)">
+        <span class="caret">{{ s.collapsed ? '▸' : '▾' }}</span>
+        <span class="section-title">{{ s.label }}</span>
+        <span class="section-count">{{ s.items.length }}</span>
+        <button type="button" class="section-add" title="Create new"
+                (click)="createNew(s); $event.stopPropagation()">+</button>
+      </button>
+
+      <ul class="items" *ngIf="!s.collapsed">
+        <li class="empty" *ngIf="!s.items.length">
+          No {{ s.label.toLowerCase() }} yet.
+        </li>
+
+        <li
+          *ngFor="let item of s.items; trackBy: trackById"
+          class="item"
+          (dblclick)="openItem(s, item)"
+          (contextmenu)="openContextMenu($event, s, item)">
+          <button type="button" class="item-btn" (click)="openItem(s, item)">
+            <span class="item-dot"></span>
+            <span class="item-title" *ngIf="editingId !== item.id">{{ item.title }}</span>
+            <input
+              *ngIf="editingId === item.id"
+              class="item-rename"
+              [(ngModel)]="editingTitle"
+              (blur)="commitRename(s, item)"
+              (keydown.enter)="commitRename(s, item)"
+              (keydown.escape)="cancelRename()"
+              (click)="$event.stopPropagation()"
+              autofocus
+            />
+          </button>
+
+          <div
+            *ngIf="contextMenuFor === item.id && contextMenuKind === s.key"
+            class="ctx-menu"
+            (click)="$event.stopPropagation()">
+            <button type="button" (click)="openItem(s, item); closeContextMenu()">Open</button>
+            <button type="button" (click)="beginRename(item)">Rename</button>
+            <button type="button" (click)="duplicateItem(s, item)">Duplicate</button>
+            <button type="button" class="danger" (click)="deleteItem(s, item)">Delete</button>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,244 @@
+<div class="folder-editor" *ngIf="folder">
+    <div class="header">
+        <h2>{{ folder.title }}</h2>
+    </div>
+
+    <div class="tabs">
+        <div class="tabs-group" role="tablist">
+            <button type="button" role="tab" [attr.aria-selected]="activeTab === 'variables'"
+                    [class.active]="activeTab === 'variables'" (click)="activeTab = 'variables'">Variables</button>
+            <button type="button" role="tab" [attr.aria-selected]="activeTab === 'headers'"
+                    [class.active]="activeTab === 'headers'" (click)="activeTab = 'headers'">Headers</button>
+            <button type="button" role="tab" [attr.aria-selected]="activeTab === 'auth'"
+                    [class.active]="activeTab === 'auth'" (click)="activeTab = 'auth'">Auth</button>
+            <button type="button" role="tab" [attr.aria-selected]="activeTab === 'scripts'"
+                    [class.active]="activeTab === 'scripts'" (click)="activeTab = 'scripts'">Scripts</button>
+            <button type="button" role="tab" [attr.aria-selected]="activeTab === 'settings'"
+                    [class.active]="activeTab === 'settings'" (click)="activeTab = 'settings'">Settings</button>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <div *ngIf="activeTab === 'variables'" class="tab-panel">
+            <div class="variable-list">
+                <div class="variable-header">
+                    <span class="key">Key</span>
+                    <span class="value">Value</span>
+                    <span class="description">Description</span>
+                    <span class="actions"></span>
+                </div>
+
+                <div class="variable-row" *ngFor="let variable of variables; let i = index; trackBy: trackByIndex">
+                    <app-variable-input class="input" [(ngModel)]="variable.key" (ngModelChange)="saveFolder()"
+                        [activeVariables]="activeVariables" placeholder="Key"></app-variable-input>
+                    <div class="value-input-wrapper">
+                        <app-variable-input class="input" [(ngModel)]="variable.value" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Value"
+                            [type]="variable.visible ? 'text' : 'password'"></app-variable-input>
+                        <button class="visibility-btn" (click)="toggleVisibility(i)">
+                            <span>{{ variable.visible ? '👁️' : '🙈' }}</span>
+                        </button>
+                    </div>
+                    <input class="input desc" [(ngModel)]="variable.description" (ngModelChange)="saveFolder()"
+                        placeholder="Description" />
+                    <button class="btn-delete" (click)="removeVariable(i)">×</button>
+                </div>
+
+                <button class="btn-add" (click)="addVariable()">+ Add Variable</button>
+            </div>
+
+            <div class="tip">
+                <p>💡 Variables set here can be used in any request within this folder using
+                    <code>{{ '{' }}variable_name{{ '}' }}</code> syntax.
+                </p>
+            </div>
+        </div>
+
+        <div *ngIf="activeTab === 'headers'" class="tab-panel">
+            <div class="variable-list">
+                <div class="variable-header">
+                    <span class="key">Key</span>
+                    <span class="value">Value</span>
+                    <span class="description">Description</span>
+                    <span class="actions"></span>
+                </div>
+
+                <div class="variable-row" *ngFor="let header of headers; let i = index; trackBy: trackByIndex">
+                    <app-variable-input class="input" [(ngModel)]="header.key" (ngModelChange)="saveFolder()"
+                        [activeVariables]="activeVariables" placeholder="Key"></app-variable-input>
+                    <app-variable-input class="input" [(ngModel)]="header.value" (ngModelChange)="saveFolder()"
+                        [activeVariables]="activeVariables" placeholder="Value"></app-variable-input>
+                    <input class="input desc" [(ngModel)]="header.description" (ngModelChange)="saveFolder()"
+                        placeholder="Description" />
+                    <button class="btn-delete" (click)="removeHeader(i)">×</button>
+                </div>
+
+                <button class="btn-add" (click)="addHeader()">+ Add Header</button>
+            </div>
+
+            <div class="tip">
+                <p>💡 Headers set here will be included in all requests within this folder.</p>
+            </div>
+        </div>
+
+        <div *ngIf="activeTab === 'scripts'" class="tab-panel scripts">
+            <div class="script-editor-container">
+                <h3>Pre-request Script</h3>
+                <p class="subtitle">This script runs before every request in this folder.</p>
+                <app-code-editor [content]="folder.script!.preRequest" (contentChange)="updatePreRequest($event)"
+                    [language]="'javascript'" [activeVariables]="activeVariables"></app-code-editor>
+            </div>
+
+            <div class="script-editor-container">
+                <h3>Post-request Script</h3>
+                <p class="subtitle">This script runs after every response in this folder.</p>
+                <app-code-editor [content]="folder.script!.postRequest" (contentChange)="updatePostRequest($event)"
+                    [language]="'javascript'" [activeVariables]="activeVariables"></app-code-editor>
+            </div>
+        </div>
+
+        <div *ngIf="activeTab === 'auth'" class="tab-panel auth">
+            <div class="auth-config">
+                <div class="auth-type-selector">
+                    <label>Auth Type</label>
+                    <app-dropdown [options]="authTypeOptions" [(value)]="folder.auth!.type"
+                        (valueChange)="onAuthTypeChange()">
+                    </app-dropdown>
+                </div>
+
+                <div *ngIf="folder.auth!.type === 'bearer'" class="auth-fields">
+                    <div class="auth-row">
+                        <label>Token</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.bearer!.token" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Token"></app-variable-input>
+                    </div>
+                </div>
+
+                <div *ngIf="folder.auth!.type === 'basic'" class="auth-fields">
+                    <div class="auth-row">
+                        <label>Username</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.basic!.username" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Username"></app-variable-input>
+                    </div>
+                    <div class="auth-row">
+                        <label>Password</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.basic!.password" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Password"
+                            type="password"></app-variable-input>
+                    </div>
+                </div>
+
+                <div *ngIf="folder.auth!.type === 'api_key'" class="auth-fields">
+                    <div class="auth-row">
+                        <label>Key</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.apiKey!.key" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Key"></app-variable-input>
+                    </div>
+                    <div class="auth-row">
+                        <label>Value</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.apiKey!.value" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Value"></app-variable-input>
+                    </div>
+                    <div class="auth-row">
+                        <label>Add to</label>
+                        <app-dropdown [options]="apiKeyLocationOptions" [(value)]="folder.auth!.apiKey!.addTo"
+                            (valueChange)="saveFolder()">
+                        </app-dropdown>
+                    </div>
+                </div>
+
+                <div *ngIf="folder.auth!.type === 'oauth2'" class="auth-fields">
+                    <div class="auth-row">
+                        <label>Grant Type</label>
+                        <app-dropdown [options]="oauthGrantTypeOptions" [(value)]="folder.auth!.oauth2!.grantType"
+                            (valueChange)="saveFolder()">
+                        </app-dropdown>
+                    </div>
+
+                    <ng-container *ngIf="folder.auth!.oauth2!.grantType === 'authorization_code'">
+                        <div class="auth-row">
+                            <label>Callback URL</label>
+                            <input type="text" readonly value="http://127.0.0.1:4200/oauth/callback"
+                                style="opacity: 0.7; cursor: default; background: var(--surface-alt); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 12px; border-radius: 6px;">
+                        </div>
+                        <div class="auth-row">
+                            <label>Auth URL</label>
+                            <app-variable-input [(ngModel)]="folder.auth!.oauth2!.authUrl"
+                                (ngModelChange)="saveFolder()" [activeVariables]="activeVariables"
+                                placeholder="https://api.example.com/oauth/authorize">
+                            </app-variable-input>
+                        </div>
+                    </ng-container>
+
+                    <div class="auth-row">
+                        <label>Access Token URL</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.oauth2!.accessTokenUrl"
+                            (ngModelChange)="saveFolder()" [activeVariables]="activeVariables"
+                            placeholder="https://api.example.com/oauth/token">
+                        </app-variable-input>
+                    </div>
+
+                    <div class="auth-row">
+                        <label>Client ID</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.oauth2!.clientId" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="Client ID"></app-variable-input>
+                    </div>
+
+                    <div class="auth-row">
+                        <label>Client Secret</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.oauth2!.clientSecret"
+                            (ngModelChange)="saveFolder()" [activeVariables]="activeVariables"
+                            placeholder="Client Secret" type="password"></app-variable-input>
+                    </div>
+
+                    <div class="auth-row">
+                        <label>Scope</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.oauth2!.scope" (ngModelChange)="saveFolder()"
+                            [activeVariables]="activeVariables" placeholder="read:user write:user"></app-variable-input>
+                    </div>
+                    <div class="auth-row">
+                        <label>Access Token</label>
+                        <app-variable-input [(ngModel)]="folder.auth!.oauth2!.accessToken"
+                            (ngModelChange)="saveFolder()" [activeVariables]="activeVariables"
+                            placeholder="Access Token"></app-variable-input>
+                    </div>
+                    <button class="btn-primary" style="margin-top: 10px;" (click)="fetchOAuth2Token()">Get New Access
+                        Token</button>
+                </div>
+            </div>
+            <div class="auth-notice" *ngIf="folder.auth!.type !== 'none'">
+                <p>Auth headers/params are automatically synthesized for all requests in this folder.</p>
+            </div>
+        </div>
+
+        <div *ngIf="activeTab === 'settings'" class="tab-panel settings">
+            <div class="settings-group">
+                <div class="setting-row">
+                    <label class="setting-item">
+                        <input type="checkbox" [(ngModel)]="folder.settings!.followRedirects"
+                            (ngModelChange)="saveFolder()" />
+                        <span class="setting-label">Follow Redirects</span>
+                    </label>
+                    <p class="setting-description">Automatically follow HTTP redirects for requests in this folder.</p>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-item">
+                        <input type="checkbox" [(ngModel)]="folder.settings!.verifySsl"
+                            (ngModelChange)="saveFolder()" />
+                        <span class="setting-label">SSL Verification</span>
+                    </label>
+                    <p class="setting-description">Verify SSL certificates for HTTPS requests in this folder.</p>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-item">
+                        <input type="checkbox" [(ngModel)]="folder.settings!.useCookies"
+                            (ngModelChange)="saveFolder()" />
+                        <span class="setting-label">Manage Cookies</span>
+                    </label>
+                    <p class="setting-description">Enable automatic cookie management for requests in this folder.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,677 @@
+<div class="mock-tab">
+
+  
+  <header class="mock-tab-header">
+    <div class="header-row">
+      <div class="server-pill"
+           [class.running]="status.status === 'running'"
+           [class.starting]="status.status === 'starting'"
+           [class.error]="status.status === 'error'">
+        <span class="server-dot" aria-hidden="true"></span>
+        <div class="server-info">
+          <span class="server-state">
+            {{ status.status === 'running' ? 'Server running'
+                : (status.status === 'starting' ? 'Starting…'
+                : (status.status === 'error' ? 'Server error' : 'Server stopped')) }}
+          </span>
+          <span class="server-meta" *ngIf="status.status === 'running'">
+            {{ status.baseUrl }}
+          </span>
+          <span class="server-meta error-text" *ngIf="status.status === 'error' && status.error">
+            {{ status.error }}
+          </span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="btn-primary"
+                *ngIf="status.status !== 'running'"
+                (click)="startServer()">Start</button>
+        <button type="button" class="btn-secondary"
+                *ngIf="status.status === 'running'"
+                (click)="stopServer()">Stop</button>
+        <button type="button" class="btn-ghost"
+                *ngIf="status.status === 'running'"
+                (click)="restartServer()">Restart</button>
+        <button type="button" class="btn-ghost btn-icon"
+                *ngIf="status.status === 'running'"
+                (click)="copyValue(status.baseUrl)"
+                [title]="'Copy base URL'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span *ngIf="copied === 'baseUrl'">Copied</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="header-row config-row">
+      <label class="config-field">
+        <span class="config-label">Port</span>
+        <input type="number" min="1" max="65535"
+               [(ngModel)]="portInput"
+               placeholder="auto"
+               [disabled]="status.status === 'starting'" />
+      </label>
+
+      <div class="config-field">
+        <span class="config-label">Bind</span>
+        <div class="segmented">
+          <button type="button"
+                  [class.active]="options.bindAddress === '127.0.0.1'"
+                  (click)="setBindAddress('127.0.0.1')">127.0.0.1</button>
+          <button type="button"
+                  [class.active]="options.bindAddress === '0.0.0.0'"
+                  (click)="setBindAddress('0.0.0.0')">0.0.0.0</button>
+        </div>
+      </div>
+
+      <label class="config-field">
+        <span class="config-label">Default delay</span>
+        <div class="suffix-input">
+          <input type="number" min="0" step="50"
+                 [ngModel]="options.defaultDelayMs"
+                 (ngModelChange)="onOptionChange('defaultDelayMs', $event)" />
+          <span class="suffix">ms</span>
+        </div>
+      </label>
+
+      <button type="button"
+              class="advanced-toggle"
+              [class.expanded]="showAdvanced"
+              [attr.aria-expanded]="showAdvanced"
+              (click)="toggleAdvanced()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        <span>Advanced</span>
+      </button>
+    </div>
+
+    <div class="header-row config-row advanced-row" *ngIf="showAdvanced">
+      <label class="config-field">
+        <span class="config-label">CORS</span>
+        <select [ngModel]="options.corsMode"
+                (ngModelChange)="onOptionChange('corsMode', $event)">
+          <option value="off">Off</option>
+          <option value="all">Allow all origins</option>
+          <option value="list">Allow listed origins</option>
+        </select>
+      </label>
+
+      <label class="config-field">
+        <span class="config-label">Default Content-Type</span>
+        <input type="text"
+               [ngModel]="options.defaultContentType"
+               (ngModelChange)="onOptionChange('defaultContentType', $event)" />
+      </label>
+
+      <label class="config-checkbox">
+        <input type="checkbox"
+               [ngModel]="options.captureBodies"
+               (ngModelChange)="onOptionChange('captureBodies', $event)" />
+        <span>Capture request &amp; response bodies in activity log</span>
+      </label>
+
+      <label class="config-checkbox">
+        <input type="checkbox"
+               [ngModel]="options.autoStart"
+               (ngModelChange)="onOptionChange('autoStart', $event)" />
+        <span>Auto-start server on app launch</span>
+      </label>
+
+      <button type="button" class="btn-ghost danger" (click)="resetAllVariants()">
+        Reset all variants
+      </button>
+    </div>
+
+    <div class="bind-warning" *ngIf="options.bindAddress === '0.0.0.0' && status.status === 'running'">
+      ⚠ Server is reachable from your local network at {{ status.baseUrl }}.
+    </div>
+  </header>
+
+  
+  <div class="mock-tab-body">
+
+    
+    <aside class="endpoint-rail">
+      <div class="rail-header">
+        <span class="rail-title">Endpoints</span>
+        <span class="rail-count">{{ totalRegistered() }}</span>
+      </div>
+
+      <div class="rail-groups">
+        
+        <div class="rail-group standalone-group">
+          <div class="rail-group-title rail-group-title-row">
+            <span>Standalone</span>
+            <button type="button" class="rail-add-btn" (click)="addStandalone()" title="Add standalone mock">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add</span>
+            </button>
+          </div>
+
+          <div class="rail-empty-inline" *ngIf="standalones.length === 0">
+            No standalone mocks yet
+          </div>
+
+          <button type="button"
+                  class="rail-entry standalone-entry"
+                  *ngFor="let endpoint of standalones; trackBy: trackByStandalone"
+                  [class.selected]="selectionKind === 'standalone' && selectedStandaloneId === endpoint.id"
+                  (click)="selectStandalone(endpoint)">
+            <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
+            <span class="entry-title" [title]="endpoint.path">{{ endpoint.path }}</span>
+            <span class="entry-meta">
+              <span class="entry-badge" [class.has-active]="!!endpoint.activeVariantId">
+                {{ endpoint.variants.length }}
+              </span>
+              <button type="button" class="entry-remove" title="Delete"
+                      (click)="removeStandalone(endpoint, $event)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                  <line x1="6" y1="18" x2="18" y2="6"></line>
+                </svg>
+              </button>
+            </span>
+          </button>
+        </div>
+
+        
+        <div class="rail-empty" *ngIf="groups.length === 0 && standalones.length === 0">
+          <div class="empty-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 17l6-6 4 4 8-8"></path>
+              <polyline points="14 7 22 7 22 15"></polyline>
+            </svg>
+          </div>
+          <div class="empty-title">No mocks registered</div>
+          <div class="empty-subtitle">
+            Click <strong>+ Add</strong> above to create one here, or add a variant
+            to a saved request.
+          </div>
+        </div>
+
+        
+        <div class="rail-group" *ngFor="let group of groups; trackBy: trackByGroup">
+          <div class="rail-group-title">{{ group.collectionTitle }}</div>
+          <button type="button"
+                  class="rail-entry"
+                  *ngFor="let entry of group.entries; trackBy: trackByEntry"
+                  [class.selected]="selectionKind === 'request' && selectedRequestId === entry.request.id"
+                  (click)="selectRequest(entry.request)">
+            <span class="entry-method method-{{ methodLabel(entry.request) }}">{{ methodLabel(entry.request) }}</span>
+            <span class="entry-title" [title]="entry.request.url">
+              {{ entry.request.title || entry.request.url || 'Untitled' }}
+            </span>
+            <span class="entry-meta">
+              <span class="entry-badge" [class.has-active]="!!entry.activeVariantId">
+                {{ entry.variantCount }}
+              </span>
+            </span>
+            <span class="entry-parent" *ngIf="entry.parentLabel && entry.parentLabel !== group.collectionTitle">
+              {{ entry.parentLabel }}
+            </span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    
+    <section class="mock-main">
+
+      
+      <div class="editor-pane">
+        <div class="editor-empty" *ngIf="selectionKind === null">
+          <div class="empty-icon" aria-hidden="true">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="empty-title">Pick an endpoint</div>
+          <div class="empty-subtitle">
+            Select a mock from the left, or click <strong>+ Add</strong> in the
+            <em>Standalone</em> section to create one from scratch.
+          </div>
+        </div>
+
+        
+        <ng-container *ngIf="selectionKind === 'request' && selectedRequest as req">
+          <div class="editor-head">
+            <div class="editor-title-block">
+              <span class="entry-method method-{{ methodLabel(req) }}">{{ methodLabel(req) }}</span>
+              <div class="editor-title-text">
+                <div class="editor-title">{{ req.title || req.url || 'Untitled' }}</div>
+                <div class="editor-subtitle">
+                  {{ selectedRequestParentPath }}
+                  <span *ngIf="req.url"> · <code>{{ req.url }}</code></span>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-primary btn-small" (click)="addVariant()">+ Variant</button>
+          </div>
+
+          <div class="variant-list" *ngIf="req.mockVariants && req.mockVariants.length > 0">
+            <div class="variant-card"
+                 *ngFor="let variant of req.mockVariants; let i = index; trackBy: trackByVariant"
+                 [class.is-active]="req.activeMockVariantId === variant.id">
+              <div class="variant-head">
+                <button type="button"
+                        class="variant-pin"
+                        [class.active]="req.activeMockVariantId === variant.id"
+                        (click)="setActiveVariant(variant.id)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="12" r="6"></circle>
+                  </svg>
+                  Active
+                </button>
+
+                <input class="variant-name" [(ngModel)]="variant.name"
+                       (ngModelChange)="onVariantChanged()" placeholder="Variant name" />
+
+                <div class="variant-field">
+                  <span class="status-chip" [ngClass]="variantStatusClass(variant.statusCode)">
+                    {{ variant.statusCode || '—' }}
+                  </span>
+                  <input type="number" min="100" max="599" aria-label="Status code"
+                         [(ngModel)]="variant.statusCode"
+                         (ngModelChange)="onVariantChanged()" />
+                </div>
+
+                <div class="variant-field with-suffix">
+                  <input type="number" min="0" step="50" aria-label="Delay" placeholder="0"
+                         [(ngModel)]="variant.delayMs"
+                         (ngModelChange)="onVariantChanged()" />
+                  <span class="variant-suffix">ms</span>
+                </div>
+
+                <div class="variant-actions">
+                  <button type="button" class="icon-button" title="Duplicate" (click)="duplicateVariant(i)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  <button type="button" class="icon-button danger" title="Delete" (click)="removeVariant(i)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                      <path d="M10 11v6"></path>
+                      <path d="M14 11v6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="variant-url"
+                   *ngIf="status.status === 'running'"
+                   [class.is-active]="req.activeMockVariantId === variant.id">
+                <span class="url-label">URL</span>
+                <code class="url-code">{{ variantUrl(variant.id) }}</code>
+                <button type="button" class="copy-btn"
+                        (click)="copyValue(variantUrl(variant.id), variant.id)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  {{ copied === variant.id ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+
+              <div class="variant-body-wrap">
+                <div class="variant-body-row">
+                  <span class="variant-body-label">Response</span>
+                  <div class="body-type-segmented" role="radiogroup" aria-label="Body type">
+                    <button type="button" *ngFor="let bt of bodyTypeOptions"
+                            class="body-type-btn"
+                            [class.active]="bodyTypeOf(variant) === bt"
+                            (click)="setBodyType(variant, bt)">
+                      {{ bt === 'json' ? 'JSON'
+                          : bt === 'xml' ? 'XML'
+                          : bt === 'html' ? 'HTML'
+                          : bt === 'text' ? 'Text'
+                          : bt === 'form' ? 'Form'
+                          : bt === 'none' ? 'None'
+                          : 'Custom' }}
+                    </button>
+                  </div>
+                  <button type="button" class="headers-toggle"
+                          [class.expanded]="isHeadersOpen(variant.id)"
+                          [attr.aria-expanded]="isHeadersOpen(variant.id)"
+                          (click)="toggleHeaders(variant.id)">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    Headers
+                    <span class="headers-count">{{ (variant.headers && variant.headers.length) || 0 }}</span>
+                  </button>
+                </div>
+
+                <div class="variant-headers" *ngIf="isHeadersOpen(variant.id)">
+                  <div class="header-grid">
+                    <div class="header-row"
+                         *ngFor="let h of variant.headers; let hi = index; trackBy: trackByHeaderIndex">
+                      <input class="header-key" placeholder="Header"
+                             [(ngModel)]="h.key" (ngModelChange)="onHeaderChanged()" />
+                      <input class="header-val" placeholder="Value"
+                             [(ngModel)]="h.value" (ngModelChange)="onHeaderChanged()" />
+                      <button type="button" class="icon-button danger sm" title="Remove header"
+                              (click)="removeHeader(variant, hi)">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                          <line x1="6" y1="18" x2="18" y2="6"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" class="add-header-btn" (click)="addHeader(variant)">
+                    + Add header
+                  </button>
+                </div>
+
+                <textarea class="variant-body" rows="4" spellcheck="false"
+                          [(ngModel)]="variant.body"
+                          (ngModelChange)="onVariantChanged()"
+                          [placeholder]="bodyPlaceholder(variant)"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="variant-empty" *ngIf="!req.mockVariants || req.mockVariants.length === 0">
+            <div class="empty-title">No variants on this request</div>
+            <button type="button" class="btn-primary" (click)="addVariant()">+ Add the first variant</button>
+          </div>
+        </ng-container>
+
+        
+        <ng-container *ngIf="selectionKind === 'standalone' && selectedStandalone as endpoint">
+          <div class="editor-head">
+            <div class="editor-title-block standalone-title-block">
+              <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
+              <div class="editor-title-text">
+                <div class="editor-title">Standalone mock</div>
+                <div class="editor-subtitle">
+                  Matches by method + path. Lives only inside the mock server.
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-ghost btn-small danger"
+                    (click)="removeStandalone(endpoint)">
+              Delete
+            </button>
+          </div>
+
+          <div class="standalone-route">
+            <label class="standalone-field method-field">
+              <span class="config-label">Method</span>
+              <select [(ngModel)]="endpoint.method" (ngModelChange)="onStandaloneFieldChange()">
+                <option *ngFor="let m of methodOptions" [value]="m">{{ m }}</option>
+              </select>
+            </label>
+            <label class="standalone-field path-field">
+              <span class="config-label">Path</span>
+              <input type="text" placeholder="/path"
+                     [(ngModel)]="endpoint.path"
+                     (ngModelChange)="onStandaloneFieldChange()" />
+            </label>
+            <div class="standalone-url-wrap" *ngIf="status.status === 'running'">
+              <span class="config-label">Full URL</span>
+              <div class="standalone-url">
+                <code class="url-code">{{ standaloneUrl(endpoint) }}</code>
+                <button type="button" class="copy-btn"
+                        (click)="copyValue(standaloneUrl(endpoint), 'standalone:' + endpoint.id)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  {{ copied === ('standalone:' + endpoint.id) ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-section-head">
+            <span class="section-title">Variants</span>
+            <button type="button" class="btn-primary btn-small" (click)="addStandaloneVariant()">+ Variant</button>
+          </div>
+
+          <div class="variant-list" *ngIf="endpoint.variants && endpoint.variants.length > 0">
+            <div class="variant-card"
+                 *ngFor="let variant of endpoint.variants; let i = index; trackBy: trackByVariant"
+                 [class.is-active]="endpoint.activeVariantId === variant.id">
+              <div class="variant-head">
+                <button type="button"
+                        class="variant-pin"
+                        [class.active]="endpoint.activeVariantId === variant.id"
+                        (click)="setActiveStandaloneVariant(variant.id)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="12" r="6"></circle>
+                  </svg>
+                  Active
+                </button>
+
+                <input class="variant-name" [(ngModel)]="variant.name"
+                       (ngModelChange)="onStandaloneFieldChange()" placeholder="Variant name" />
+
+                <div class="variant-field">
+                  <span class="status-chip" [ngClass]="variantStatusClass(variant.statusCode)">
+                    {{ variant.statusCode || '—' }}
+                  </span>
+                  <input type="number" min="100" max="599" aria-label="Status code"
+                         [(ngModel)]="variant.statusCode"
+                         (ngModelChange)="onStandaloneFieldChange()" />
+                </div>
+
+                <div class="variant-field with-suffix">
+                  <input type="number" min="0" step="50" aria-label="Delay" placeholder="0"
+                         [(ngModel)]="variant.delayMs"
+                         (ngModelChange)="onStandaloneFieldChange()" />
+                  <span class="variant-suffix">ms</span>
+                </div>
+
+                <div class="variant-actions">
+                  <button type="button" class="icon-button" title="Duplicate"
+                          (click)="duplicateStandaloneVariant(i)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  <button type="button" class="icon-button danger" title="Delete"
+                          (click)="removeStandaloneVariant(i)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                      <path d="M10 11v6"></path>
+                      <path d="M14 11v6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="variant-body-wrap">
+                <div class="variant-body-row">
+                  <span class="variant-body-label">Response</span>
+                  <div class="body-type-segmented" role="radiogroup" aria-label="Body type">
+                    <button type="button" *ngFor="let bt of bodyTypeOptions"
+                            class="body-type-btn"
+                            [class.active]="bodyTypeOf(variant) === bt"
+                            (click)="setBodyType(variant, bt)">
+                      {{ bt === 'json' ? 'JSON'
+                          : bt === 'xml' ? 'XML'
+                          : bt === 'html' ? 'HTML'
+                          : bt === 'text' ? 'Text'
+                          : bt === 'form' ? 'Form'
+                          : bt === 'none' ? 'None'
+                          : 'Custom' }}
+                    </button>
+                  </div>
+                  <button type="button" class="headers-toggle"
+                          [class.expanded]="isHeadersOpen(variant.id)"
+                          [attr.aria-expanded]="isHeadersOpen(variant.id)"
+                          (click)="toggleHeaders(variant.id)">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    Headers
+                    <span class="headers-count">{{ (variant.headers && variant.headers.length) || 0 }}</span>
+                  </button>
+                </div>
+
+                <div class="variant-headers" *ngIf="isHeadersOpen(variant.id)">
+                  <div class="header-grid">
+                    <div class="header-row"
+                         *ngFor="let h of variant.headers; let hi = index; trackBy: trackByHeaderIndex">
+                      <input class="header-key" placeholder="Header"
+                             [(ngModel)]="h.key" (ngModelChange)="onHeaderChanged()" />
+                      <input class="header-val" placeholder="Value"
+                             [(ngModel)]="h.value" (ngModelChange)="onHeaderChanged()" />
+                      <button type="button" class="icon-button danger sm" title="Remove header"
+                              (click)="removeHeader(variant, hi)">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                          <line x1="6" y1="18" x2="18" y2="6"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" class="add-header-btn" (click)="addHeader(variant)">
+                    + Add header
+                  </button>
+                </div>
+
+                <textarea class="variant-body" rows="4" spellcheck="false"
+                          [(ngModel)]="variant.body"
+                          (ngModelChange)="onStandaloneFieldChange()"
+                          [placeholder]="bodyPlaceholder(variant)"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="variant-empty" *ngIf="!endpoint.variants || endpoint.variants.length === 0">
+            <div class="empty-title">No variants yet</div>
+            <button type="button" class="btn-primary" (click)="addStandaloneVariant()">+ Add the first variant</button>
+          </div>
+        </ng-container>
+      </div>
+
+      
+      <div class="activity-pane">
+        <div class="activity-head">
+          <span class="activity-title">
+            Activity
+            <span class="activity-count">{{ filteredHits().length }} / {{ hits.length }}</span>
+          </span>
+          <div class="activity-filters">
+            <input type="text" class="activity-filter" placeholder="Filter path…"
+                   [(ngModel)]="hitFilter" />
+            <select [(ngModel)]="methodFilter" class="activity-select" aria-label="Method filter">
+              <option value="">Any method</option>
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+              <option value="OPTIONS">OPTIONS</option>
+              <option value="HEAD">HEAD</option>
+            </select>
+            <select [(ngModel)]="statusFilter" class="activity-select" aria-label="Status filter">
+              <option value="">Any status</option>
+              <option value="2xx">2xx</option>
+              <option value="3xx">3xx</option>
+              <option value="4xx">4xx</option>
+              <option value="5xx">5xx</option>
+            </select>
+            <button type="button" class="btn-ghost btn-small" (click)="exportHits()" title="Export as JSON">Export</button>
+            <button type="button" class="btn-ghost btn-small" (click)="clearHits()" title="Clear log">Clear</button>
+          </div>
+        </div>
+
+        <div class="activity-empty" *ngIf="hits.length === 0">
+          <div class="empty-subtitle">
+            <ng-container *ngIf="status.status === 'running'; else stopped">
+              Waiting for the first request to come in…
+            </ng-container>
+            <ng-template #stopped>Start the server to begin capturing requests.</ng-template>
+          </div>
+        </div>
+
+        <div class="activity-list" *ngIf="hits.length > 0">
+          <div class="activity-row"
+               *ngFor="let hit of filteredHits(); trackBy: trackByHit"
+               [class.expanded]="expandedHitId === hit.id">
+            <button type="button" class="activity-summary" (click)="toggleHit(hit)">
+              <span class="hit-time">{{ formatTime(hit.receivedAt) }}</span>
+              <span class="hit-method method-{{ hit.method }}">{{ hit.method }}</span>
+              <span class="hit-path" [title]="hit.path">{{ hit.path }}</span>
+              <span class="hit-matched"
+                    [class.unmatched]="hit.matchedKind === 'none'"
+                    [title]="hit.matchedKind === 'request' ? 'Matched request mock' : (hit.matchedKind === 'standalone' ? 'Matched standalone endpoint' : 'No match')">
+                {{ hit.matchedVariantName || (hit.matchedKind === 'none' ? '(unmatched)' : hit.matchedRequestId) }}
+              </span>
+              <span class="hit-status" [ngClass]="hitStatusClass(hit.status)">{{ hit.status || 'ERR' }}</span>
+              <span class="hit-latency">{{ hit.latencyMs }} ms</span>
+            </button>
+
+            <div class="activity-detail" *ngIf="expandedHitId === hit.id">
+              <div class="detail-section">
+                <div class="detail-title">Request headers</div>
+                <table class="kv-table">
+                  <tr *ngFor="let h of hit.reqHeaders">
+                    <td class="kv-key">{{ h.key }}</td>
+                    <td class="kv-val">{{ h.value }}</td>
+                  </tr>
+                  <tr *ngIf="!hit.reqHeaders || hit.reqHeaders.length === 0">
+                    <td colspan="2" class="kv-empty">—</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div class="detail-section" *ngIf="hit.reqBody">
+                <div class="detail-title">Request body</div>
+                <pre class="detail-body">{{ hit.reqBody }}</pre>
+              </div>
+
+              <div class="detail-section">
+                <div class="detail-title">Response headers</div>
+                <table class="kv-table">
+                  <tr *ngFor="let h of hit.resHeaders">
+                    <td class="kv-key">{{ h.key }}</td>
+                    <td class="kv-val">{{ h.value }}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div class="detail-section" *ngIf="hit.resBody">
+                <div class="detail-title">Response body</div>
+                <pre class="detail-body">{{ hit.resBody }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

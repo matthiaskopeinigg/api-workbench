@@ -1,0 +1,208 @@
+.ws-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.ws-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ws-mode {
+  width: 180px;
+}
+
+.ws-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--surface-alt);
+  color: var(--text-color);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.ws-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+
+  .ws-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-color);
+  }
+
+  &[data-status='connected'] .ws-status-dot { background: #22c55e; }
+  &[data-status='connecting'] .ws-status-dot { background: #f59e0b; }
+  &[data-status='closing'] .ws-status-dot { background: #f59e0b; }
+  &[data-status='error'] .ws-status-dot { background: #ef4444; }
+
+  .ws-status-error {
+    color: #ef4444;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.8rem;
+  }
+}
+
+.ws-section-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+
+  button {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 0.85rem;
+
+    &.active {
+      color: var(--text-color);
+      border-bottom-color: var(--primary-color);
+    }
+
+    &:hover { color: var(--text-color); }
+  }
+}
+
+.ws-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ws-message-editor {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--surface-alt);
+  color: var(--text-color);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  resize: vertical;
+}
+
+.ws-message-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.headers-grid {
+  .ws-header-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 2fr 32px;
+    gap: 8px;
+    align-items: center;
+
+    input[type='text'] {
+      padding: 6px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: var(--surface-alt);
+      color: var(--text-color);
+    }
+  }
+  .header-row-head {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .ws-add-header {
+    align-self: flex-start;
+  }
+}
+
+.ws-field-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ws-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ws-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border-color);
+
+  .ws-log-title {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+}
+
+.ws-log-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.82rem;
+  padding: 4px 0;
+}
+
+.ws-log-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.ws-frame {
+  display: grid;
+  grid-template-columns: 90px 20px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 4px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+
+  &[data-direction='in'] { background: color-mix(in srgb, var(--primary-color) 6%, transparent); }
+  &[data-direction='out'] { background: color-mix(in srgb, #22c55e 6%, transparent); }
+  &[data-direction='system'] { background: transparent; color: var(--text-muted); }
+
+  .ws-frame-time { color: var(--text-muted); }
+  .ws-frame-arrow { text-align: center; color: var(--text-muted); }
+  .ws-frame-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .ws-frame-tag {
+    background: var(--surface-alt);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ws-frame-info { color: var(--text-muted); font-style: italic; }
+  .ws-frame-error { color: #ef4444; }
+  .ws-frame-binary { color: var(--text-muted); }
+}

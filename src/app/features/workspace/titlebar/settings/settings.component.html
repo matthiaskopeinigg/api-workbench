@@ -1,0 +1,449 @@
+<div class="settings-container disable-select" (click)="onBackdropClick($event)">
+  <div class="settings-popup">
+
+    <button class="settings-close-btn" (click)="closeSettings()" aria-label="Close Settings">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+
+    <aside class="settings-sidebar">
+      <header class="settings-sidebar-brand">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">Settings</span>
+          <span class="brand-subtitle">Customize your workbench</span>
+        </div>
+      </header>
+
+      <nav class="settings-sidebar-nav">
+        <div class="sidebar-section" *ngFor="let section of sidebarSections">
+          <div class="sidebar-section-title">{{ section.title }}</div>
+          <button type="button"
+                  class="sidebar-item"
+                  *ngFor="let item of section.items"
+                  [class.active]="selectedTab === item.id"
+                  (click)="selectTab(item.id)">
+            <svg class="sidebar-item-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path [attr.d]="item.icon" fill="currentColor"></path>
+            </svg>
+            <span class="sidebar-item-label">{{ item.label }}</span>
+          </button>
+        </div>
+      </nav>
+    </aside>
+
+    <div class="tab-content" [formGroup]="settingsForm">
+
+      <div *ngIf="selectedTab==='ui'" formGroupName="ui" class="tab-pane">
+        <h2 class="tab-title">User Interface</h2>
+
+        <h2 class="settings-section">Theme</h2>
+        <div class="theme-options">
+          <div class="theme-option" *ngFor="let theme of themes"
+            [class.selected]="settingsForm.get('ui.theme')?.value === theme"
+            (click)="settingsForm.get('ui.theme')?.setValue(theme)">
+            <div class="theme-preview" [ngClass]="'theme-preview-' + theme"></div>
+            <span class="theme-name">{{ getNormalizedThemeName(theme) }}</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Folder Click Behavior:</label>
+          <app-dropdown [options]="folderClickBehaviorOptions"
+            [value]="settingsForm.get('ui.folderClickBehavior')?.value"
+            (valueChange)="settingsForm.get('ui.folderClickBehavior')?.setValue($event)">
+          </app-dropdown>
+        </div>
+
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" formControlName="closeSidebarOnOutsideClick" />
+            Close sidebar when clicking outside
+          </label>
+
+          <label>
+            <input type="checkbox" formControlName="saveOpenTabs" />
+            Restore open tabs on startup
+          </label>
+
+          <label>
+            <input type="checkbox" formControlName="compactMode" />
+            Compact sidebar mode
+          </label>
+
+          <label>
+            <input type="checkbox" formControlName="hideRequestMethod" />
+            Hide request methods in sidebar
+          </label>
+        </div>
+      </div>
+
+      <div *ngIf="selectedTab==='requests'" formGroupName="requests" class="tab-pane">
+        <h2 class="tab-title">Request Settings</h2>
+
+        <div class="form-group">
+          <label>Default HTTP Method:</label>
+          <app-dropdown [options]="httpMethodOptions" [value]="settingsForm.get('requests.defaultHttpMethod')?.value"
+            (valueChange)="settingsForm.get('requests.defaultHttpMethod')?.setValue($event)">
+          </app-dropdown>
+        </div>
+
+        <div class="form-group">
+          <label>Timeout (ms):</label>
+          <input type="number" formControlName="timeoutMs">
+        </div>
+
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="useCookies">
+          Use Cookies
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="allowHttp2">
+          Enable HTTP/2 (ALPN negotiated; falls back to HTTP/1.1)
+        </label>
+      </div>
+
+      <div *ngIf="selectedTab==='retries'" formGroupName="retries" class="tab-pane">
+        <h2 class="tab-title">Retry Settings</h2>
+
+        <label>
+          <input type="checkbox" formControlName="retryOnFailure">
+          Retry failed requests
+        </label>
+
+        <div class="form-group">
+          <label>Retry Count:</label>
+          <input type="number" formControlName="retryCount">
+        </div>
+
+        <div class="form-group">
+          <label>Retry Delay (ms):</label>
+          <input type="number" formControlName="retryDelayMs">
+        </div>
+
+        <label>
+          <input type="checkbox" formControlName="exponentialBackoff">
+          Use exponential backoff
+        </label>
+      </div>
+
+      <div *ngIf="selectedTab==='headers'" formGroupName="headers" class="tab-pane">
+        <h2 class="tab-title">Default Headers</h2>
+        <p class="tab-description">Headers added to every request, unless overridden in the request itself.</p>
+
+        <div class="toggle-card">
+          <label class="toggle-card-label">
+            <input type="checkbox" formControlName="addDefaultHeaders">
+            <span class="toggle-card-text">
+              <span class="toggle-card-title">Apply default headers</span>
+              <span class="toggle-card-hint">When off, the list below is ignored.</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="headers-panel" formArrayName="defaultHeaders"
+             [class.is-disabled]="!settingsForm.get('headers.addDefaultHeaders')?.value">
+          <div class="headers-panel-header">
+            <span class="col col-toggle"></span>
+            <span class="col col-key">Header</span>
+            <span class="col col-value">Value</span>
+            <span class="col col-action"></span>
+          </div>
+
+          <div class="headers-panel-body">
+            <div class="header-row" *ngFor="let header of defaultHeaders.controls; let i = index"
+                 [formGroupName]="i">
+              <label class="header-toggle" [attr.aria-label]="'Enable header ' + (i + 1)">
+                <input type="checkbox" formControlName="enabled">
+              </label>
+
+              <input class="header-input header-key" placeholder="Content-Type" formControlName="key">
+              <input class="header-input header-value" placeholder="application/json" formControlName="value">
+
+              <button type="button" class="header-delete-btn" (click)="removeHeader(i)" aria-label="Remove header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+            </div>
+
+            <div class="headers-empty" *ngIf="defaultHeaders.controls.length === 0">
+              No default headers yet. Add one to get started.
+            </div>
+          </div>
+
+          <button type="button" class="ghost-button" (click)="addHeader()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add header
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="selectedTab==='certificates'" class="tab-pane" [formGroup]="sslGroup">
+        <h2 class="tab-title">Certificates & SSL</h2>
+
+        <div class="checkbox-group" style="margin-bottom: 20px;">
+          <label class="checkbox-label">
+            <input type="checkbox" formControlName="ignoreInvalidSsl" />
+            Ignore Invalid SSL (Allow self-signed)
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" formControlName="verifyHostname" />
+            Verify Hostname
+          </label>
+        </div>
+
+        <h3 class="settings-section">Managed Certificates</h3>
+        <ul class="certificate-list">
+          <li *ngFor="let cert of certificates.controls; let i = index" (click)="editCertificate(i)"
+            [class.active]="editingIndex === i">
+            <strong>{{ cert.value.hostname }}</strong>
+            <button class="cert-delete-btn" (click)="removeCertificate(i); $event.stopPropagation()">✕</button>
+          </li>
+        </ul>
+
+        <div class="certificate-form">
+          <div class="cert-grid">
+            <div class="form-group">
+              <label>Hostname</label>
+              <input type="text" [formControl]="hostnameControl" placeholder="example.com" />
+            </div>
+            <div class="form-group">
+              <label>Passphrase</label>
+              <div class="passphrase-input-container">
+                <input [type]="showPassphrase ? 'text' : 'password'" [formControl]="passphraseControl"
+                  placeholder="Optional" />
+                <button type="button" class="toggle-pass-btn" (click)="togglePassphraseVisibility()">
+                  {{ showPassphrase ? '🙈' : '👁️' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="file-selectors">
+            <div class="file-row">
+              <button class="fancy-button btn-sm" (click)="chooseCertFile('crt')">CRT</button>
+              <span class="file-path">{{ newCertFiles.crtFilePath || 'None selected' }}</span>
+              <button *ngIf="newCertFiles.crtFilePath" class="file-remove-btn"
+                (click)="removeCertFile('crt')">✕</button>
+            </div>
+            <div class="file-row">
+              <button class="fancy-button btn-sm" (click)="chooseCertFile('key')">KEY</button>
+              <span class="file-path">{{ newCertFiles.keyFilePath || 'None selected' }}</span>
+              <button *ngIf="newCertFiles.keyFilePath" class="file-remove-btn"
+                (click)="removeCertFile('key')">✕</button>
+            </div>
+            <div class="file-row">
+              <button class="fancy-button btn-sm" (click)="chooseCertFile('pfx')">PFX</button>
+              <span class="file-path">{{ newCertFiles.pfxFilePath || 'None selected' }}</span>
+              <button *ngIf="newCertFiles.pfxFilePath" class="file-remove-btn"
+                (click)="removeCertFile('pfx')">✕</button>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="fancy-button" (click)="saveCertificate()">
+              {{ editingIndex !== null ? 'Save Changes' : 'Add Certificate' }}
+            </button>
+            <button *ngIf="editingIndex !== null" class="fancy-button cancel"
+              (click)="cancelCertificate()">Cancel</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div *ngIf="selectedTab==='dns'" formGroupName="dns" class="tab-pane">
+        <h2 class="tab-title">DNS Settings</h2>
+
+        <div class="form-group">
+          <label>Custom DNS Server</label>
+          <input type="text" formControlName="customDnsServer" placeholder="e.g. 1.1.1.1" />
+        </div>
+      </div>
+
+      <div *ngIf="selectedTab==='proxy'" formGroupName="proxy" class="tab-pane">
+        <h2 class="tab-title">Proxy Settings</h2>
+
+        <label>
+          <input type="checkbox" formControlName="useSystem" />
+          Use system proxy
+        </label>
+
+        <div class="proxy-row">
+          <label>Type:</label>
+          <app-dropdown [options]="proxyTypeOptions" [value]="settingsForm.get('proxy.type')?.value"
+            (valueChange)="settingsForm.get('proxy.type')?.setValue($event)">
+          </app-dropdown>
+        </div>
+
+        <div class="proxy-row">
+          <div>
+            <label>Host</label>
+            <input type="text" formControlName="host" placeholder="Host" />
+          </div>
+          <div style="flex: 0 0 120px;">
+            <label>Port</label>
+            <input type="number" formControlName="port" placeholder="Port" />
+          </div>
+        </div>
+
+        <div class="proxy-row">
+          <div>
+            <label>User</label>
+            <input type="text" formControlName="user" placeholder="User" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input type="password" formControlName="password" placeholder="Password" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>No-Proxy Domains</label>
+          <input
+            type="text"
+            [value]="noProxyDisplay"
+            (input)="onNoProxyInput($event)"
+            placeholder="localhost, 127.0.0.1, *.internal"
+          />
+        </div>
+      </div>
+
+      <div *ngIf="selectedTab==='export-import'" class="tab-pane">
+        <h2 class="tab-title">Import & Export</h2>
+        <p class="tab-description">Manage your collections and data. Import from other tools or backup your work.</p>
+
+        <div class="settings-section">
+          <h3>Import Data</h3>
+          <div class="action-grid">
+            <button class="action-card" (click)="importCollections()">
+              <div class="card-icon">📂</div>
+              <div class="card-content">
+                <strong>Native Import</strong>
+                <span>Import JSON exported from API Workbench</span>
+              </div>
+            </button>
+            <button class="action-card" (click)="importPostman()">
+              <div class="card-icon">🚀</div>
+              <div class="card-content">
+                <strong>Postman</strong>
+                <span>Import Postman Collection v2.1</span>
+              </div>
+            </button>
+            <button class="action-card" (click)="importOpenApi()">
+              <div class="card-icon">📜</div>
+              <div class="card-content">
+                <strong>OpenAPI / Swagger</strong>
+                <span>Import YAML or JSON definitions</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Export Data</h3>
+          <div class="action-grid">
+            <button class="action-card" [disabled]="!collectionsExist" (click)="exportCollections()">
+              <div class="card-icon">💾</div>
+              <div class="card-content">
+                <strong>Native Export</strong>
+                <span>Save all collections to a JSON file</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="showPopup" class="import-popup"
+          [ngClass]="{ 'import-failed': importFailed, 'import-success': !importFailed }">
+          {{ importMessage }}
+        </div>
+
+      </div>
+
+      <div *ngIf="selectedTab==='about'" class="tab-pane about-pane">
+        <h2 class="tab-title">About</h2>
+        <p class="tab-description">Product information and update controls.</p>
+
+        <section class="about-hero">
+          <div class="about-logo">
+            <img src="logo.png" alt="API Workbench" (error)="$any($event.target).style.display='none'" />
+          </div>
+          <div class="about-meta">
+            <h3>API Workbench</h3>
+            <div class="about-version" *ngIf="updaterStatus">
+              <span class="version-label">Version</span>
+              <span class="version-value">{{ updaterStatus.currentVersion || '\u2014' }}</span>
+            </div>
+            <div class="about-copy">Local desktop HTTP client.</div>
+          </div>
+        </section>
+
+        <section class="update-card" *ngIf="updaterStatus">
+          <div class="update-state" [attr.data-state]="updaterStatus.state">
+            <div class="update-state-dot"></div>
+            <div class="update-state-text">{{ updateStatusMessage }}</div>
+          </div>
+
+          <div class="update-progress" *ngIf="updaterStatus.state === 'downloading'">
+            <div class="update-progress-bar" [style.width.%]="updaterStatus.info?.percent || 0"></div>
+          </div>
+
+          <div *ngIf="updaterStatus.state === 'available' && updaterStatus.info?.releaseNotes as notes"
+               class="release-notes">
+            <h4>Release notes</h4>
+            <div class="release-notes-body" [innerHTML]="notes"></div>
+          </div>
+
+          <div class="update-actions">
+            <button class="fancy-button cancel"
+                    (click)="checkForUpdates()"
+                    [disabled]="!updaterStatus.supported || updaterStatus.state === 'checking' || updaterStatus.state === 'downloading'">
+              {{ updaterStatus.state === 'checking' ? 'Checking\u2026' : 'Check for updates' }}
+            </button>
+
+            <button class="fancy-button"
+                    *ngIf="updaterStatus.state === 'available'"
+                    (click)="downloadUpdate()">
+              Download update
+            </button>
+
+            <button class="fancy-button"
+                    *ngIf="updaterStatus.state === 'downloaded'"
+                    (click)="installUpdate()">
+              Restart & install
+            </button>
+          </div>
+        </section>
+
+        <section class="about-links">
+          <h3 class="settings-section">Links</h3>
+          <ul>
+            <li><strong>Author:</strong> Matthias Kopeinigg</li>
+          </ul>
+        </section>
+      </div>
+
+    </div>
+
+    <div *ngIf="isLoading" class="settings-loading-overlay">
+      <div class="spinner"></div>
+      <p>Processing...</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,81 @@
+<div class="history-panel">
+
+  <div class="panel-toolbar">
+    <button class="action-icon ghost" (click)="collapseAll()" [title]="allCollapsed() ? 'Expand all' : 'Collapse all'">
+      <svg *ngIf="!allCollapsed()" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="4 14 10 14 10 20"></polyline>
+        <polyline points="20 10 14 10 14 4"></polyline>
+        <line x1="14" y1="10" x2="21" y2="3"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+      </svg>
+      <svg *ngIf="allCollapsed()" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <polyline points="9 21 3 21 3 15"></polyline>
+        <line x1="21" y1="3" x2="14" y2="10"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+      </svg>
+      <span>{{ allCollapsed() ? 'Expand all' : 'Collapse all' }}</span>
+    </button>
+    <button class="action-icon danger" (click)="clearHistory()" title="Clear history">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="history-list" *ngIf="groupedHistory.length > 0; else empty">
+    <ng-container *ngFor="let group of groupedHistory; trackBy: trackById">
+      <button type="button" class="group-label" (click)="toggleGroup(group)">
+        <svg class="chevron" [class.collapsed]="group.collapsed" width="10" height="10" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        <span class="group-name">{{ group.displayLabel }}</span>
+        <span class="group-count">{{ group.entries.length }}</span>
+      </button>
+
+      <ul *ngIf="!group.collapsed">
+        <li *ngFor="let entry of group.entries; trackBy: trackById" (click)="select(entry)"
+          [class.active]="entry.id === selected?.id" [title]="entry.request.url">
+          <div class="method" [ngClass]="HttpMethod[entry.request.httpMethod]">
+            {{ HttpMethod[entry.request.httpMethod] }}
+          </div>
+          <div class="middle">
+            <div class="url">{{ entry.request.url }}</div>
+            <div class="time">
+              {{ entry.createdAt | date:'shortTime' }}
+              <small class="elapsed">· {{ getElapsedTime(entry) }}</small>
+            </div>
+          </div>
+
+          <div class="status"
+               [class.ok]="entry.response.statusCode >= 200 && entry.response.statusCode < 300"
+               [class.warn]="entry.response.statusCode >= 300 && entry.response.statusCode < 400"
+               [class.error]="entry.response.statusCode >= 400">
+            {{ entry.response.statusCode }}
+          </div>
+        </li>
+      </ul>
+    </ng-container>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </div>
+      <strong>No requests yet</strong>
+      <span>Sent requests will appear here.</span>
+    </div>
+  </ng-template>
+
+</div>

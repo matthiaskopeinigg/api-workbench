@@ -1,0 +1,114 @@
+<div class="ws-shell">
+  <div class="ws-toolbar">
+    <div class="ws-mode">
+      <app-dropdown [options]="modeOptions" [value]="view.tab.mode"
+        (valueChange)="onModeChange($any($event))"></app-dropdown>
+    </div>
+    <input class="ws-url" type="text" [ngModel]="view.tab.url" (ngModelChange)="onUrlChange($event)"
+      [placeholder]="view.tab.mode === 'sse' ? 'http(s)://... (SSE endpoint)' : 'ws(s)://...'" />
+    <button type="button" class="btn-primary"
+      *ngIf="!isConnected && view.status !== 'connecting' && view.status !== 'closing'"
+      (click)="connect()" [disabled]="!view.tab.url">
+      Connect
+    </button>
+    <button type="button" class="btn-secondary"
+      *ngIf="isConnected || view.status === 'connecting' || view.status === 'closing'"
+      (click)="disconnect()">
+      Disconnect
+    </button>
+  </div>
+
+  <div class="ws-status" [attr.data-status]="view.status">
+    <span class="ws-status-dot"></span>
+    <span class="ws-status-label">{{ statusLabel }}</span>
+    <span class="ws-status-error" *ngIf="view.error">{{ view.error }}</span>
+  </div>
+
+  <div class="ws-section-tabs" role="tablist">
+    <button role="tab" [class.active]="activeSection === 'message'"
+      (click)="activeSection = 'message'">Message</button>
+    <button role="tab" [class.active]="activeSection === 'headers'"
+      (click)="activeSection = 'headers'">Headers ({{ (view.tab.headers || []).length }})</button>
+    <button role="tab" [class.active]="activeSection === 'protocols'"
+      *ngIf="view.tab.mode === 'ws'"
+      (click)="activeSection = 'protocols'">Sub-protocols</button>
+  </div>
+
+  <div class="ws-section" *ngIf="activeSection === 'message'">
+    <textarea class="ws-message-editor" rows="4"
+      [ngModel]="view.tab.messageDraft" (ngModelChange)="onDraftChange($event)"
+      [disabled]="view.tab.mode === 'sse'"
+      [placeholder]="view.tab.mode === 'sse' ? 'SSE streams are receive-only.' : 'Type a message to send…'"></textarea>
+    <div class="ws-message-actions">
+      <button type="button" class="btn-primary"
+        (click)="send()"
+        [disabled]="!isConnected || view.tab.mode === 'sse' || !view.tab.messageDraft">
+        Send
+      </button>
+    </div>
+  </div>
+
+  <div class="ws-section headers-grid" *ngIf="activeSection === 'headers'">
+    <div class="ws-header-row header-row-head">
+      <span></span>
+      <span>Key</span>
+      <span>Value</span>
+      <span></span>
+    </div>
+    <div class="ws-header-row" *ngFor="let h of view.tab.headers; let i = index; trackBy: trackByHeader">
+      <input type="checkbox" [checked]="h.enabled !== false"
+        (change)="updateHeader(i, 'enabled', $any($event.target).checked)" />
+      <input type="text" [ngModel]="h.key" (ngModelChange)="updateHeader(i, 'key', $event)" placeholder="Key" />
+      <input type="text" [ngModel]="h.value" (ngModelChange)="updateHeader(i, 'value', $event)" placeholder="Value" />
+      <button type="button" class="btn-icon" (click)="removeHeader(i)" title="Remove header">×</button>
+    </div>
+    <button type="button" class="btn-secondary ws-add-header" (click)="addHeader()">+ Add header</button>
+  </div>
+
+  <div class="ws-section" *ngIf="activeSection === 'protocols'">
+    <label class="ws-field-label">Sub-protocols (comma-separated)</label>
+    <input type="text" [ngModel]="protocolsInput" (ngModelChange)="onProtocolsChange($event)"
+      placeholder="e.g. chat, superchat" />
+  </div>
+
+  <div class="ws-log">
+    <div class="ws-log-toolbar">
+      <span class="ws-log-title">Frame log ({{ view.frames.length }})</span>
+      <button type="button" class="btn-icon" (click)="clear()" title="Clear log">Clear</button>
+    </div>
+    <div class="ws-log-body">
+      <div *ngIf="view.frames.length === 0" class="ws-log-empty">
+        No frames yet.
+      </div>
+      <div class="ws-frame" *ngFor="let f of view.frames; trackBy: trackByFrame"
+        [attr.data-direction]="f.direction" [attr.data-kind]="f.kind">
+        <span class="ws-frame-time">{{ formatTimestamp(f.at) }}</span>
+        <span class="ws-frame-arrow" [title]="f.direction">
+          <ng-container [ngSwitch]="f.direction">
+            <ng-container *ngSwitchCase="'in'">↓</ng-container>
+            <ng-container *ngSwitchCase="'out'">↑</ng-container>
+            <ng-container *ngSwitchDefault>·</ng-container>
+          </ng-container>
+        </span>
+        <span class="ws-frame-body">
+          <ng-container *ngIf="f.kind === 'text'">{{ f.data }}</ng-container>
+          <ng-container *ngIf="f.kind === 'binary'">
+            <span class="ws-frame-tag">binary</span>
+            <span class="ws-frame-binary">{{ (f.binaryBase64 || '').slice(0, 120) }}<ng-container
+              *ngIf="(f.binaryBase64 || '').length > 120">…</ng-container></span>
+          </ng-container>
+          <ng-container *ngIf="f.kind === 'event'">
+            <span class="ws-frame-tag">{{ f.event || 'event' }}</span>
+            <span>{{ f.data }}</span>
+          </ng-container>
+          <ng-container *ngIf="f.kind === 'info'">
+            <span class="ws-frame-info">{{ f.message }}</span>
+          </ng-container>
+          <ng-container *ngIf="f.kind === 'error'">
+            <span class="ws-frame-error">{{ f.message }}</span>
+          </ng-container>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

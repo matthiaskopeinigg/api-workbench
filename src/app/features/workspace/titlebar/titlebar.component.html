@@ -1,0 +1,52 @@
+<div class="custom-titlebar disable-select" appDragRegion>
+  <div class="window-controls">
+    <img src="logo.png" alt="API Workbench" class="logo" width="24" height="24">
+    <div class="title disable-select" aria-hidden="true">API Workbench</div>
+  </div>
+
+  <div class="window-actions">
+    <button type="button" id="cookie-btn" class="icon-btn" (click)="showCookieManager = true"
+      title="Cookies" aria-label="Open cookie manager">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="8" cy="10" r="1.5" fill="currentColor" stroke="none" />
+        <circle cx="14" cy="9" r="1.2" fill="currentColor" stroke="none" />
+        <path d="M8 14c1.5 2 4.5 2.5 8-1" stroke-linecap="round" />
+      </svg>
+    </button>
+    <button type="button" id="settings-btn" class="icon-btn" (click)="toggleSettingsPopup()"
+      title="Settings" aria-label="Open settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        aria-hidden="true">
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+      </svg>
+    </button>
+    <button type="button" id="minimize-btn" class="icon-btn" (click)="minimize()" title="Minimize"
+      aria-label="Minimize window">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        aria-hidden="true">
+        <path d="M5 12h14" stroke-linecap="round" />
+      </svg>
+    </button>
+    <button type="button" id="maximize-btn" class="icon-btn" (click)="maximize()" title="Maximize"
+      aria-label="Maximize window">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        aria-hidden="true">
+        <rect x="5" y="5" width="14" height="14" rx="1" />
+      </svg>
+    </button>
+    <button type="button" id="close-btn" class="icon-btn close-btn" (click)="close()" title="Close"
+      aria-label="Close window">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18" stroke-linecap="round" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<app-settings *ngIf="showSettings" (close)="toggleSettingsPopup()"></app-settings>
+<app-cookie-manager *ngIf="showCookieManager" (close)="showCookieManager = false"></app-cookie-manager>

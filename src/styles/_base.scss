@@ -1,0 +1,92 @@
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  border-radius: var(--aw-radius-sm, 4px);
+}
+
+body.aw-dragging,
+body.aw-dragging * {
+  cursor: grabbing !important;
+}
+
+.aw-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  background: var(--aw-surface, var(--surface));
+  color: var(--aw-text, var(--text-color));
+  border: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 30%);
+  border-radius: var(--aw-radius-sm, 6px);
+  box-shadow: var(--aw-shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.18));
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+
+  .aw-drag-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    color: var(--secondary-color);
+    background: color-mix(in srgb, var(--secondary-color), transparent 88%);
+    flex-shrink: 0;
+  }
+
+  .aw-drag-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+  }
+
+  &.is-folder .aw-drag-icon { color: #f1c40f; background: color-mix(in srgb, #f1c40f, transparent 86%); }
+  &.is-collection .aw-drag-icon { color: #f1c40f; background: color-mix(in srgb, #f1c40f, transparent 86%); }
+
+  &.is-tab {
+    height: 30px;
+    padding: 0 10px 0 10px;
+    border-radius: var(--aw-radius-sm, 6px);
+    transform: rotate(-1.5deg);
+    border-color: color-mix(in srgb, var(--secondary-color), transparent 55%);
+    box-shadow:
+      0 10px 24px rgba(0, 0, 0, 0.22),
+      0 2px 6px rgba(0, 0, 0, 0.12),
+      inset 0 0 0 1px color-mix(in srgb, var(--secondary-color), transparent 78%);
+
+    .aw-drag-icon {
+      color: var(--secondary-color);
+      background: color-mix(in srgb, var(--secondary-color), transparent 86%);
+    }
+  }
+}

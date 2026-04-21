@@ -1,38 +1,38 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+about: Something is broken or not behaving as expected
+title: "[Bug] "
+labels: bug
 assignees: ''
-
 ---
 
-**Describe the bug**
+## Describe the bug
 A clear and concise description of what the bug is.
 
-**To Reproduce**
-Steps to reproduce the behavior:
+## Steps to reproduce
 1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
+2. Click on '...'
+3. Scroll to '...'
 4. See error
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Expected behaviour
+What you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+## Screenshots / recordings
+If applicable, add screenshots or a short screen recording to help explain the problem.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Environment
+- OS: [e.g. Windows 11 23H2, macOS 14.5, Ubuntu 24.04]
+- App version: [e.g. 1.0.1]
+- Install source: [packaged installer / `npm run dev` from source]
+- Node version (source builds only): [e.g. 22.12.0]
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+## Logs
+If the app produced any console output (DevTools or terminal), paste the relevant lines here.
 
-**Additional context**
-Add any other context about the problem here.
+```
+<paste logs here>
+```
+
+## Additional context
+Anything else that might help — a specific endpoint you were hitting, auth mode, proxy config, etc.

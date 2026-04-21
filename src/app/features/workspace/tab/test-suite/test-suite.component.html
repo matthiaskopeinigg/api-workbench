@@ -1,0 +1,365 @@
+<section class="suite" *ngIf="artifact; else loading">
+  <header class="suite-header">
+    <div class="title-row">
+      <input
+        class="title-input"
+        type="text"
+        [(ngModel)]="artifact.title"
+        (ngModelChange)="onTitleChange()"
+        placeholder="Untitled suite" />
+      <span class="updated">Updated {{ artifact.updatedAt | date:'short' }}</span>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" [disabled]="running" (click)="runAll()">
+        <span class="dot"></span>
+        {{ running ? 'Running…' : 'Run All' }}
+      </button>
+      <button type="button" class="btn" [disabled]="running || !selectedCaseId" (click)="runFromHere()">Run from here</button>
+      <button type="button" class="btn" [disabled]="running || !selectedCaseId" (click)="runOnly(selectedCaseId!)">Run case</button>
+      <button type="button"
+              class="regression-toggle"
+              [class.on]="artifact.regressionMode"
+              (click)="toggleRegressionMode()"
+              title="When on, only snapshot assertions drive pass/fail.">
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+        <span class="label">Regression mode</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="totals">
+    <aw-stat-card label="Total" [value]="totals().total"></aw-stat-card>
+    <aw-stat-card label="Passed" tone="success" [value]="totals().pass"></aw-stat-card>
+    <aw-stat-card label="Failed" tone="error" [value]="totals().fail"></aw-stat-card>
+    <aw-stat-card label="Warned" tone="warn" [value]="totals().warn"></aw-stat-card>
+    <aw-stat-card label="Skipped" [value]="totals().skip"></aw-stat-card>
+    <aw-stat-card
+      label="Run status"
+      [value]="finalResult ? finalResult.status.toUpperCase() : (running ? 'RUNNING' : 'IDLE')"
+      [tone]="finalResult?.status === 'pass' ? 'success' : finalResult?.status === 'fail' ? 'error' : finalResult?.status === 'warn' ? 'warn' : 'default'">
+    </aw-stat-card>
+  </div>
+
+  <div class="grid">
+    
+    <aside class="cases-pane">
+      <div class="pane-section">
+        <div class="pane-header">
+          <h4>Cases</h4>
+          <span class="muted">{{ artifact.cases.length }}</span>
+        </div>
+
+        <ul class="case-list">
+          <li *ngFor="let c of artifact.cases; trackBy: trackById"
+              [class.active]="c.id === selectedCaseId"
+              [class.disabled]="!c.enabled">
+            <button type="button" class="case-btn" (click)="selectCase(c.id)">
+              <span class="status-pill" [class]="'pill-' + caseStatus(c.id)"></span>
+              <span class="case-name">{{ c.name || '(unnamed)' }}</span>
+              <span class="case-sub">{{ caseLabelFor(c) }}</span>
+            </button>
+            <div class="case-actions">
+              <button type="button" class="icon-btn" title="Toggle enabled"
+                      (click)="toggleCaseEnabled(c.id)">
+                {{ c.enabled ? '◉' : '○' }}
+              </button>
+              <button type="button" class="icon-btn" title="Duplicate" (click)="duplicateCase(c.id)">⎘</button>
+              <button type="button" class="icon-btn danger" title="Delete" (click)="removeCase(c.id)">✕</button>
+            </div>
+          </li>
+        </ul>
+
+        <div class="add-case">
+          <select #savedPick (change)="addSavedCase(savedPick.value); savedPick.value = ''">
+            <option value="">+ Add saved request…</option>
+            <option *ngFor="let r of requestPicks" [value]="r.id">{{ r.method }} — {{ r.label }}</option>
+          </select>
+          <button type="button" class="btn-link" (click)="showAddInline = !showAddInline">
+            {{ showAddInline ? 'Cancel' : '+ Inline' }}
+          </button>
+        </div>
+
+        <div class="inline-draft" *ngIf="showAddInline">
+          <select [(ngModel)]="inlineDraft.method">
+            <option>GET</option><option>POST</option><option>PUT</option>
+            <option>PATCH</option><option>DELETE</option>
+          </select>
+          <input type="text" placeholder="https://…" [(ngModel)]="inlineDraft.url" />
+          <button type="button" class="btn primary sm" (click)="addInlineCase()">Add</button>
+        </div>
+      </div>
+
+      <div class="pane-section">
+        <div class="pane-header">
+          <h4>Variables</h4>
+          <button type="button" class="btn-link" (click)="addVariable()">+ Add</button>
+        </div>
+        <div class="vars" *ngIf="artifact.variables.length; else noVars">
+          <div class="var-row" *ngFor="let v of artifact.variables; let i = index; trackBy: trackByIndex">
+            <input type="text" placeholder="key" [(ngModel)]="v.key" (ngModelChange)="onCaseEdit()" />
+            <input type="text" placeholder="value" [(ngModel)]="v.value" (ngModelChange)="onCaseEdit()" />
+            <button type="button" class="icon-btn danger" (click)="removeVariable(i)">✕</button>
+          </div>
+        </div>
+        <ng-template #noVars>
+          <div class="empty-mini">No variables yet.</div>
+        </ng-template>
+      </div>
+
+      <div class="pane-section">
+        <div class="pane-header">
+          <h4>Run results</h4>
+        </div>
+        <aw-tree-results [nodes]="treeNodes" (nodeClick)="onTreeNodeClick($event)"></aw-tree-results>
+      </div>
+    </aside>
+
+    
+    <main class="detail-pane" *ngIf="selectedCase as tc; else noSelection">
+      <header class="detail-header">
+        <input
+          type="text"
+          class="case-title"
+          [(ngModel)]="tc.name"
+          (ngModelChange)="onCaseEdit()"
+          placeholder="Case name" />
+        <span class="case-target">{{ caseLabelFor(tc) }}</span>
+      </header>
+
+      <section class="detail-section">
+        <div class="section-head">
+          <h4>Assertions</h4>
+          <div class="assertion-add">
+            <button type="button" class="btn sm" (click)="addAssertion('status')">+ Status</button>
+            <button type="button" class="btn sm" (click)="addAssertion('latency')">+ Latency</button>
+            <button type="button" class="btn sm" (click)="addAssertion('header')">+ Header</button>
+            <button type="button" class="btn sm" (click)="addAssertion('body')">+ Body</button>
+            <button type="button" class="btn sm accent" (click)="addAssertion('snapshot')"
+                    title="Capture a baseline response and fail on drift">+ Snapshot</button>
+          </div>
+        </div>
+
+        <div class="assertion-list" *ngIf="tc.assertions?.length; else noAssertions">
+          <div class="assertion-row" *ngFor="let a of tc.assertions; let i = index; trackBy: trackByIndex">
+            <ng-container [ngSwitch]="a.kind">
+              <ng-container *ngSwitchCase="'status'">
+                <span class="kind-tag tag-status">status</span>
+                <select [ngModel]="asStatus(a).expected"
+                        (ngModelChange)="asStatus(a).expected = $event; onCaseEdit()">
+                  <option *ngFor="let r of formatStatusList()" [value]="r">{{ r }}</option>
+                  <option [ngValue]="200">200</option>
+                  <option [ngValue]="201">201</option>
+                  <option [ngValue]="204">204</option>
+                  <option [ngValue]="400">400</option>
+                  <option [ngValue]="401">401</option>
+                  <option [ngValue]="403">403</option>
+                  <option [ngValue]="404">404</option>
+                  <option [ngValue]="500">500</option>
+                </select>
+              </ng-container>
+
+              <ng-container *ngSwitchCase="'latency'">
+                <span class="kind-tag tag-latency">latency</span>
+                <label class="inline-label">fail above</label>
+                <input type="number" [(ngModel)]="asLatency(a).failAboveMs" (ngModelChange)="onCaseEdit()" />
+                <label class="inline-label">ms — warn above</label>
+                <input type="number" [(ngModel)]="asLatency(a).warnAboveMs" (ngModelChange)="onCaseEdit()" placeholder="(optional)" />
+                <span class="inline-suffix">ms</span>
+              </ng-container>
+
+              <ng-container *ngSwitchCase="'header'">
+                <span class="kind-tag tag-header">header</span>
+                <input type="text" placeholder="Header name" [(ngModel)]="asHeader(a).name" (ngModelChange)="onCaseEdit()" />
+                <select [(ngModel)]="asHeader(a).op" (ngModelChange)="onCaseEdit()">
+                  <option value="exists">exists</option>
+                  <option value="equals">equals</option>
+                  <option value="contains">contains</option>
+                  <option value="regex">regex</option>
+                </select>
+                <input type="text" placeholder="value"
+                       *ngIf="asHeader(a).op !== 'exists'"
+                       [(ngModel)]="asHeader(a).value"
+                       (ngModelChange)="onCaseEdit()" />
+              </ng-container>
+
+              <ng-container *ngSwitchCase="'body'">
+                <span class="kind-tag tag-body">body</span>
+                <select [(ngModel)]="asBody(a).op" (ngModelChange)="onCaseEdit()">
+                  <option value="contains">contains</option>
+                  <option value="equals">equals</option>
+                  <option value="regex">regex</option>
+                  <option value="truthy">truthy</option>
+                  <option value="falsy">falsy</option>
+                  <option value="jsonpath-equals">jsonpath equals</option>
+                  <option value="jsonpath-truthy">jsonpath truthy</option>
+                </select>
+                <input type="text" placeholder="$.path.to.field"
+                       *ngIf="asBody(a).op === 'jsonpath-equals' || asBody(a).op === 'jsonpath-truthy'"
+                       [(ngModel)]="asBody(a).path"
+                       (ngModelChange)="onCaseEdit()" />
+                <input type="text" placeholder="value"
+                       *ngIf="asBody(a).op !== 'truthy' && asBody(a).op !== 'falsy' && asBody(a).op !== 'jsonpath-truthy'"
+                       [(ngModel)]="asBody(a).value"
+                       (ngModelChange)="onCaseEdit()" />
+              </ng-container>
+
+              <ng-container *ngSwitchCase="'snapshot'">
+                <div class="snapshot-editor">
+                  <div class="snapshot-top">
+                    <span class="kind-tag tag-snapshot">snapshot</span>
+                    <span class="baseline-state"
+                          [class.captured]="hasBaseline(asSnapshot(a))"
+                          [class.pending]="asSnapshot(a).pendingAccept">
+                      <ng-container *ngIf="asSnapshot(a).pendingAccept; else stateLabel">
+                        will re-accept on next run
+                      </ng-container>
+                      <ng-template #stateLabel>
+                        {{ hasBaseline(asSnapshot(a)) ? 'baseline captured' : 'no baseline yet' }}
+                      </ng-template>
+                    </span>
+                  </div>
+                  <div class="snapshot-row">
+                    <label class="check-inline">
+                      <input type="checkbox"
+                             [checked]="asSnapshot(a).matchStatus !== false"
+                             (change)="asSnapshot(a).matchStatus = !!$any($event.target).checked; onCaseEdit()" />
+                      Compare status code
+                    </label>
+                  </div>
+                  <div class="snapshot-row">
+                    <label class="field-label">Compare headers (comma-separated)</label>
+                    <input type="text"
+                           placeholder="content-type, cache-control"
+                           [value]="snapshotIncludeHeadersText(asSnapshot(a))"
+                           (change)="setSnapshotIncludeHeaders(asSnapshot(a), $any($event.target).value)" />
+                  </div>
+                  <div class="snapshot-row">
+                    <label class="field-label">Ignore JSON paths (comma-separated)</label>
+                    <input type="text"
+                           placeholder="$.timestamp, $.id, $.items.*.updatedAt"
+                           [value]="snapshotIgnorePathsText(asSnapshot(a))"
+                           (change)="setSnapshotIgnorePaths(asSnapshot(a), $any($event.target).value)" />
+                  </div>
+                  <div class="snapshot-actions">
+                    <button type="button" class="btn sm"
+                            [disabled]="!hasBaseline(asSnapshot(a))"
+                            (click)="markForAccept(asSnapshot(a))">
+                      Mark for re-accept
+                    </button>
+                    <button type="button" class="btn sm danger"
+                            [disabled]="!hasBaseline(asSnapshot(a))"
+                            (click)="clearBaseline(asSnapshot(a))">
+                      Clear baseline
+                    </button>
+                  </div>
+                </div>
+              </ng-container>
+            </ng-container>
+            <button type="button" class="icon-btn danger" (click)="removeAssertion(i)" title="Delete">✕</button>
+          </div>
+        </div>
+        <ng-template #noAssertions>
+          <div class="empty-mini">No assertions. Add one with the buttons above.</div>
+        </ng-template>
+      </section>
+
+      <section class="detail-section">
+        <div class="section-head">
+          <h4>Extract variables</h4>
+          <button type="button" class="btn sm" (click)="addExtraction()">+ Add</button>
+        </div>
+        <div class="extracts" *ngIf="tc.extracts?.length; else noExtracts">
+          <div class="extract-row" *ngFor="let ex of tc.extracts; let i = index; trackBy: trackByIndex">
+            <input type="text" placeholder="varName" [(ngModel)]="ex.as" (ngModelChange)="onCaseEdit()" />
+            <span class="muted">←</span>
+            <input type="text" placeholder="$.token  or  header:Authorization"
+                   [(ngModel)]="ex.source" (ngModelChange)="onCaseEdit()" />
+            <button type="button" class="icon-btn danger" (click)="removeExtraction(i)">✕</button>
+          </div>
+        </div>
+        <ng-template #noExtracts>
+          <div class="empty-mini">No extractions. Pull a value from the response into a suite variable.</div>
+        </ng-template>
+      </section>
+
+      <section class="detail-section" *ngIf="selectedCaseResult as r">
+        <div class="section-head">
+          <h4>Last response</h4>
+          <span class="muted">{{ r.response.status }} · {{ r.durationMs }} ms</span>
+        </div>
+
+        <div class="resp-grid">
+          <div class="resp-block">
+            <div class="block-head">Assertions</div>
+            <ul class="assert-results">
+              <li *ngFor="let ar of r.assertions; trackBy: trackByIndex"
+                  [class]="'res-' + ar.status">
+                <div class="ar-row">
+                  <span class="status-pill" [class]="'pill-' + ar.status"></span>
+                  <span class="ar-label">{{ ar.label }}</span>
+                  <span class="ar-actual" *ngIf="ar.actual">{{ ar.actual }}</span>
+                  <button type="button" class="btn xs"
+                          *ngIf="ar.kind === 'snapshot' && ar.status === 'fail' && ar.assertionId"
+                          [disabled]="running"
+                          (click)="acceptBaselineFromResult(r.caseId, ar.assertionId!)"
+                          title="Overwrite the stored baseline with the current response">
+                    Accept as new baseline
+                  </button>
+                </div>
+                <div class="snapshot-diff" *ngIf="ar.snapshotDiff?.fields?.length">
+                  <div class="diff-summary">{{ ar.snapshotDiff?.summary }}</div>
+                  <table class="diff-table">
+                    <thead>
+                      <tr><th>Path</th><th>Change</th><th>Expected</th><th>Actual</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let f of ar.snapshotDiff?.fields; trackBy: trackByIndex"
+                          [class]="'diff-' + f.change">
+                        <td class="diff-path">{{ f.path }}</td>
+                        <td class="diff-change">{{ f.change }}</td>
+                        <td class="diff-val">{{ f.expected ?? '—' }}</td>
+                        <td class="diff-val">{{ f.actual ?? '—' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="resp-block" *ngIf="r.response.headers?.length">
+            <div class="block-head">Response headers</div>
+            <ul class="header-list">
+              <li *ngFor="let h of r.response.headers">
+                <span class="hk">{{ h.key }}</span><span class="hv">{{ h.value }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="resp-block" *ngIf="r.response.body">
+            <div class="block-head">Body</div>
+            <pre class="body-block">{{ r.response.body }}</pre>
+          </div>
+
+          <div class="resp-block" *ngIf="r.errorMessage">
+            <div class="block-head error">Error</div>
+            <div class="err-msg">{{ r.errorMessage }}</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <ng-template #noSelection>
+      <main class="detail-pane empty">
+        <div class="empty-state">
+          <h3>No case selected</h3>
+          <p>Add a case from the left, or select one to edit assertions.</p>
+        </div>
+      </main>
+    </ng-template>
+  </div>
+</section>
+
+<ng-template #loading>
+  <div class="loading">Loading suite…</div>
+</ng-template>

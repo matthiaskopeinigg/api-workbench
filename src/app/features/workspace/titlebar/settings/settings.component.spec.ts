@@ -1,0 +1,105 @@
+import { ComponentFixture, TestBed, fakeAsync, tick, flushMicrotasks } from '@angular/core/testing';
+import { SettingsComponent } from './settings.component';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { SettingsService } from '@core/settings.service';
+import { ThemeService } from '@core/theme.service';
+import { FileDialogService } from '@core/file-dialog.service';
+import { CollectionService } from '@core/collection.service';
+import { ImportService } from '@core/import.service';
+import { Theme } from '@models/settings';
+import { CommonModule } from '@angular/common';
+
+describe('SettingsComponent', () => {
+  let component: SettingsComponent;
+  let fixture: ComponentFixture<SettingsComponent>;
+
+  let settingsServiceSpy: jasmine.SpyObj<SettingsService>;
+  let themeServiceSpy: jasmine.SpyObj<ThemeService>;
+  let fileDialogServiceSpy: jasmine.SpyObj<FileDialogService>;
+  let collectionServiceSpy: jasmine.SpyObj<CollectionService>;
+  let importServiceSpy: jasmine.SpyObj<ImportService>;
+
+  const mockSettings = {
+    ui: { theme: Theme.DARK },
+    requests: {},
+    retries: {},
+    headers: {},
+    ssl: { certificates: [] },
+    dns: {},
+    proxy: {}
+  };
+
+  beforeEach(async () => {
+    settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings', 'saveSettings']);
+    themeServiceSpy = jasmine.createSpyObj('ThemeService', ['setTheme']);
+    fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', ['openFile', 'saveFile']);
+    collectionServiceSpy = jasmine.createSpyObj('CollectionService', ['getCollections', 'saveCollections', 'deleteAllCollections']);
+    importServiceSpy = jasmine.createSpyObj('ImportService', ['importPostmanCollection', 'importOpenApi']);
+
+    settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
+    collectionServiceSpy.getCollections.and.returnValue([]);
+
+    await TestBed.configureTestingModule({
+      imports: [SettingsComponent, CommonModule, ReactiveFormsModule],
+      providers: [
+        FormBuilder,
+        { provide: SettingsService, useValue: settingsServiceSpy },
+        { provide: ThemeService, useValue: themeServiceSpy },
+        { provide: FileDialogService, useValue: fileDialogServiceSpy },
+        { provide: CollectionService, useValue: collectionServiceSpy },
+        { provide: ImportService, useValue: importServiceSpy }
+      ]
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(SettingsComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  });
+
+  it('should create and load settings', () => {
+    expect(component).toBeTruthy();
+    expect(settingsServiceSpy.getSettings).toHaveBeenCalled();
+    expect(component.settingsForm).toBeDefined();
+    expect(component.settingsForm.get('ui.theme')?.value).toBe(Theme.DARK);
+  });
+
+  it('should update theme when form changes', fakeAsync(() => {
+    const themeControl = component.settingsForm.get('ui.theme');
+    themeControl?.setValue(Theme.LIGHT);
+    flushMicrotasks();
+
+    expect(themeServiceSpy.setTheme).toHaveBeenCalledWith(Theme.LIGHT, false);
+
+    tick(300); 
+    fixture.detectChanges();
+
+    expect(settingsServiceSpy.saveSettings).toHaveBeenCalled();
+  }));
+
+  it('should switch tabs', () => {
+    component.selectTab('proxy');
+    expect(component.selectedTab).toBe('proxy');
+  });
+
+  it('should add certificate', () => {
+    const certs = component.certificates;
+    expect(certs.length).toBe(0);
+
+    component.hostnameControl.setValue('example.com');
+    component.saveCertificate();
+
+    expect(certs.length).toBe(1);
+    expect(certs.at(0).value.hostname).toBe('example.com');
+  });
+
+  it('should remove certificate', () => {
+    component.hostnameControl.setValue('example.com');
+    component.saveCertificate();
+
+    component.removeCertificate(0);
+    expect(component.certificates.length).toBe(0);
+  });
+});
+

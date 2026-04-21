@@ -1,0 +1,198 @@
+<div class="loadtest-tab" *ngIf="artifact as a">
+  <header class="lt-header">
+    <input
+      class="title-input"
+      [(ngModel)]="a.title"
+      (ngModelChange)="onTitleChange()"
+      placeholder="Untitled load test"
+    />
+    <div class="header-actions">
+      <button type="button" class="btn ghost" *ngIf="result" (click)="exportResultJson()">Export JSON</button>
+      <button type="button" class="btn primary" *ngIf="!running" (click)="start()">▶ Start</button>
+      <button type="button" class="btn danger" *ngIf="running" [disabled]="cancelling" (click)="cancel()">
+        {{ cancelling ? 'Cancelling…' : '■ Cancel' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="lt-body">
+
+    
+    <aside class="lt-config">
+      <section class="cfg-section">
+        <h4>Targets</h4>
+        <ul class="targets" *ngIf="a.config.targets.length; else noTargets">
+          <li *ngFor="let t of a.config.targets; let i = index; trackBy: trackByIndex" class="target-row">
+            <span class="kind-badge">{{ t.kind === 'inline' ? 'Inline' : 'Saved' }}</span>
+            <span class="target-label" [title]="targetLabel(t)">{{ targetLabel(t) }}</span>
+            <button type="button" class="icon-btn" (click)="removeTarget(i)" title="Remove">×</button>
+          </li>
+        </ul>
+        <ng-template #noTargets>
+          <div class="empty">No targets yet — add one below.</div>
+        </ng-template>
+
+        <div class="add-saved" *ngIf="requestPicks.length">
+          <label>Add saved request</label>
+          <select #picker (change)="addSavedTarget(picker.value); picker.value = ''">
+            <option value="">Pick a request…</option>
+            <option *ngFor="let r of requestPicks" [value]="r.id">{{ r.method }} — {{ r.label }}</option>
+          </select>
+        </div>
+
+        <button type="button" class="btn ghost full" (click)="showInlineEditor = !showInlineEditor">
+          {{ showInlineEditor ? 'Cancel inline' : '+ Add inline target' }}
+        </button>
+
+        <div class="inline-editor" *ngIf="showInlineEditor">
+          <div class="row">
+            <select [(ngModel)]="inlineDraft.method">
+              <option>GET</option><option>POST</option><option>PUT</option>
+              <option>PATCH</option><option>DELETE</option><option>HEAD</option>
+            </select>
+            <input type="text" placeholder="https://example.com/api" [(ngModel)]="inlineDraft.url" />
+          </div>
+          <textarea
+            *ngIf="inlineDraft.method !== 'GET' && inlineDraft.method !== 'HEAD'"
+            placeholder="Optional request body"
+            rows="3"
+            [(ngModel)]="inlineDraft.body"></textarea>
+          <button type="button" class="btn primary full" (click)="addInlineTarget()">Add</button>
+        </div>
+      </section>
+
+      <section class="cfg-section">
+        <h4>Load profile</h4>
+        <div class="cfg-grid">
+          <label>VUs (concurrent users)
+            <input type="number" min="1" max="500"
+                   [(ngModel)]="a.config.vus" (change)="onConfigChange()" />
+          </label>
+          <label>Ramp-up (s)
+            <input type="number" min="0"
+                   [(ngModel)]="a.config.rampUpSec" (change)="onConfigChange()" />
+          </label>
+        </div>
+
+        <fieldset class="stop-mode">
+          <legend>Stop after</legend>
+          <label>
+            <input type="radio" name="stopMode" [checked]="stopMode === 'duration'"
+                   (change)="setStopMode('duration')" /> Duration
+          </label>
+          <label>
+            <input type="radio" name="stopMode" [checked]="stopMode === 'iterations'"
+                   (change)="setStopMode('iterations')" /> Total iterations
+          </label>
+        </fieldset>
+
+        <div class="cfg-grid">
+          <label *ngIf="stopMode === 'duration'">Duration (s)
+            <input type="number" min="1"
+                   [ngModel]="a.config.durationSec"
+                   (ngModelChange)="a.config.durationSec = $event; onConfigChange()" />
+          </label>
+          <label *ngIf="stopMode === 'iterations'">Iterations
+            <input type="number" min="1"
+                   [ngModel]="a.config.iterations"
+                   (ngModelChange)="a.config.iterations = $event; onConfigChange()" />
+          </label>
+          <label>RPS cap (optional)
+            <input type="number" min="0" placeholder="No cap"
+                   [ngModel]="a.config.rpsCap"
+                   (ngModelChange)="onRpsCapChange(a, $event)" />
+          </label>
+          <label>Think time (ms)
+            <input type="number" min="0"
+                   [(ngModel)]="a.config.thinkMs" (change)="onConfigChange()" />
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    
+    <main class="lt-results">
+
+      <section class="stats" *ngIf="progress || result">
+        <aw-stat-card label="Requests" [value]="(result?.summary?.total ?? progress?.summary?.total) || 0"></aw-stat-card>
+        <aw-stat-card label="RPS" [value]="(result?.summary?.rps ?? progress?.summary?.rps) || 0"></aw-stat-card>
+        <aw-stat-card label="Errors"
+                      [value]="(result?.summary?.failed ?? progress?.summary?.failed) || 0"
+                      [tone]="((result?.summary?.failed ?? progress?.summary?.failed) || 0) > 0 ? 'error' : 'default'"></aw-stat-card>
+        <aw-stat-card label="p50" unit="ms" [value]="(result?.summary?.p50 ?? progress?.summary?.p50) || 0"></aw-stat-card>
+        <aw-stat-card label="p95" unit="ms" [value]="(result?.summary?.p95 ?? progress?.summary?.p95) || 0"></aw-stat-card>
+        <aw-stat-card label="p99" unit="ms" [value]="(result?.summary?.p99 ?? progress?.summary?.p99) || 0"></aw-stat-card>
+        <aw-stat-card label="Active VUs" [value]="progress?.activeVus ?? 0"
+                      [sub]="running ? 'running…' : (result ? result.status : 'idle')"></aw-stat-card>
+        <aw-stat-card label="Elapsed" unit="s"
+                      [value]="(result?.summary?.elapsedSec ?? progress?.summary?.elapsedSec) || 0"></aw-stat-card>
+      </section>
+
+      <div class="empty-result" *ngIf="!progress && !result">
+        Configure a load profile on the left, then press <strong>Start</strong>.
+      </div>
+
+      <section class="charts" *ngIf="progress || result">
+        <div class="chart-card">
+          <h5>Throughput</h5>
+          <aw-time-series-chart [xs]="chartXs" [series]="rpsChartSeries"></aw-time-series-chart>
+        </div>
+        <div class="chart-card">
+          <h5>Latency</h5>
+          <aw-time-series-chart [xs]="chartXs" [series]="latencyChartSeries"></aw-time-series-chart>
+        </div>
+      </section>
+
+      <section class="status-buckets" *ngIf="(result || progress) as src">
+        <h5>Status codes</h5>
+        <div class="bucket-row" *ngFor="let entry of (src.summary.statusBuckets | keyvalue)">
+          <span class="bucket-pill" [class]="'tone-' + bucketTone(entry.key)">{{ entry.key }}</span>
+          <div class="bucket-bar">
+            <div class="bucket-fill"
+                 [class]="'fill-' + bucketTone(entry.key)"
+                 [style.width.%]="bucketPct(entry.key, $any(entry.value))"></div>
+          </div>
+          <span class="bucket-count">{{ entry.value }}</span>
+        </div>
+      </section>
+
+      <section class="report" *ngIf="result">
+        <div class="report-block">
+          <h5>Slowest 10</h5>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Status</th><th>Duration</th><th>VU</th><th>Iter</th><th>Started</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let s of result.slowest; let i = index; trackBy: trackBySampleIndex">
+                <td>{{ i + 1 }}</td>
+                <td>
+                  <span class="bucket-pill" [class]="'tone-' + bucketTone(s.errorMessage ? 'error' : (s.status + ''))">
+                    {{ s.errorMessage ? 'ERR' : s.status }}
+                  </span>
+                </td>
+                <td>{{ formatDuration(s.durationMs) }}</td>
+                <td>{{ s.vu }}</td>
+                <td>{{ s.iteration }}</td>
+                <td>{{ s.startedAt | date: 'HH:mm:ss.SSS' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="report-block" *ngIf="result.errors.length">
+          <h5>Errors</h5>
+          <ul class="error-list">
+            <li *ngFor="let e of result.errors">
+              <span class="err-count">×{{ e.count }}</span>
+              <span class="err-msg">{{ e.message }}</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="loadtest-tab loading" *ngIf="!artifact">
+  Loading load test…
+</div>

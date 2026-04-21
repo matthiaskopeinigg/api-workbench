@@ -1,14 +1,32 @@
-# Contributing to api-workbench
+# Contributing to API Workbench
 
-Thank you for your interest in contributing to api-workbench! We welcome all contributions.
+First off, thank you for considering contributing to API Workbench! It's people like you who make it such a great tool.
 
-## How to Contribute
+## How Can I Contribute?
 
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Make your changes and ensure they follow our coding standards.
-4. Submit a pull request with a clear description of your changes.
+### Reporting Bugs
+- Use the GitHub issue tracker.
+- Provide a clear, descriptive title.
+- Describe the exact steps which reproduce the problem.
+- Explain which behavior you expected to see and why.
 
-## Reporting Issues
+### Suggesting Enhancements
+- Check if there's already an issue for the enhancement.
+- Open a new issue with the "enhancement" label.
+- Describe the problem you are trying to solve and how the feature would solve it.
 
-If you find a bug or have a feature request, please open an issue on GitHub.
+### Pull Requests
+- Fork the repo and create your branch from `main`.
+- Install dependencies with `npm install`.
+- Ensure your code follows the existing style.
+- Make sure all unit tests pass: `npm run test`.
+- Provide a clear description of the changes in your PR.
+
+## Style Guide
+- Use TypeScript for all logic.
+- Prefer standalone components in Angular.
+- Use Signals where appropriate.
+- Keep components focused and small.
+
+## Questions?
+If you have any questions, feel free to open an issue or reach out to the project maintainers.

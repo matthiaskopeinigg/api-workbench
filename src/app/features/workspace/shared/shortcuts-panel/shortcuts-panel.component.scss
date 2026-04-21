@@ -1,0 +1,87 @@
+.shortcuts-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.shortcuts-panel {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--aw-bg, #1e1e1e);
+  color: var(--aw-fg, #ddd);
+  border: 1px solid color-mix(in srgb, var(--aw-fg, #444) 20%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--aw-bg, #222) 85%, var(--aw-fg, #fff) 15%);
+  font-weight: 600;
+  border-bottom: 1px solid color-mix(in srgb, var(--aw-fg, #444) 15%, transparent);
+
+  .shortcuts-close {
+    background: transparent;
+    color: inherit;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 8px;
+  }
+}
+
+.shortcuts-body {
+  padding: 10px 14px;
+  overflow: auto;
+}
+
+.shortcuts-group {
+  margin-bottom: 14px;
+
+  h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--aw-fg, #ccc) 60%, transparent);
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  kbd {
+    display: inline-block;
+    min-width: 80px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--aw-bg, #222) 70%, var(--aw-fg, #fff) 30%);
+    border: 1px solid color-mix(in srgb, var(--aw-fg, #444) 25%, transparent);
+    font-family: "Fira Code", Menlo, Monaco, monospace;
+    font-size: 11px;
+    text-align: center;
+  }
+}

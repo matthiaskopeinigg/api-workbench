@@ -1,0 +1,85 @@
+.custom-titlebar {
+  height: var(--aw-titlebar-height, 48px);
+  min-height: var(--aw-titlebar-height, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--aw-chrome-surface, var(--aw-surface, var(--surface)));
+  color: var(--aw-text, var(--text-color));
+  padding: 0 var(--aw-pad, 10px);
+  border-bottom: 1px solid var(--aw-border, var(--border-color));
+  box-shadow: var(--aw-chrome-shadow, 0 1px 0 color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 40%));
+  -webkit-app-region: drag;
+  user-select: none;
+  z-index: 50;
+  position: relative;
+
+  .window-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--aw-pad, 8px);
+    -webkit-app-region: no-drag;
+    z-index: inherit;
+
+    .logo {
+      height: 24px;
+      width: auto;
+      margin-left: 4px;
+    }
+
+    .title {
+      font-weight: 600;
+      margin-left: 4px;
+      color: var(--aw-text, var(--text-color));
+      font-size: 13px;
+    }
+  }
+
+  .window-actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    -webkit-app-region: no-drag;
+    z-index: inherit;
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--aw-text, var(--text-color));
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      min-height: 32px;
+      border-radius: var(--aw-radius-sm, 4px);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease, color 0.15s ease;
+
+      svg {
+        flex-shrink: 0;
+        pointer-events: none;
+      }
+
+      &:hover {
+        color: var(--accent-color);
+        background-color: color-mix(in srgb, var(--aw-surface-muted, var(--surface-alt)), transparent 40%);
+      }
+
+      &:focus {
+        outline: none;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+        outline-offset: 2px;
+      }
+
+      &.close-btn:hover {
+        background-color: #e81123;
+        color: #ffffff;
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+<div class="app-container disable-select">
+
+  @if (initError) {
+    <div class="boot-shell boot-error" role="alert">
+      <p class="boot-error-title">Could not load workspace</p>
+      <p class="boot-error-detail">{{ initError }}</p>
+      <button type="button" class="boot-retry" (click)="retryInit()">Retry</button>
+    </div>
+  } @else if (!isReady) {
+    <div class="boot-shell boot-loading" aria-busy="true" aria-live="polite">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <p class="boot-loading-text">Loading workspace…</p>
+    </div>
+  }
+
+  <router-outlet *ngIf="isReady"></router-outlet>
+  <app-command-palette *ngIf="isReady"></app-command-palette>
+  <app-shortcuts-panel *ngIf="isReady"></app-shortcuts-panel>
+  <app-runner-dialog *ngIf="isReady && runnerRequest"
+                     [source]="runnerRequest.source"
+                     [sourceLabel]="runnerRequest.sourceLabel"
+                     [onClose]="closeRunnerDialog">
+  </app-runner-dialog>
+</div>

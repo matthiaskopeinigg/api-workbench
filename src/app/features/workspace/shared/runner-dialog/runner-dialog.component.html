@@ -1,0 +1,169 @@
+<div class="runner-overlay" (click)="close()">
+  <div class="runner-dialog" role="dialog" aria-modal="true" aria-label="Collection runner"
+       (click)="$event.stopPropagation()">
+
+    <header class="runner-header">
+      <div class="runner-title-block">
+        <span class="runner-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="6 4 20 12 6 20 6 4"></polygon>
+          </svg>
+        </span>
+        <div class="runner-title-text">
+          <div class="runner-title">{{ sourceLabel || source.title || 'Untitled' }}</div>
+          <div class="runner-subtitle">
+            {{ requestCount }} {{ requestCount === 1 ? 'request' : 'requests' }}
+            <span class="runner-subtitle-sep" *ngIf="state.isRunning || state.results.length > 0">·</span>
+            <span class="runner-subtitle-status" *ngIf="state.isRunning">Running…</span>
+            <span class="runner-subtitle-status" *ngIf="!state.isRunning && state.results.length > 0">
+              Completed in {{ formatDuration() }}
+            </span>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="runner-close" (click)="close()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <section class="runner-config" aria-label="Run configuration">
+      <div class="config-fields">
+        <label class="field">
+          <span class="field-label">Iterations</span>
+          <input type="number" min="1" max="100" [(ngModel)]="iterations"
+                 [disabled]="state.isRunning">
+        </label>
+        <label class="field">
+          <span class="field-label">Delay (ms)</span>
+          <input type="number" min="0" max="60000" step="50" [(ngModel)]="delayMs"
+                 [disabled]="state.isRunning">
+        </label>
+        <label class="toggle">
+          <input type="checkbox" [(ngModel)]="runTests" [disabled]="state.isRunning">
+          <span class="toggle-track" aria-hidden="true">
+            <span class="toggle-thumb"></span>
+          </span>
+          <span class="toggle-label">Run tests</span>
+        </label>
+      </div>
+      <div class="config-actions">
+        <button type="button" class="btn-ghost" (click)="close()" [disabled]="state.isRunning">Close</button>
+        <button type="button" class="btn-secondary" (click)="cancel()" *ngIf="state.isRunning">Cancel</button>
+        <button type="button" class="btn-primary"
+                (click)="start()"
+                [disabled]="state.isRunning || requestCount === 0">
+          <svg *ngIf="!state.isRunning" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="6 4 20 12 6 20 6 4"></polygon>
+          </svg>
+          <span class="btn-spinner" *ngIf="state.isRunning" aria-hidden="true"></span>
+          {{ state.isRunning ? 'Running…' : (state.results.length > 0 ? 'Run again' : 'Run') }}
+        </button>
+      </div>
+    </section>
+
+    <section class="runner-progress" *ngIf="state.total > 0" aria-label="Run progress">
+      <div class="progress-row">
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="progressPercent"></div>
+        </div>
+        <span class="progress-percent">{{ progressPercent }}%</span>
+      </div>
+      <div class="progress-stats">
+        <div class="stat">
+          <span class="stat-label">Completed</span>
+          <span class="stat-value">{{ state.completed }} <span class="stat-of">/ {{ state.total }}</span></span>
+        </div>
+        <div class="stat" *ngIf="requestSummary().total > 0">
+          <span class="stat-label">Passed</span>
+          <span class="stat-value stat-success">{{ requestSummary().ok }}</span>
+        </div>
+        <div class="stat" *ngIf="requestSummary().failed > 0">
+          <span class="stat-label">Failed</span>
+          <span class="stat-value stat-error">{{ requestSummary().failed }}</span>
+        </div>
+        <div class="stat" *ngIf="requestSummary().total > 0">
+          <span class="stat-label">Avg</span>
+          <span class="stat-value">{{ requestSummary().avgMs }} ms</span>
+        </div>
+        <div class="stat" *ngIf="testsSummary().total > 0">
+          <span class="stat-label">Tests</span>
+          <span class="stat-value"
+                [class.stat-success]="testsSummary().failed === 0"
+                [class.stat-error]="testsSummary().failed > 0">
+            {{ testsSummary().passed }}/{{ testsSummary().total }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="runner-results" aria-label="Run results">
+      <div class="results-empty" *ngIf="state.results.length === 0 && !state.isRunning">
+        <div class="empty-icon" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="6 3 20 12 6 21 6 3"></polygon>
+          </svg>
+        </div>
+        <div class="empty-title">Ready when you are</div>
+        <div class="empty-subtitle">
+          {{ requestCount > 0
+              ? 'Press Run to execute ' + requestCount + ' ' + (requestCount === 1 ? 'request' : 'requests') + '.'
+              : 'This collection has no requests yet.' }}
+        </div>
+      </div>
+
+      <div class="results-loading" *ngIf="state.results.length === 0 && state.isRunning">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        Warming up…
+      </div>
+
+      <table class="results-table" *ngIf="state.results.length > 0">
+        <thead>
+          <tr>
+            <th class="col-iter">#</th>
+            <th class="col-method">Method</th>
+            <th class="col-request">Request</th>
+            <th class="col-status">Status</th>
+            <th class="col-time">Time</th>
+            <th class="col-tests">Tests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of state.results; let i = index; trackBy: trackByResult">
+            <td class="col-iter">{{ r.iteration }}</td>
+            <td class="col-method">
+              <span class="method-tag" [attr.data-method]="r.method">{{ r.method }}</span>
+            </td>
+            <td class="col-request">
+              <div class="request-title" [title]="r.url">{{ r.title }}</div>
+              <div class="request-url" [title]="r.url" *ngIf="r.url && r.url !== r.title">{{ r.url }}</div>
+            </td>
+            <td class="col-status">
+              <span class="status-chip" [ngClass]="statusClass(r.status)">
+                {{ r.status || 'ERR' }}
+              </span>
+              <span class="status-reason" *ngIf="r.error" [title]="r.error">{{ r.error }}</span>
+            </td>
+            <td class="col-time">{{ r.timeMs }} ms</td>
+            <td class="col-tests">
+              <ng-container *ngIf="r.testResults && r.testResults.length > 0; else noTests">
+                <span class="tests-chip"
+                      [class.has-fail]="hasFailures(r.testResults)">
+                  {{ passedCount(r.testResults) }}/{{ r.testResults.length }}
+                </span>
+              </ng-container>
+              <ng-template #noTests>
+                <span class="tests-none">—</span>
+              </ng-template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>

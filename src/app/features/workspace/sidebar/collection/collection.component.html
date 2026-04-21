@@ -1,0 +1,281 @@
+<div class="panel">
+  <div class="panel-toolbar">
+    <div class="search-container">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" [(ngModel)]="searchTerm" (input)="updateFilteredCollections()"
+             placeholder="Search collections, folders, requests…">
+      <button type="button" class="search-clear" *ngIf="searchTerm"
+              (click)="searchTerm=''; updateFilteredCollections()" aria-label="Clear search">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="panel-actions">
+      <button type="button" class="action-icon" (click)="createFolderAtRoot()" title="New folder">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          <line x1="12" y1="11" x2="12" y2="17"></line>
+          <line x1="9" y1="14" x2="15" y2="14"></line>
+        </svg>
+        <span>New folder</span>
+      </button>
+      <button type="button" class="action-icon ghost" (click)="importCollection()" title="Import Postman Collection">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="root-container" *ngIf="root" (drop)="onDrop($event, root.id, 'collection')"
+    (dragover)="onDragOver($event, root.id, 'collection')" (dragleave)="onDragLeave($event)"
+    (contextmenu)="openMenu($event, root.id)" [class.just-dropped]="recentlyDroppedId === root.id"
+    [class.just-denied]="deniedTargetId === root.id" [class.drag-over-denied]="dragOverDeniedId === root.id"
+    [class.drag-over]="dragOverId === root.id" [class.compact]="isCompact">
+
+    <ng-container *ngIf="activeMenu === root.id">
+      <ng-template [ngTemplateOutlet]="menuTemplate"
+        [ngTemplateOutletContext]="{ parentId: root.id, type: 'collection', isCollection: true }">
+      </ng-template>
+    </ng-container>
+
+    <ng-container *ngFor="let collection of filteredCollections; trackBy: trackById">
+      <ng-container *ngTemplateOutlet="folderTemplate; context:{ $implicit: collection, parentType: 'collection' }">
+      </ng-container>
+    </ng-container>
+
+    <div class="empty-state-msg" *ngIf="root.folders.length === 0 && root.requests.length === 0">
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </div>
+      <strong>No collections yet</strong>
+      <span>Create a folder above or right-click here to start.</span>
+    </div>
+  </div>
+</div>
+
+<ng-template #menuTemplate let-parentId="parentId" let-type="type" let-isCollection="isCollection">
+  <div [ngClass]="{
+          'collection-menu': isCollection,
+          'folder-menu': !isCollection,
+          'menu': true
+        }" [ngStyle]="getMenuPosition(parentId)">
+    <div class="menu-item" *ngIf="isCollection || activeFolderDepth < 7"
+      (click)="createFolder(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        <line x1="12" y1="11" x2="12" y2="17"></line>
+        <line x1="9" y1="14" x2="15" y2="14"></line>
+      </svg>
+      Create folder
+    </div>
+    <div class="menu-item" (click)="createRequest(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="12" y1="18" x2="12" y2="12"></line>
+        <line x1="9" y1="15" x2="15" y2="15"></line>
+      </svg>
+      Create request
+    </div>
+    <div class="menu-item" (click)="runCollectionOrFolder(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+      Run
+    </div>
+    <div class="menu-item" *ngIf="!isCollection" (click)="openFolderAsTab(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+      Edit folder
+    </div>
+    <div class="menu-item" *ngIf="!isCollection" (click)="startRenameFolder(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path>
+      </svg>
+      Rename folder
+    </div>
+    <div class="menu-item delete" *ngIf="!isCollection" (click)="deleteFolder(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+      Delete
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #folderTemplate let-parent let-parentType="parentType">
+  <ul class="folder-list" (drop)="onDrop($event, parent.id, parentType)"
+    (dragover)="onDragOver($event, parent.id, parentType)" (dragleave)="onDragLeave($event)">
+
+    <li *ngFor="let request of parent.requests; trackBy: trackById" class="request"
+      [class.selected]="selectedRequestId === request.id" draggable="true"
+      (dragstart)="onDragStart($event, request.id, 'request', parent.id)" (dragend)="onDragEnd($event)"
+      (contextmenu)="openRequestMenu($event, request.id)" (click)="selectRequest(request)">
+
+      <div class="request-left">
+        <span class="request-method-box" *ngIf="!hideRequestMethod" [ngClass]="HttpMethod[request.httpMethod]">{{
+          HttpMethod[request.httpMethod]
+          }}</span>
+
+        <ng-container *ngIf="editingRequestId === request.id; else showRequestTitle">
+          <input id="request-{{request.id}}" type="text" #requestInput [value]="request.title"
+            (blur)="finishRenameRequest(request, requestInput.value)"
+            (keydown.enter)="finishRenameRequest(request, requestInput.value)" autofocus />
+        </ng-container>
+        <ng-template #showRequestTitle>
+          <span class="request-title-text" [title]="request.title || request.url">
+            <span class="starred-dot" *ngIf="request.starred" aria-label="Starred">★</span>
+            {{ request.title || request.url }}
+          </span>
+        </ng-template>
+      </div>
+
+      <button type="button" class="menu-button" (click)="toggleRequestMenu($event, request.id)" aria-label="Request actions">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.6"></circle>
+          <circle cx="12" cy="12" r="1.6"></circle>
+          <circle cx="19" cy="12" r="1.6"></circle>
+        </svg>
+      </button>
+
+      <div class="request-menu menu" *ngIf="activeRequestMenu === request.id" [ngStyle]="getMenuPosition(request.id)"
+        (click)="$event.stopPropagation()">
+        <div class="menu-item" (click)="startRenameRequest(request.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path>
+          </svg>
+          Rename request
+        </div>
+        <div class="menu-item" (click)="createRequest(parent.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Add another request
+        </div>
+        <div class="menu-item" (click)="duplicateRequest(request.id, parent.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Clone request
+        </div>
+        <div class="menu-item" (click)="toggleStarred(request.id, parent.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24"
+               [attr.fill]="request.starred ? 'currentColor' : 'none'"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          {{ request.starred ? 'Unstar request' : 'Star request' }}
+        </div>
+        <div class="menu-item" (click)="exportCollection(request); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Export (Postman)
+        </div>
+        <div class="menu-item delete" (click)="deleteRequest(request.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Delete request
+        </div>
+      </div>
+    </li>
+
+    <ng-container *ngFor="let folder of parent.folders; trackBy: trackById">
+      <li class="folder">
+        <div class="folder-title" [class.selected]="selectedFolderId === folder.id"
+          [class.expandable]="folder.folders.length || folder.requests.length"
+          [class.expanded]="isExpanded(folder.id, 'folder')" [class.drag-over]="dragOverId === folder.id"
+          [class.drag-over-denied]="dragOverDeniedId === folder.id"
+          [class.just-dropped]="recentlyDroppedId === folder.id" [class.just-denied]="deniedTargetId === folder.id"
+          draggable="true" (dragstart)="onDragStart($event, folder.id, 'folder', parent.id)"
+          (dragend)="onDragEnd($event)" (dragover)="onDragOver($event, folder.id, 'folder')"
+          (dragleave)="onDragLeave($event)" (drop)="onDrop($event, folder.id, 'folder')" (click)="onFolderClick(folder)"
+          (contextmenu)="openFolderMenu($event, folder.id)">
+
+          <div class="left-content">
+            <span class="folder-chevron" *ngIf="folder.folders.length || folder.requests.length"
+              (click)="toggleFolder(folder); $event.stopPropagation()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                   class="chevron-svg" [class.open]="isExpanded(folder.id, 'folder')">
+                <polyline points="9 6 15 12 9 18"></polyline>
+              </svg>
+            </span>
+            <span class="folder-chevron-placeholder" *ngIf="!folder.folders.length && !folder.requests.length"></span>
+
+            <span class="folder-icon" [class.has-items]="folder.folders.length || folder.requests.length"
+                  [class.is-open]="isExpanded(folder.id, 'folder')">
+              <svg *ngIf="!isExpanded(folder.id, 'folder')" width="16" height="16" viewBox="0 0 24 24"
+                   fill="currentColor" aria-hidden="true">
+                <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"></path>
+              </svg>
+              <svg *ngIf="isExpanded(folder.id, 'folder')" width="16" height="16" viewBox="0 0 24 24"
+                   fill="currentColor" aria-hidden="true">
+                <path d="M19.5 21H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h8a2 2 0 0 1 2 2v2H6.5L3 19.5 6 11h17l-3.5 10z"></path>
+              </svg>
+            </span>
+
+            <ng-container *ngIf="editingFolderId === folder.id; else showFolderTitle">
+              <input id="folder-{{folder.id}}" type="text" #folderInput [value]="folder.title"
+                (blur)="finishRenameFolder(folder, folderInput.value)"
+                (keydown.enter)="finishRenameFolder(folder, folderInput.value)" autofocus />
+            </ng-container>
+            <ng-template #showFolderTitle><span class="folder-title-text">{{ folder.title }}</span></ng-template>
+          </div>
+
+          <button type="button" class="menu-button" (click)="toggleFolderMenu($event, folder.id)" aria-label="Folder actions">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.6"></circle>
+              <circle cx="12" cy="12" r="1.6"></circle>
+              <circle cx="19" cy="12" r="1.6"></circle>
+            </svg>
+          </button>
+
+          <ng-container *ngIf="activeFolderMenu === folder.id">
+            <ng-template [ngTemplateOutlet]="menuTemplate"
+              [ngTemplateOutletContext]="{ parentId: folder.id, type: 'folder', isCollection: false }">
+            </ng-template>
+          </ng-container>
+        </div>
+
+        <div *ngIf="isExpanded(folder.id, 'folder')" class="folder-children">
+          <ng-container
+            *ngTemplateOutlet="folderTemplate; context:{ $implicit: folder, parentType: 'folder' }"></ng-container>
+        </div>
+      </li>
+    </ng-container>
+  </ul>
+</ng-template>

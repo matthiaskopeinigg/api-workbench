@@ -1,0 +1,66 @@
+<div class="diff-container">
+  <div class="diff-toolbar">
+    <label class="diff-picker">
+      <span>Compare against</span>
+      <select [ngModel]="selectedId" (ngModelChange)="onSelectChange($event)">
+        <option [ngValue]="null">—</option>
+        <option *ngFor="let entry of history; trackBy: trackByEntry" [ngValue]="entry.id">
+          {{ formatTimestamp(entry.receivedAt) }} · {{ entry.statusCode ?? '?' }} · {{ entry.timeMs ?? 0 }} ms · {{ entry.size ?? 0 }} B
+        </option>
+      </select>
+    </label>
+
+    <label class="diff-toggle">
+      <input type="checkbox" [checked]="normalize" (change)="onNormalizeChange($any($event.target).checked)">
+      <span>Normalize JSON</span>
+    </label>
+
+    <button type="button" class="diff-refresh" (click)="refreshList()" [disabled]="loading">
+      {{ loading ? 'Loading…' : 'Refresh' }}
+    </button>
+
+    <span class="diff-summary">
+      <span class="added">+{{ summary.added }}</span>
+      <span class="removed">-{{ summary.removed }}</span>
+      <span class="equal">= {{ summary.equal }}</span>
+    </span>
+  </div>
+
+  <div class="diff-body" *ngIf="rows.length > 0; else emptyDiff">
+    <div class="diff-column diff-column-left">
+      <div class="diff-column-header">Previous response</div>
+      <div class="diff-rows">
+        <div class="diff-row"
+             *ngFor="let row of rows; trackBy: trackByRow"
+             [class.row-empty]="!row.left"
+             [class.row-remove]="row.left?.kind === 'remove'"
+             [class.row-equal]="row.left?.kind === 'equal'">
+          <span class="gutter">{{ row.left?.lineNo ?? '' }}</span>
+          <pre class="line">{{ row.left?.text ?? '' }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="diff-column diff-column-right">
+      <div class="diff-column-header">Current response</div>
+      <div class="diff-rows">
+        <div class="diff-row"
+             *ngFor="let row of rows; trackBy: trackByRow"
+             [class.row-empty]="!row.right"
+             [class.row-add]="row.right?.kind === 'add'"
+             [class.row-equal]="row.right?.kind === 'equal'">
+          <span class="gutter">{{ row.right?.lineNo ?? '' }}</span>
+          <pre class="line">{{ row.right?.text ?? '' }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #emptyDiff>
+    <div class="diff-empty" *ngIf="!loading">
+      <p *ngIf="history.length === 0">No prior responses recorded for this request yet.</p>
+      <p *ngIf="history.length > 0 && !selectedId">Pick an earlier response to compare.</p>
+      <p *ngIf="history.length > 0 && selectedId">The two responses are identical.</p>
+    </div>
+  </ng-template>
+</div>

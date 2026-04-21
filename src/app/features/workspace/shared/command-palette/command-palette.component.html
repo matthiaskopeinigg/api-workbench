@@ -1,0 +1,42 @@
+<div class="cp-overlay" *ngIf="isOpen" (click)="close()">
+  <div class="cp-shell" role="dialog" aria-modal="true" aria-label="Command palette" (click)="$event.stopPropagation()">
+    <div class="cp-input-row">
+      <svg class="cp-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <input #paletteInput
+             class="cp-input"
+             type="text"
+             [(ngModel)]="query"
+             (ngModelChange)="onQueryChange()"
+             placeholder="Type a command…"
+             aria-label="Command palette"
+             autocomplete="off" />
+      <kbd class="cp-kbd">Esc</kbd>
+    </div>
+
+    <ul class="cp-list" role="listbox">
+      <li *ngFor="let r of results; let i = index"
+          class="cp-item"
+          role="option"
+          [attr.aria-selected]="i === activeIndex"
+          [class.is-active]="i === activeIndex"
+          (mouseenter)="setActive(i)"
+          (click)="runAt(i)">
+        <div class="cp-item-main">
+          <span class="cp-label">{{ r.command.label }}</span>
+          <span class="cp-hint" *ngIf="r.command.hint">{{ r.command.hint }}</span>
+        </div>
+        <div class="cp-item-meta">
+          <span class="cp-category" *ngIf="r.command.category">{{ r.command.category }}</span>
+          <kbd class="cp-kbd" *ngIf="r.command.shortcut">{{ r.command.shortcut }}</kbd>
+        </div>
+      </li>
+      <li *ngIf="results.length === 0" class="cp-empty">
+        <ng-container *ngIf="query">No commands match “{{ query }}”.</ng-container>
+        <ng-container *ngIf="!query">No commands registered yet.</ng-container>
+      </li>
+    </ul>
+  </div>
+</div>

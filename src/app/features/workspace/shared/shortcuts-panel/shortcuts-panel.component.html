@@ -1,0 +1,19 @@
+<div class="shortcuts-backdrop" *ngIf="isOpen" (click)="close()">
+  <div class="shortcuts-panel" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+    <div class="shortcuts-header">
+      <span>Keyboard Shortcuts</span>
+      <button type="button" class="shortcuts-close" (click)="close()" aria-label="Close">×</button>
+    </div>
+    <div class="shortcuts-body">
+      <section class="shortcuts-group" *ngFor="let group of groups; trackBy: trackByCategory">
+        <h4>{{ group.category }}</h4>
+        <ul>
+          <li *ngFor="let entry of group.entries; trackBy: trackByEntry">
+            <kbd>{{ entry.keys }}</kbd>
+            <span>{{ entry.description }}</span>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>

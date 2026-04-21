@@ -1,0 +1,60 @@
+<div class="environment-panel">
+  <div class="panel-toolbar">
+    <div class="input-group">
+      <input type="text" placeholder="New environment name…" [value]="newEnvTitle"
+             (input)="onNewEnvInput($event)" (keyup.enter)="addEnvironment()" />
+      <button class="add-btn" (click)="addEnvironment(); $event.stopPropagation()" aria-label="Add environment">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <ul class="env-list" *ngIf="environments.length > 0; else empty">
+    <li *ngFor="let env of environments; let i = index; trackBy: trackById"
+        [class.active]="env === selectedEnv" [class.drag-over]="isDragOver(i)"
+        (click)="selectEnvironment(env)" draggable="true" (dragstart)="onDragStart(i)"
+        (dragover)="onDragOver($event, i)" (drop)="onDrop()">
+
+      <span class="env-icon" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+      </span>
+
+      <span class="env-name">{{ env.title }}</span>
+
+      <span class="env-meta" *ngIf="env.variables?.length">{{ env.variables.length }}</span>
+
+      <button class="delete" (click)="deleteEnvironment(i); $event.stopPropagation()" title="Delete environment"
+              aria-label="Delete environment">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+    </li>
+  </ul>
+
+  <ng-template #empty>
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+      </div>
+      <strong>No environments</strong>
+      <span>Create one above to start defining variables.</span>
+    </div>
+  </ng-template>
+</div>
