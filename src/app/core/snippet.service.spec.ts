@@ -47,7 +47,7 @@ describe('SnippetService', () => {
     const out = service.generateFetch(makeRequest());
     expect(out).toContain('fetch("https://api.example.com/widgets"');
     expect(out).toContain('"method": "POST"');
-    expect(out).toContain('body:');
+    expect(out).toContain('"body":');
   });
 
   it('generates Python requests with headers dict', () => {

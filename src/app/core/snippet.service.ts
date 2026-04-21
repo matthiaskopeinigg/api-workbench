@@ -85,14 +85,17 @@ const nodeFetch: SnippetGenerator = {
   label: 'Node / Fetch',
   editorLang: 'javascript',
   generate(r) {
-    const headers = headerMap(r);
-    const parts = [`fetch("${r.url}", {`, `  method: "${methodOf(r)}",`, `  headers: ${JSON.stringify(headers, null, 2)},`];
-    if (hasBody(r)) parts.push(`  body: ${JSON.stringify(bodyString(r))},`);
-    parts.push('})');
-    parts.push('  .then(r => r.text())');
-    parts.push('  .then(console.log)');
-    parts.push('  .catch(console.error);');
-    return parts.join('\n');
+    const opts: Record<string, unknown> = {
+      method: methodOf(r),
+      headers: headerMap(r)
+    };
+    if (hasBody(r)) opts['body'] = bodyString(r);
+    return [
+      `fetch("${r.url}", ${JSON.stringify(opts, null, 2)})`,
+      '  .then(r => r.text())',
+      '  .then(console.log)',
+      '  .catch(console.error);'
+    ].join('\n');
   }
 };
 
