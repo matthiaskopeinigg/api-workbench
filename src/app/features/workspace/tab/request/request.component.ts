@@ -302,7 +302,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     if (this.request.auth.type === 'ntlm' && !this.request.auth.ntlm) this.request.auth.ntlm = { username: '', password: '' };
 
     if (!this.request.settings) {
-      this.request.settings = { followRedirects: true, verifySsl: true, useCookies: true };
+      this.request.settings = { followRedirects: true, useCookies: true };
     }
 
     this.selectedBodyType = this.getBodyLanguage() as EditorLanguage;
@@ -1426,7 +1426,6 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
         if (resolvedSettings.useCookies === undefined) resolvedSettings.useCookies = ps?.useCookies;
       }
 
-      if (resolvedSettings.verifySsl === undefined) resolvedSettings.verifySsl = (settings.ssl?.ignoreInvalidSsl === false);
       if (resolvedSettings.followRedirects === undefined) resolvedSettings.followRedirects = true;
       if (resolvedSettings.useCookies === undefined) resolvedSettings.useCookies = settings.requests?.useCookies;
 
@@ -1501,6 +1500,15 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
           }
         }
 
+        let ignoreInvalidSsl = false;
+        if (resolvedSettings.verifySsl === true) {
+          ignoreInvalidSsl = false;
+        } else if (resolvedSettings.verifySsl === false) {
+          ignoreInvalidSsl = true;
+        } else {
+          ignoreInvalidSsl = settings.ssl?.ignoreInvalidSsl === true;
+        }
+
         const res = await this.requestService.sendRequest({
           method: HttpMethod[this.request.httpMethod],
           url: substitutedUrl,
@@ -1513,7 +1521,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
           retries: settings.retries,
           dns: settings.dns,
           proxy: settings.proxy,
-          ignoreInvalidSsl: resolvedSettings.verifySsl === false,
+          ignoreInvalidSsl,
           followRedirects: resolvedSettings.followRedirects,
           verifyHostname: settings.ssl?.verifyHostname,
           useSystemCaStore: settings.ssl?.useSystemCaStore,
@@ -1621,6 +1629,21 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  requestSslVerifyForUi(): boolean {
+    const s = this.request?.settings;
+    if (s && s.verifySsl !== undefined) return s.verifySsl;
+    return this.settingsService.getSettings().ssl?.ignoreInvalidSsl === false;
+  }
+
+  onRequestVerifySslChange(checked: boolean): void {
+    if (!this.request.settings) {
+      this.request.settings = { followRedirects: true, useCookies: true };
+    }
+    this.request.settings.verifySsl = checked;
+    void this.saveRequest();
+    this.cdr.markForCheck();
   }
 
   public async saveRequest() {

@@ -124,7 +124,7 @@ export class FolderComponent implements OnInit, OnChanges, OnDestroy {
 
             if (!this.folder.script) this.folder.script = { preRequest: '', postRequest: '' };
             if (!this.folder.auth) this.folder.auth = { type: AuthType.INHERIT };
-            if (!this.folder.settings) this.folder.settings = { followRedirects: true, verifySsl: true, useCookies: true };
+            if (!this.folder.settings) this.folder.settings = { followRedirects: true, useCookies: true };
 
             this.updateActiveVariables();
             this.cdr.markForCheck();

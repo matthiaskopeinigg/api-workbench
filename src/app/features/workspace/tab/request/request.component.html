@@ -634,10 +634,10 @@
           </div>
           <div class="setting-row">
             <label class="setting-item">
-              <input type="checkbox" [(ngModel)]="request.settings!.verifySsl" (ngModelChange)="saveRequest()" />
+              <input type="checkbox" [ngModel]="requestSslVerifyForUi()" (ngModelChange)="onRequestVerifySslChange($event)" />
               <span class="setting-label">SSL Verification</span>
             </label>
-            <p class="setting-description">Verify SSL certificates for HTTPS requests.</p>
+            <p class="setting-description">When unset, follows Settings → Ignore invalid SSL. Turn off to match that global option or work with private CAs.</p>
           </div>
           <div class="setting-row">
             <label class="setting-item">
