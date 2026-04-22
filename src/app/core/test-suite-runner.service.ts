@@ -18,6 +18,7 @@ import { snapshotKey } from '@models/testing/test-suite';
 import { CollectionService } from './collection.service';
 import { TestArtifactService } from './test-artifact.service';
 import { SettingsService } from './settings.service';
+import type { Certificate } from '@models/settings';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 import { diffJson, diffText } from './json-diff';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
@@ -248,8 +249,15 @@ export class TestSuiteRunnerService {
 
     if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url;
 
+    let certificate: Certificate | undefined;
+    try {
+      certificate = this.settings.getClientCertificateForHost(new URL(url).hostname);
+    } catch {
+      certificate = undefined;
+    }
+
     return this.settings.applyGlobalNetworkToIpc(
-      { method, url, headers, params: {}, body, followRedirects: true, timeoutMs: 30000 },
+      { method, url, headers, params: {}, body, certificate, followRedirects: true, timeoutMs: 30000 },
       per,
     );
   }

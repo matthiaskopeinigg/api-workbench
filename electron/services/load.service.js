@@ -307,6 +307,10 @@ function createRunHandle(runId, rawConfig, listeners) {
 }
 
 function toIpcRequest(target) {
+  if (target == null) {
+    throw new Error('Load target is null');
+  }
+  // Renderer sends full IpcHttpRequest (mTLS, proxy, SSL, etc.); `kind` is absent.
   if (target.kind === 'inline') {
     const headers = {};
     for (const h of target.headers || []) {
@@ -322,7 +326,18 @@ function toIpcRequest(target) {
       timeoutMs: 30000,
     };
   }
-  throw new Error(`Unsupported target kind: ${target && target.kind}`);
+  if (target.url && target.method) {
+    return {
+      ...target,
+      headers: target.headers && typeof target.headers === 'object' && !Array.isArray(target.headers)
+        ? target.headers
+        : {},
+      params: target.params && typeof target.params === 'object' && !Array.isArray(target.params)
+        ? target.params
+        : {},
+    };
+  }
+  throw new Error(`Unsupported load target: ${String(target && target.kind)}`);
 }
 
 function normalizeConfig(c) {

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Settings, Theme } from '@models/settings';
+import { Certificate, Settings, Theme } from '@models/settings';
 import { HttpMethod } from '@models/request';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 
@@ -105,6 +105,23 @@ export class SettingsService {
    * Per-request `verifySsl` (folder/request) vs global "Ignore invalid SSL" — same
    * rules as the main request tab. Used by runners, flows, and test tools.
    */
+  /**
+   * Client certificate (mTLS) from Settings → Certificates, by server hostname.
+   * Same matching rules as the main request tab.
+   */
+  getClientCertificateForHost(hostname: string): Certificate | undefined {
+    if (!hostname) return undefined;
+    const certs = this.getSettings().ssl?.certificates || [];
+    return certs.find((cert) => {
+      try {
+        const pattern = (cert.hostname || '').replace(/\./g, '\\.').replace(/\*/g, '.*');
+        return new RegExp(`^${pattern}$`, 'i').test(hostname);
+      } catch {
+        return false;
+      }
+    });
+  }
+
   effectiveIgnoreInvalidSsl(verifySsl?: boolean): boolean {
     if (verifySsl === true) return false;
     if (verifySsl === false) return true;

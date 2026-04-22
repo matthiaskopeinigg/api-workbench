@@ -324,22 +324,22 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  /** URL/query segment params only (httpParameters). API key in query is a separate template row; do not push synthetic objects here. */
   get queryParams() {
-    const params = (this.request?.httpParameters || []).filter(p => p.type === 'query' || !p.type);
+    return (this.request?.httpParameters || []).filter(p => p.type === 'query' || !p.type);
+  }
 
-    if (this.request?.auth?.type === 'api_key' && this.request.auth.apiKey?.addTo === 'query') {
-      const apiKey = this.request.auth.apiKey;
-      if (apiKey.key) {
-        params.push({
-          key: apiKey.key,
-          value: apiKey.value || '',
-          enabled: true,
-          type: 'query'
-        } as any);
-      }
-    }
+  /** Shown in Params: API key sent as a query string (edits go to `request.auth.apiKey`, not a copy). */
+  get hasApiKeyQueryParam(): boolean {
+    return !!(
+      this.request?.auth?.type === 'api_key' &&
+      this.request.auth.apiKey?.addTo === 'query' &&
+      this.request.auth.apiKey.key
+    );
+  }
 
-    return params;
+  get queryParamRowCount(): number {
+    return this.queryParams.length + (this.hasApiKeyQueryParam ? 1 : 0);
   }
 
   get pathParams() {
@@ -1211,15 +1211,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   };
 
   async getCertificateForHost(hostname: string): Promise<Certificate | undefined> {
-    const settings = this.settingsService.getSettings();
-    return (settings?.ssl.certificates || []).find(cert => {
-      try {
-        const pattern = cert.hostname.replace(/\./g, '\\.').replace(/\*/g, '.*');
-        return new RegExp(`^${pattern}$`, 'i').test(hostname);
-      } catch {
-        return false;
-      }
-    });
+    return this.settingsService.getClientCertificateForHost(hostname);
   }
 
   private replaceVariables(text: string): string {

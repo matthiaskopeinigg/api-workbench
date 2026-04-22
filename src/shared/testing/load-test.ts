@@ -1,8 +1,9 @@
 /**
- * Shared types for the Load Test tab. Both the renderer and the
- * Electron main-process load engine speak this vocabulary, so any change
- * here needs the corresponding update in `electron/services/load.service.js`
- * and the IPC bridge in `electron/preload.js`.
+ * Shared types for the Load Test tab. The artifact uses {@link LoadTestConfig}
+ * with {@link LoadTestTarget} entries. At `loadStart` time the renderer
+ * resolves each target to a full `IpcHttpRequest` (mTLS, proxy, etc.) so the
+ * main load engine can forward it to the HTTP service — see
+ * `src/app/core/load-test.service.ts` and `electron/services/load.service.js`.
  */
 
 export interface LoadTestArtifact {

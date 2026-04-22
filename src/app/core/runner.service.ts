@@ -5,6 +5,7 @@ import { HttpMethod, Request } from '@models/request';
 import { EnvironmentsService } from './environments.service';
 import { CollectionService } from './collection.service';
 import { ScriptService } from './script.service';
+import type { Certificate } from '@models/settings';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 import type { IpcHttpResponse } from '@models/ipc-http-response';
 import type { TestResult } from '@models/response';
@@ -197,6 +198,12 @@ export class RunnerService {
 
     const methodValue = request.httpMethod ?? HttpMethod.GET;
     const method = typeof methodValue === 'number' ? HttpMethod[methodValue] : String(methodValue);
+    let certificate: Certificate | undefined;
+    try {
+      certificate = this.settingsService.getClientCertificateForHost(new URL(url).hostname);
+    } catch {
+      certificate = undefined;
+    }
     return this.settingsService.applyGlobalNetworkToIpc(
       {
         method,
@@ -204,6 +211,7 @@ export class RunnerService {
         headers,
         params,
         body: substitute(request.requestBody || '', activeVariables),
+        certificate,
       },
       {
         verifySsl: request.settings?.verifySsl,

@@ -75,7 +75,7 @@
           <div class="panel-section-header">
             <div class="panel-section-title">
               <h4>Query Params</h4>
-              <span class="muted-count" *ngIf="queryParams.length > 0">{{ queryParams.length }}</span>
+              <span class="muted-count" *ngIf="queryParamRowCount > 0">{{ queryParamRowCount }}</span>
             </div>
             <button class="btn-ghost" (click)="toggleParamsBulkEdit()">
               {{ isParamsBulkEdit ? 'Edit Form' : 'Bulk Edit' }}
@@ -83,7 +83,7 @@
           </div>
 
           <ng-container *ngIf="!isParamsBulkEdit">
-            <div class="kv-table" *ngIf="queryParams.length > 0">
+            <div class="kv-table" *ngIf="queryParams.length > 0 || hasApiKeyQueryParam">
               <div class="kv-grid-header">
                 <span></span>
                 <span>Key</span>
@@ -109,8 +109,18 @@
                   </svg>
                 </button>
               </div>
+              <!-- Binds to `request.auth.apiKey`, not a synthetic row (previously a copy; edits did not persist). -->
+              <div *ngIf="hasApiKeyQueryParam" class="kv-row auth-query-param">
+                <input type="checkbox" checked disabled title="Uses API key auth" />
+                <app-variable-input placeholder="Key" [(ngModel)]="request.auth!.apiKey!.key"
+                  (ngModelChange)="onQueryParamChange()" [activeVariables]="activeVariables"></app-variable-input>
+                <app-variable-input placeholder="Value" [(ngModel)]="request.auth!.apiKey!.value"
+                  (ngModelChange)="onQueryParamChange()" [activeVariables]="activeVariables"></app-variable-input>
+                <span class="muted auth-param-hint" title="Also configurable in the Auth tab">Auth (query)</span>
+                <span class="default-badge" title="Defined in the Auth tab">Auth</span>
+              </div>
             </div>
-            <div class="empty-row" *ngIf="queryParams.length === 0">No query params yet</div>
+            <div class="empty-row" *ngIf="queryParams.length === 0 && !hasApiKeyQueryParam">No query params yet</div>
             <button type="button" class="btn-add-row" (click)="addQueryParam()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

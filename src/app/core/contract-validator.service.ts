@@ -4,6 +4,7 @@ import { Subject } from 'rxjs';
 
 import { CollectionService } from './collection.service';
 import { SettingsService } from './settings.service';
+import type { Certificate } from '@models/settings';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 import type { Collection, Folder } from '@models/collection';
 import type {
@@ -202,14 +203,22 @@ export class ContractValidatorService {
       params[p.key] = p.value || '';
     }
     const body = typeof req.requestBody === 'string' ? req.requestBody : (req.body && typeof req.body === 'object' ? req.body.raw : undefined);
+    const url = req.url || '';
+    let certificate: Certificate | undefined;
+    try {
+      certificate = this.settings.getClientCertificateForHost(new URL(url).hostname);
+    } catch {
+      certificate = undefined;
+    }
 
     const ipcReq = this.settings.applyGlobalNetworkToIpc(
       {
         method,
-        url: req.url || '',
+        url,
         headers,
         params,
         body,
+        certificate,
         followRedirects: true,
         timeoutMs: 30000,
       },
