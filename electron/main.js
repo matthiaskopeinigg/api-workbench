@@ -1,4 +1,7 @@
 const { app, BrowserWindow, crashReporter } = require('electron');
+const { applyUserDataOverride } = require('./user-data-override');
+applyUserDataOverride();
+
 const { registerIpcHandlers } = require('./ipc');
 const { initStores, getSession, setSession } = require('./services/store.service');
 const httpService = require('./services/http.service');

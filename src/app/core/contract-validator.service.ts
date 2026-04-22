@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Subject } from 'rxjs';
 
 import { CollectionService } from './collection.service';
+import { SettingsService } from './settings.service';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 import type { Collection, Folder } from '@models/collection';
 import type {
@@ -55,12 +56,17 @@ export class ContractValidatorService {
   private finding$ = new Subject<{ contractId: string; finding: ContractFinding }>();
   private finished$ = new Subject<ContractRunResult>();
 
-  constructor(private collections: CollectionService, private zone: NgZone) {}
+  constructor(
+    private collections: CollectionService,
+    private zone: NgZone,
+    private settings: SettingsService,
+  ) {}
 
   onFinding() { return this.finding$.asObservable(); }
   onFinished() { return this.finished$.asObservable(); }
 
   async run(artifact: ContractTestArtifact, opts: RunOptions = {}): Promise<ContractRunResult> {
+    await this.settings.loadSettings();
     const startedAt = Date.now();
     const findings: ContractFinding[] = [];
     const emit = (f: ContractFinding) => {
@@ -197,15 +203,22 @@ export class ContractValidatorService {
     }
     const body = typeof req.requestBody === 'string' ? req.requestBody : (req.body && typeof req.body === 'object' ? req.body.raw : undefined);
 
-    const ipcReq = {
-      method,
-      url: req.url || '',
-      headers,
-      params,
-      body,
-      followRedirects: true,
-      timeoutMs: 30000,
-    };
+    const ipcReq = this.settings.applyGlobalNetworkToIpc(
+      {
+        method,
+        url: req.url || '',
+        headers,
+        params,
+        body,
+        followRedirects: true,
+        timeoutMs: 30000,
+      },
+      {
+        verifySsl: req.settings?.verifySsl,
+        followRedirects: req.settings?.followRedirects,
+        useCookies: req.settings?.useCookies,
+      },
+    );
     return await window.awElectron.httpRequest(ipcReq as never) as RawResponse;
   }
 }

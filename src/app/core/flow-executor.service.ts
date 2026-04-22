@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Subject } from 'rxjs';
 
 import { CollectionService } from './collection.service';
+import { SettingsService } from './settings.service';
+import type { IpcHttpRequest } from '@models/ipc-http-request';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 import type {
   AssertNode,
@@ -57,7 +59,11 @@ export class FlowExecutorService {
   private done$ = new Subject<FlowRunResult>();
   private cancelled = new Set<string>();
 
-  constructor(private collections: CollectionService, private zone: NgZone) {}
+  constructor(
+    private collections: CollectionService,
+    private zone: NgZone,
+    private settings: SettingsService,
+  ) {}
 
   onStep() { return this.step$.asObservable(); }
   onDone() { return this.done$.asObservable(); }
@@ -65,6 +71,7 @@ export class FlowExecutorService {
   cancel(flowId: string): void { this.cancelled.add(flowId); }
 
   async run(flow: FlowArtifact): Promise<FlowRunResult> {
+    await this.settings.loadSettings();
     this.cancelled.delete(flow.id);
     const runId = uuidv4();
     const startedAt = Date.now();
@@ -201,12 +208,13 @@ export class FlowExecutorService {
     return { ...base, status: 'success', durationMs: Date.now() - base.startedAt, output: base.input };
   }
 
-  private buildRequest(node: RequestNode, vars: Record<string, unknown>) {
+  private buildRequest(node: RequestNode, vars: Record<string, unknown>): IpcHttpRequest | null {
     let method: string;
     let url: string;
     let headers: Record<string, string> = {};
     let body: string | undefined;
     const params: Record<string, string> = {};
+    let per: { verifySsl?: boolean; followRedirects?: boolean; useCookies?: boolean } = {};
 
     if (node.target.kind === 'inline') {
       method = node.target.method || 'GET';
@@ -220,9 +228,19 @@ export class FlowExecutorService {
       url = applyVars(req.url || '', vars);
       headers = buildHeaders(req, vars);
       body = extractBody(req, vars);
+      per = {
+        verifySsl: req.settings?.verifySsl,
+        followRedirects: req.settings?.followRedirects,
+        useCookies: req.settings?.useCookies,
+      };
     }
 
-    return { method, url, headers, params, body, followRedirects: true, timeoutMs: 30000 };
+    if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url;
+
+    return this.settings.applyGlobalNetworkToIpc(
+      { method, url, headers, params, body, followRedirects: true, timeoutMs: 30000 },
+      per,
+    );
   }
 
   private finishWith(

@@ -33,6 +33,20 @@ if (typeof window !== 'undefined' && !(window as any).awElectron) {
         getOAuth2Token: () => Promise.resolve(null),
         exchangeOAuth2Code: () => Promise.resolve({}),
         getOAuth2ClientCredentials: () => Promise.resolve({}),
+        getStorageInfo: () =>
+            Promise.resolve({
+                userData: '',
+                databasePath: '',
+                markerFile: '',
+                markerDir: '',
+                overrideSource: null,
+                overrideTarget: null,
+                env: null,
+            }),
+        openUserDataDirectory: () => Promise.resolve({ ok: true }),
+        openConfigMarkerDirectory: () => Promise.resolve({ ok: true }),
+        chooseDataDirectory: () => Promise.resolve({ ok: false, cancelled: true }),
+        resetDataDirectoryOverride: () => Promise.resolve({ ok: true, needsRestart: true }),
     };
 }
 

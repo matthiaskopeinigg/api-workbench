@@ -17,6 +17,8 @@ import type {
 import { snapshotKey } from '@models/testing/test-suite';
 import { CollectionService } from './collection.service';
 import { TestArtifactService } from './test-artifact.service';
+import { SettingsService } from './settings.service';
+import type { IpcHttpRequest } from '@models/ipc-http-request';
 import { diffJson, diffText } from './json-diff';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 
@@ -57,6 +59,7 @@ export class TestSuiteRunnerService {
     private collections: CollectionService,
     private artifacts: TestArtifactService,
     private zone: NgZone,
+    private settings: SettingsService,
   ) {}
 
   onCaseResult() { return this.results$.asObservable(); }
@@ -76,6 +79,7 @@ export class TestSuiteRunnerService {
   }
 
   async run(suite: TestSuiteArtifact, opts: RunOptions = {}): Promise<SuiteRunResult> {
+    await this.settings.loadSettings();
     const startedAt = Date.now();
     const cases = this.pickCases(suite, opts);
     const variables = new Map<string, string>(suite.variables.map((v) => [v.key, v.value] as [string, string]));
@@ -211,11 +215,12 @@ export class TestSuiteRunnerService {
     };
   }
 
-  private buildRequest(tc: TestCase, variables: Map<string, string>) {
+  private buildRequest(tc: TestCase, variables: Map<string, string>): IpcHttpRequest | null {
     let method: string;
     let url: string;
     let headersList: Array<{ key: string; value: string }>;
     let body: string | undefined;
+    let per: { verifySsl?: boolean; followRedirects?: boolean; useCookies?: boolean } = {};
 
     if (tc.target.kind === 'inline') {
       method = tc.target.method || 'GET';
@@ -231,20 +236,22 @@ export class TestSuiteRunnerService {
         .filter((h) => h.enabled !== false && !!h.key)
         .map((h) => ({ key: h.key, value: applyVars(h.value || '', variables) }));
       body = extractBodyString(req, variables);
+      per = {
+        verifySsl: req.settings?.verifySsl,
+        followRedirects: req.settings?.followRedirects,
+        useCookies: req.settings?.useCookies,
+      };
     }
 
     const headers: Record<string, string> = {};
     for (const h of headersList) headers[h.key] = h.value;
 
-    return {
-      method,
-      url,
-      headers,
-      params: {},
-      body,
-      followRedirects: true,
-      timeoutMs: 30000,
-    };
+    if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url;
+
+    return this.settings.applyGlobalNetworkToIpc(
+      { method, url, headers, params: {}, body, followRedirects: true, timeoutMs: 30000 },
+      per,
+    );
   }
 
   private evaluateAssertion(
@@ -407,12 +414,13 @@ export class TestSuiteRunnerService {
     return out;
   }
 
-  private toRequestSnapshot(ipcRequest: { method: string; url: string; headers: Record<string, string>; body?: string }) {
+  private toRequestSnapshot(ipcRequest: IpcHttpRequest) {
+    const body = typeof ipcRequest.body === 'string' ? ipcRequest.body : undefined;
     return {
       method: ipcRequest.method,
       url: ipcRequest.url,
       headers: Object.entries(ipcRequest.headers).map(([key, value]) => ({ key, value })),
-      body: ipcRequest.body,
+      body,
     };
   }
 

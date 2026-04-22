@@ -13,7 +13,7 @@ import { CollectionService } from '@core/collection.service';
 import { ImportService } from '@core/import.service';
 import { UpdateService } from '@core/update.service';
 import { Collection } from '@models/collection';
-import type { UpdaterStatus } from '@models/electron';
+import type { StorageInfo, UpdaterStatus } from '@models/electron';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
 
 @Component({
@@ -82,6 +82,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     {
       title: 'Data',
       items: [
+        { id: 'data', label: 'Data & config', icon: 'M3 5h3l1.5-2h6L12 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z' },
         { id: 'export-import', label: 'Export & Import', icon: 'M19 9h-4V3H9v6H5l7 7zM5 18v2h14v-2z' },
         { id: 'about', label: 'About', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z' },
       ],
@@ -101,6 +102,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
   importFailed = false;
   isLoading = false;
 
+  storageInfo: StorageInfo | null = null;
+  dataMessage: string | null = null;
+
+  get hasStorageApi(): boolean {
+    return typeof window !== 'undefined' && typeof window.awElectron?.getStorageInfo === 'function';
+  }
+
   constructor(
     private fb: FormBuilder,
     private config: SettingsService,
@@ -116,6 +124,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.loadSettings();
+    void this.refreshStorageInfo();
     await this.subscribeToChanges();
     this.updaterSub = this.updateService.statusStream.subscribe((status) => {
       this.updaterStatus = status;
@@ -564,6 +573,64 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   selectTab(tab: string) {
     this.selectedTab = tab;
+    if (tab === 'data') {
+      void this.refreshStorageInfo();
+    }
+  }
+
+  async refreshStorageInfo(): Promise<void> {
+    const api = typeof window !== 'undefined' ? window.awElectron : undefined;
+    if (!api?.getStorageInfo) {
+      this.storageInfo = null;
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      this.storageInfo = await api.getStorageInfo();
+    } catch {
+      this.storageInfo = null;
+    }
+    this.cdr.markForCheck();
+  }
+
+  async openUserDataFolder(): Promise<void> {
+    const api = window.awElectron;
+    if (!api?.openUserDataDirectory) return;
+    await api.openUserDataDirectory();
+  }
+
+  async openConfigMarkerFolder(): Promise<void> {
+    const api = window.awElectron;
+    if (!api?.openConfigMarkerDirectory) return;
+    await api.openConfigMarkerDirectory();
+  }
+
+  async chooseCustomDataDirectory(): Promise<void> {
+    this.dataMessage = null;
+    const api = window.awElectron;
+    if (!api?.chooseDataDirectory) return;
+    const r = await api.chooseDataDirectory();
+    if (r && 'ok' in r && r.ok && 'needsRestart' in r && r.needsRestart) {
+      this.dataMessage = 'Data folder will be used after you restart the app.';
+    } else if (r && 'ok' in r && !r.ok && 'error' in r && r.error) {
+      this.dataMessage = r.error;
+    }
+    void this.refreshStorageInfo();
+    this.cdr.markForCheck();
+  }
+
+  async resetDataDirectoryOverride(): Promise<void> {
+    this.dataMessage = null;
+    const api = window.awElectron;
+    if (!api?.resetDataDirectoryOverride) return;
+    const r = await api.resetDataDirectoryOverride();
+    if (r && 'ok' in r && r.ok && 'needsRestart' in r && r.needsRestart) {
+      this.dataMessage = 'Restart the app to use the default data location.';
+    } else if (r && 'ok' in r && !r.ok && 'error' in r && r.error) {
+      this.dataMessage = r.error;
+    }
+    void this.refreshStorageInfo();
+    this.cdr.markForCheck();
   }
 
   closeSettings() {

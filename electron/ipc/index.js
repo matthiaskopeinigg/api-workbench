@@ -11,6 +11,7 @@ const { registerHistoryIpcHandlers } = require('./history.ipc');
 const { registerMockIpcHandlers } = require('./mock.ipc');
 const { registerTestingIpcHandlers } = require('./testing.ipc');
 const { registerLoadIpcHandlers } = require('./load.ipc');
+const { registerStorageIpcHandlers } = require('./storage.ipc');
 const { logInfo } = require('../services/logger.service');
 
 function registerIpcHandlers() {
@@ -27,6 +28,7 @@ function registerIpcHandlers() {
     registerMockIpcHandlers();
     registerTestingIpcHandlers();
     registerLoadIpcHandlers();
+    registerStorageIpcHandlers();
 
     logInfo('IPC handlers registered');
 }

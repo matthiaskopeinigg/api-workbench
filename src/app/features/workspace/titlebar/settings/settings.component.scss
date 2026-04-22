@@ -606,6 +606,42 @@ label:has(input[type="checkbox"]) {
   }
 }
 
+.data-paths {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+
+  .data-path-row {
+    margin-bottom: 0.75rem;
+  }
+
+  dt {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+    opacity: 0.9;
+  }
+
+  .mono-path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    word-break: break-all;
+    opacity: 0.85;
+  }
+}
+
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.data-hint {
+  font-size: 0.82rem;
+  opacity: 0.85;
+  margin-top: 0.5rem;
+}
+
 .cert-hint {
   font-size: 0.82rem;
   line-height: 1.45;

@@ -22,6 +22,23 @@ try {
 
 const TEXT_CONTENT_TYPE_REGEX = /(text\/|application\/(?:json|xml|xhtml\+xml|javascript|ecmascript|graphql|ld\+json|x-www-form-urlencoded|problem\+json|problem\+xml)|\+json|\+xml)/i;
 
+function isIgnoreInvalidSslRequest(request) {
+    if (request == null) {
+        return false;
+    }
+    const v = request.ignoreInvalidSsl;
+    if (v === true || v === 1) {
+        return true;
+    }
+    if (typeof v === 'string') {
+        const t = v.trim().toLowerCase();
+        if (t === 'true' || t === '1' || t === 'yes' || t === 'on') {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Pipe a Node IncomingMessage through the matching decompressor based on the
  * `Content-Encoding` header. Returns the stream to read bytes from. Unknown
@@ -266,6 +283,9 @@ async function clearAllCookies() {
  * default store and breaks public HTTPS with UNABLE_TO_GET_ISSUER_CERT_LOCALLY.
  */
 async function resolveCaForRequest(request) {
+    if (isIgnoreInvalidSslRequest(request)) {
+        return undefined;
+    }
     if (!request.customCaPaths || request.customCaPaths.length === 0) {
         return undefined;
     }
@@ -293,7 +313,7 @@ async function handleHttpRequest(request) {
             const probeUrl = new URL(request.url);
             if (probeUrl.protocol === 'https:') {
                 const port = Number(probeUrl.port) || 443;
-                const alpnAgentOptions = { rejectUnauthorized: !request.ignoreInvalidSsl };
+                const alpnAgentOptions = { rejectUnauthorized: !isIgnoreInvalidSslRequest(request) };
                 try {
                     const ca = await resolveCaForRequest(request);
                     if (ca) alpnAgentOptions.ca = ca;
@@ -438,7 +458,7 @@ async function executeNodeRequest(request) {
     };
 
     if (isHttps) {
-        if (request.ignoreInvalidSsl) {
+        if (isIgnoreInvalidSslRequest(request)) {
             agentOptions.rejectUnauthorized = false;
         }
 
@@ -756,7 +776,9 @@ async function executeHttp2Request(request) {
         servername: originalHostname,
         ALPNProtocols: ['h2'],
     };
-    if (request.ignoreInvalidSsl) connectOptions.rejectUnauthorized = false;
+    if (isIgnoreInvalidSslRequest(request)) {
+        connectOptions.rejectUnauthorized = false;
+    }
     if (request.verifyHostname === false) connectOptions.checkServerIdentity = () => undefined;
 
     if (request.certificate) {

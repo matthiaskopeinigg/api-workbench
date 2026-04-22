@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Settings, Theme } from '@models/settings';
 import { HttpMethod } from '@models/request';
+import type { IpcHttpRequest } from '@models/ipc-http-request';
 
 const DEFAULT_SETTINGS: Settings = {
   ui: {
@@ -98,6 +99,54 @@ export class SettingsService {
   async saveSettings(settings: Settings): Promise<void> {
     this.cache = settings;
     await window.awElectron.saveSettings(settings);
+  }
+
+  /**
+   * Per-request `verifySsl` (folder/request) vs global "Ignore invalid SSL" — same
+   * rules as the main request tab. Used by runners, flows, and test tools.
+   */
+  effectiveIgnoreInvalidSsl(verifySsl?: boolean): boolean {
+    if (verifySsl === true) return false;
+    if (verifySsl === false) return true;
+    const raw = this.getSettings().ssl?.ignoreInvalidSsl as unknown;
+    return (
+      raw === true ||
+      (typeof raw === 'number' && raw === 1) ||
+      (typeof raw === 'string' && /^(1|true|yes|on)$/i.test(String(raw).trim()))
+    );
+  }
+
+  /**
+   * Attach global network / TLS / proxy / retry options to a minimal IPC request.
+   */
+  applyGlobalNetworkToIpc(
+    base: IpcHttpRequest,
+    perRequest: { verifySsl?: boolean; followRedirects?: boolean; useCookies?: boolean } = {},
+  ): IpcHttpRequest {
+    const s = this.getSettings();
+    return {
+      ...base,
+      ignoreInvalidSsl: this.effectiveIgnoreInvalidSsl(perRequest.verifySsl),
+      followRedirects:
+        perRequest.followRedirects !== undefined
+          ? perRequest.followRedirects
+          : (base.followRedirects !== undefined ? base.followRedirects : true),
+      useCookies:
+        perRequest.useCookies !== undefined
+          ? perRequest.useCookies
+          : (base.useCookies !== undefined ? base.useCookies : s.requests?.useCookies),
+      timeoutMs:
+        base.timeoutMs !== undefined && base.timeoutMs > 0
+          ? base.timeoutMs
+          : (s.requests?.timeoutMs ?? 0),
+      retries: s.retries,
+      dns: s.dns,
+      proxy: s.proxy,
+      verifyHostname: s.ssl?.verifyHostname,
+      useSystemCaStore: s.ssl?.useSystemCaStore,
+      customCaPaths: s.ssl?.customCaPaths,
+      allowHttp2: s.requests?.allowHttp2 === true,
+    };
   }
 
   private deepMerge<T extends object>(target: T, source: Partial<T>): T {

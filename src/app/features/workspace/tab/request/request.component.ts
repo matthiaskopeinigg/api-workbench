@@ -1335,6 +1335,8 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   async sendRequest() {
     if (this.isLoading || !this.request) return;
 
+    await this.settingsService.loadSettings();
+
     this.isLoading = true;
     this.saveRequest();
     await this.collectionService.flushPendingSaves();
@@ -1500,14 +1502,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
           }
         }
 
-        let ignoreInvalidSsl = false;
-        if (resolvedSettings.verifySsl === true) {
-          ignoreInvalidSsl = false;
-        } else if (resolvedSettings.verifySsl === false) {
-          ignoreInvalidSsl = true;
-        } else {
-          ignoreInvalidSsl = settings.ssl?.ignoreInvalidSsl === true;
-        }
+        const ignoreInvalidSsl = this.settingsService.effectiveIgnoreInvalidSsl(resolvedSettings.verifySsl);
 
         const res = await this.requestService.sendRequest({
           method: HttpMethod[this.request.httpMethod],

@@ -9,6 +9,7 @@ import type { IpcHttpRequest } from '@models/ipc-http-request';
 import type { IpcHttpResponse } from '@models/ipc-http-response';
 import type { TestResult } from '@models/response';
 import { pruneEmptyKv } from './kv-utils';
+import { SettingsService } from './settings.service';
 
 export interface RunnerOptions {
   iterations: number;
@@ -58,6 +59,7 @@ export class RunnerService {
     private collectionService: CollectionService,
     private environmentsService: EnvironmentsService,
     private scriptService: ScriptService,
+    private settingsService: SettingsService,
   ) {}
 
   state$(): Observable<RunnerState> { return this.stateSubject.asObservable(); }
@@ -76,6 +78,7 @@ export class RunnerService {
   }
 
   async run(source: Collection | Folder, options: RunnerOptions): Promise<RunnerState> {
+    await this.settingsService.loadSettings();
     const requests = this.collectRequests(source);
     if (requests.length === 0) {
       return this.stateSubject.getValue();
@@ -194,13 +197,20 @@ export class RunnerService {
 
     const methodValue = request.httpMethod ?? HttpMethod.GET;
     const method = typeof methodValue === 'number' ? HttpMethod[methodValue] : String(methodValue);
-    return {
-      method,
-      url,
-      headers,
-      params,
-      body: substitute(request.requestBody || '', activeVariables),
-    };
+    return this.settingsService.applyGlobalNetworkToIpc(
+      {
+        method,
+        url,
+        headers,
+        params,
+        body: substitute(request.requestBody || '', activeVariables),
+      },
+      {
+        verifySsl: request.settings?.verifySsl,
+        followRedirects: request.settings?.followRedirects,
+        useCookies: request.settings?.useCookies,
+      },
+    );
   }
 
   private snapshotVariables(): Record<string, string> {

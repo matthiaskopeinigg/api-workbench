@@ -326,6 +326,52 @@
         </div>
       </div>
 
+      <div *ngIf="selectedTab==='data'" class="tab-pane">
+        <h2 class="tab-title">Data &amp; config</h2>
+        <p class="tab-description">Database and app data live on disk. You can open those folders or move data to another directory (requires restart).</p>
+
+        <div class="settings-section" *ngIf="storageInfo">
+          <h3>Current locations</h3>
+          <dl class="data-paths">
+            <div class="data-path-row">
+              <dt>Data directory</dt>
+              <dd class="mono-path">{{ storageInfo.userData }}</dd>
+            </div>
+            <div class="data-path-row">
+              <dt>Database</dt>
+              <dd class="mono-path">{{ storageInfo.databasePath }}</dd>
+            </div>
+            <div class="data-path-row" *ngIf="storageInfo.markerFile">
+              <dt>Override file</dt>
+              <dd class="mono-path">{{ storageInfo.markerFile }}</dd>
+            </div>
+            <div class="data-path-row" *ngIf="storageInfo.env">
+              <dt>API_WORKBENCH_USER_DATA</dt>
+              <dd class="mono-path">{{ storageInfo.env }}</dd>
+            </div>
+            <div class="data-path-row" *ngIf="!storageInfo.env && storageInfo.overrideSource">
+              <dt>Override</dt>
+              <dd>
+                <span *ngIf="storageInfo.overrideSource === 'marker'">Set via <code>user-data-path.txt</code> in <code>.api-workbench</code></span>
+              </dd>
+            </div>
+          </dl>
+
+          <div class="data-actions">
+            <button type="button" class="fancy-button" (click)="openUserDataFolder()">Open data folder</button>
+            <button type="button" class="fancy-button" (click)="openConfigMarkerFolder()">Open <code>.api-workbench</code> (override)</button>
+            <button type="button" class="fancy-button" (click)="chooseCustomDataDirectory()">Change data directory…</button>
+            <button type="button" class="fancy-button cancel" (click)="resetDataDirectoryOverride()"
+              [disabled]="!!storageInfo.env">Reset to default</button>
+          </div>
+          <p class="data-hint" *ngIf="storageInfo.env">Unset the API_WORKBENCH_USER_DATA environment variable to use a file-based override, then restart.</p>
+        </div>
+
+        <p class="data-hint" *ngIf="!storageInfo && !hasStorageApi">Storage info is only available in the desktop app.</p>
+
+        <p class="import-popup import-success" *ngIf="dataMessage" style="position: static; margin-top: 1rem;">{{ dataMessage }}</p>
+      </div>
+
       <div *ngIf="selectedTab==='export-import'" class="tab-pane">
         <h2 class="tab-title">Import & Export</h2>
         <p class="tab-description">Manage your collections and data. Import from other tools or backup your work.</p>

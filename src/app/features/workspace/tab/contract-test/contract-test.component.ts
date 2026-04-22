@@ -14,6 +14,7 @@ import type { TabItem } from '@core/tab.service';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { CollectionService } from '@core/collection.service';
 import { ContractValidatorService } from '@core/contract-validator.service';
+import { SettingsService } from '@core/settings.service';
 import type {
   ContractFinding,
   ContractRunResult,
@@ -63,6 +64,7 @@ export class ContractTestComponent implements OnInit, OnDestroy {
     private validator: ContractValidatorService,
     private collectionService: CollectionService,
     private cdr: ChangeDetectorRef,
+    private settings: SettingsService,
   ) {}
 
   ngOnInit(): void {
@@ -139,14 +141,19 @@ export class ContractTestComponent implements OnInit, OnDestroy {
     if (!this.artifact || this.artifact.spec.kind !== 'url' || !this.artifact.spec.url) return;
     this.fetchingSpec = true;
     try {
-      const resp = await window.awElectron.httpRequest({
-        method: 'GET',
-        url: this.artifact.spec.url,
-        headers: { accept: 'application/json, application/yaml, text/yaml' },
-        params: {},
-        followRedirects: true,
-        timeoutMs: 30000,
-      } as never) as { status: number; body?: unknown; headers?: Record<string, string> };
+      await this.settings.loadSettings();
+      const ipc = this.settings.applyGlobalNetworkToIpc(
+        {
+          method: 'GET',
+          url: this.artifact.spec.url,
+          headers: { accept: 'application/json, application/yaml, text/yaml' },
+          params: {},
+          followRedirects: true,
+          timeoutMs: 30000,
+        },
+        {},
+      );
+      const resp = await window.awElectron.httpRequest(ipc as never) as { status: number; body?: unknown; headers?: Record<string, string> };
       const body = typeof resp.body === 'string' ? resp.body : JSON.stringify(resp.body ?? '', null, 2);
       const ct = (resp.headers?.['content-type'] || resp.headers?.['Content-Type'] || '').toLowerCase();
       const format: 'json' | 'yaml' = ct.includes('yaml') ? 'yaml' : 'json';

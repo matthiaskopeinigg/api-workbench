@@ -56,6 +56,16 @@ export interface UpdaterStatus {
       };
 }
 
+export interface StorageInfo {
+  userData: string;
+  databasePath: string;
+  markerFile: string;
+  markerDir: string;
+  overrideSource: 'env' | 'marker' | null;
+  overrideTarget: string | null;
+  env: string | null;
+}
+
 export interface AwElectronApi {
   getSettings: () => Promise<Settings | undefined>;
   saveSettings: (settings: Settings) => Promise<void>;
@@ -155,6 +165,17 @@ export interface AwElectronApi {
     runId: string,
     listener: (result: import('./testing/load-test').LoadRunResult) => void,
   ) => () => void;
+
+  getStorageInfo: () => Promise<StorageInfo>;
+  openUserDataDirectory: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  openConfigMarkerDirectory: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  chooseDataDirectory: () => Promise<
+    | { ok: true; path: string; needsRestart: true }
+    | { ok: false; cancelled?: boolean; error?: string }
+  >;
+  resetDataDirectoryOverride: () => Promise<
+    { ok: true; needsRestart: true } | { ok: false; error?: string }
+  >;
 }
 
 export type TestingArtifactKind =

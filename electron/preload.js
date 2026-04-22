@@ -96,6 +96,12 @@ const awElectron = {
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
   },
+
+  getStorageInfo: () => ipcRenderer.invoke('storage:get-info'),
+  openUserDataDirectory: () => ipcRenderer.invoke('storage:open-user-data'),
+  openConfigMarkerDirectory: () => ipcRenderer.invoke('storage:open-marker-dir'),
+  chooseDataDirectory: () => ipcRenderer.invoke('storage:choose-data-directory'),
+  resetDataDirectoryOverride: () => ipcRenderer.invoke('storage:reset-data-directory-override'),
 };
 
 contextBridge.exposeInMainWorld('awElectron', awElectron);
