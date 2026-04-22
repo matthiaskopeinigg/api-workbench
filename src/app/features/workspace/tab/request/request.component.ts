@@ -1035,20 +1035,6 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     this.cdr.markForCheck();
   }
   removeHeader(i: number) { this.request.httpHeaders!.splice(i, 1); this.saveRequest(); this.cdr.markForCheck(); }
-  updateHeaderKey(e: Event, i: number) {
-    this.request.httpHeaders![i].key = (e.target as HTMLInputElement).value;
-    this.saveRequest();
-    this.cdr.markForCheck();
-  }
-  updateHeaderValue(e: Event, i: number) {
-    this.request.httpHeaders![i].value = (e.target as HTMLInputElement).value;
-    this.saveRequest();
-    this.cdr.markForCheck();
-  }
-
-  updateHeaderDescription(e: Event, i: number) {
-    this.cdr.markForCheck();
-  }
 
   addQueryParam() {
     if (!this.request.httpParameters) this.request.httpParameters = [];

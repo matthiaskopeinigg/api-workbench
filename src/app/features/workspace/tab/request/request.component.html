@@ -204,15 +204,19 @@
                 <input type="checkbox" [checked]="header.enabled" (change)="toggleHeaderEnabled(header)"
                   [disabled]="header.isDefault && header.isOverridden" />
 
-                <app-variable-input *ngIf="!header.isDefault" placeholder="Key" [(ngModel)]="header.key"
+                <!-- User rows: bind request.httpHeaders[i]; effectiveHeaders wraps copies so header.* would not persist. -->
+                <app-variable-input *ngIf="!header.isDefault" placeholder="Key"
+                  [(ngModel)]="request.httpHeaders![header.index].key"
                   (ngModelChange)="saveRequest()" [activeVariables]="activeVariables"></app-variable-input>
                 <span *ngIf="header.isDefault" class="header-key-readonly" [title]="header.key">{{header.key}}</span>
 
-                <app-variable-input *ngIf="!header.isDefault" placeholder="Value" [(ngModel)]="header.value"
+                <app-variable-input *ngIf="!header.isDefault" placeholder="Value"
+                  [(ngModel)]="request.httpHeaders![header.index].value"
                   (ngModelChange)="saveRequest()" [activeVariables]="activeVariables"></app-variable-input>
                 <span *ngIf="header.isDefault" class="header-key-readonly" [title]="header.value">{{header.value}}</span>
 
-                <input *ngIf="!header.isDefault" type="text" placeholder="Description" [(ngModel)]="header.description"
+                <input *ngIf="!header.isDefault" type="text" placeholder="Description"
+                  [(ngModel)]="request.httpHeaders![header.index].description"
                   (ngModelChange)="saveRequest()" />
 
                 <button type="button" class="btn-icon" *ngIf="!header.isDefault"
