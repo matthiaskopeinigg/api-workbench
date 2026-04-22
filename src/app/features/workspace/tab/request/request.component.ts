@@ -1,7 +1,7 @@
 import { Component, Input, OnChanges, OnInit, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, SecurityContext, SimpleChanges, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Certificate } from '@models/settings';
+import { Certificate, RequestEditorSection } from '@models/settings';
 import { SettingsService } from '@core/settings.service';
 import { RequestService } from '@core/request.service';
 import { CollectionService } from '@core/collection.service';
@@ -77,7 +77,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   HttpMethod = HttpMethod;
 
-  activeRequestTab: 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'settings' = 'body';
+  activeRequestTab: RequestEditorSection = 'body';
   activeResponseTab: 'body' | 'preview' | 'headers' | 'cookies' | 'raw' | 'tests' | 'diff' = 'body';
   isLoading = false;
   showSnippets = false;
@@ -178,7 +178,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     this.tabService.openMockServerTab();
   }
 
-  setActiveRequestTab(tab: 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'settings') {
+  setActiveRequestTab(tab: RequestEditorSection) {
     this.activeRequestTab = tab;
     this.persistViewState({ activeRequestTab: tab });
     this.cdr.markForCheck();
@@ -195,12 +195,28 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     this.viewState.patch(this.tab.id, partial);
   }
 
+  private applyDefaultActiveRequestTabFromSettings(): void {
+    const section = this.settingsService.getSettings().requests?.defaultRequestEditorSection;
+    const valid: readonly RequestEditorSection[] = [
+      'params', 'headers', 'body', 'scripts', 'auth', 'settings',
+    ];
+    this.activeRequestTab = (section && valid.includes(section)) ? section : 'body';
+  }
+
   private restoreViewState() {
     if (!this.tab?.id) return;
     const saved = this.viewState.get(this.tab.id);
-    if (!saved) return;
 
-    if (saved.activeRequestTab) this.activeRequestTab = saved.activeRequestTab;
+    if (saved?.activeRequestTab) {
+      this.activeRequestTab = saved.activeRequestTab;
+    } else {
+      this.applyDefaultActiveRequestTabFromSettings();
+    }
+
+    if (!saved) {
+      return;
+    }
+
     if (saved.activeResponseTab) this.activeResponseTab = saved.activeResponseTab;
     if (typeof saved.responseHeight === 'number' && saved.responseHeight >= 60) {
       this.responseHeight = saved.responseHeight;

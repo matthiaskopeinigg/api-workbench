@@ -1,0 +1,85 @@
+<div class="batch-import-overlay" *ngIf="state" (click)="cancel()">
+  <div class="batch-import-panel" (click)="$event.stopPropagation()" role="dialog" aria-modal="true"
+       [attr.aria-label]="state.phase === 'preview' ? 'Review import' : (state.phase === 'running' ? 'Importing' : 'Import result')">
+
+    <ng-container *ngIf="state.phase === 'preview'">
+      <header class="batch-import-header">
+        <h2>Review import</h2>
+        <p class="batch-import-lede">Choose files and how they should attach to your workspace.</p>
+      </header>
+
+      <div class="batch-import-merge">
+        <label class="batch-import-label">Merge mode</label>
+        <div class="merge-options">
+          <label *ngFor="let m of mergeModes" class="merge-option">
+            <input type="radio" name="mergeMode" [value]="m.id" [checked]="state.mergeMode === m.id"
+                   (change)="setMergeMode(m.id)" />
+            <span class="merge-option-text">
+              <strong>{{ m.label }}</strong>
+              <span class="merge-hint">{{ m.hint }}</span>
+            </span>
+          </label>
+        </div>
+        <div class="prefix-row" *ngIf="state.mergeMode === 'flatWithPrefix'">
+          <label for="reqPrefix">Request title prefix</label>
+          <input id="reqPrefix" type="text" [ngModel]="state.requestTitlePrefix"
+                 (ngModelChange)="setPrefix($event)" placeholder="e.g. [staging] " />
+        </div>
+      </div>
+
+      <div class="batch-import-toolbar">
+        <button type="button" class="btn-link" (click)="selectAll(true)">Select all valid</button>
+        <button type="button" class="btn-link" (click)="selectAll(false)">Clear</button>
+      </div>
+
+      <div class="batch-import-table-wrap">
+        <table class="batch-import-table">
+          <thead>
+            <tr>
+              <th class="col-check"></th>
+              <th>File</th>
+              <th>Format</th>
+              <th>Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows" [class.is-warn]="row.warning">
+              <td class="col-check">
+                <input type="checkbox" [checked]="isSelected(row.path)" [disabled]="row.kind === 'unknown'"
+                       (change)="toggle(row.path)" />
+              </td>
+              <td class="col-file" [title]="row.path">{{ row.basename }}</td>
+              <td>{{ formatKind(row.kind) }}</td>
+              <td>{{ row.title }}<span class="warn" *ngIf="row.warning"> — {{ row.warning }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="batch-import-actions">
+        <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
+        <button type="button" class="btn-primary" (click)="importSelected()">Import selected</button>
+      </footer>
+    </ng-container>
+
+    <ng-container *ngIf="state.phase === 'running'">
+      <header class="batch-import-header">
+        <h2>Importing…</h2>
+        <p>{{ state.runningIndex + 1 }} / {{ state.runningTotal }} files</p>
+      </header>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="state.runningTotal ? (100 * (state.runningIndex + 1) / state.runningTotal) : 0"></div>
+      </div>
+      <footer class="batch-import-actions">
+        <button type="button" class="btn-ghost" (click)="cancelRun()">Cancel remaining</button>
+      </footer>
+    </ng-container>
+
+    <ng-container *ngIf="state.phase === 'done' && state.result">
+      <header class="batch-import-header">
+        <h2>Import finished</h2>
+        <p>{{ summaryLine(state.result) }}</p>
+      </header>
+    </ng-container>
+  </div>
+</div>

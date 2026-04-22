@@ -4,6 +4,8 @@ import { LoadTestComponent } from './load-test.component';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { LoadTestService } from '@core/load-test.service';
 import { CollectionService } from '@core/collection.service';
+import { SessionService } from '@core/session.service';
+import { EnvironmentsService } from '@core/environments.service';
 import type { TabItem } from '@core/tab.service';
 import { TabType } from '@core/tab.service';
 import { DEFAULT_LOAD_CONFIG } from '@models/testing/load-test';
@@ -20,6 +22,8 @@ describe('LoadTestComponent', () => {
   let artifactsSpy: jasmine.SpyObj<TestArtifactService>;
   let loadSpy: jasmine.SpyObj<LoadTestService>;
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
+  let sessionSpy: jasmine.SpyObj<SessionService>;
+  let envSpy: jasmine.SpyObj<EnvironmentsService>;
 
   const id = 'lt-1';
   const tab: TabItem = { id: `lt:${id}`, title: 'Load', type: TabType.LOAD_TEST };
@@ -48,12 +52,23 @@ describe('LoadTestComponent', () => {
     collectionsSpy.getCollectionsObservable.and.returnValue(of([]));
     collectionsSpy.getCollections.and.returnValue([]);
 
+    sessionSpy = jasmine.createSpyObj('SessionService', ['load', 'get', 'save']);
+    sessionSpy.load.and.resolveTo();
+    sessionSpy.get.and.returnValue(null);
+    sessionSpy.save.and.resolveTo();
+
+    envSpy = jasmine.createSpyObj('EnvironmentsService', ['loadEnvironments', 'getEnvironmentsObservable']);
+    envSpy.loadEnvironments.and.resolveTo();
+    envSpy.getEnvironmentsObservable.and.returnValue(of([]));
+
     await TestBed.configureTestingModule({
       imports: [LoadTestComponent],
       providers: [
         { provide: TestArtifactService, useValue: artifactsSpy },
         { provide: LoadTestService,     useValue: loadSpy },
         { provide: CollectionService,   useValue: collectionsSpy },
+        { provide: SessionService,      useValue: sessionSpy },
+        { provide: EnvironmentsService, useValue: envSpy },
       ],
     }).compileComponents();
 
@@ -135,7 +150,7 @@ describe('LoadTestComponent', () => {
   it('start() forwards the config and sets running=true on success', async () => {
     component.addSavedTarget('req-1');
     await component.start();
-    expect(loadSpy.start).toHaveBeenCalledWith(component.artifact!.config);
+    expect(loadSpy.start).toHaveBeenCalledWith(component.artifact!.config, undefined);
     expect(component.running).toBeTrue();
     expect(component.runId).toBe('run-1');
   });

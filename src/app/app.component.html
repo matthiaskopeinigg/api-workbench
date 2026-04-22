@@ -14,6 +14,9 @@
   }
 
   <router-outlet *ngIf="isReady"></router-outlet>
+
+  <app-batch-import-dialog *ngIf="isReady"></app-batch-import-dialog>
+
   <app-command-palette *ngIf="isReady"></app-command-palette>
   <app-shortcuts-panel *ngIf="isReady"></app-shortcuts-panel>
   <app-runner-dialog *ngIf="isReady && runnerRequest"

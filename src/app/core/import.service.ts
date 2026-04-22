@@ -521,6 +521,117 @@ export class ImportService {
         }
         return events;
     }
+
+    /**
+     * Import Chrome / Firefox HAR. Caps at 500 entries.
+     */
+    importHar(content: string | object): Collection {
+        const j = typeof content === 'string' ? this.parseContent(content) : content;
+        const log = (j as { log?: { entries?: unknown } })?.log;
+        const entries = log?.entries;
+        if (!Array.isArray(entries)) {
+            throw new Error('Invalid HAR: expected log.entries');
+        }
+        const requests: Request[] = [];
+        const max = Math.min(entries.length, 500);
+        for (let i = 0; i < max; i++) {
+            const e = (entries as any[])[i];
+            const req = e?.request;
+            if (!req) continue;
+            const urlStr =
+                typeof req.url === 'string'
+                    ? req.url
+                    : (req.url && (req.url as { raw?: string }).raw) || '';
+            if (!urlStr) continue;
+            const m = (req.method || 'GET').toString().toUpperCase();
+            const method = this.parsePostmanMethod(m);
+            const headers: HttpHeader[] = (Array.isArray(req.headers) ? req.headers : [])
+                .filter((h: { name?: string }) => h?.name && !String(h.name).startsWith(':'))
+                .map((h: { name: string; value: string }) => ({
+                    key: h.name,
+                    value: h.value,
+                    enabled: true,
+                }));
+            const body = req.postData?.text || '';
+            const request: Request = {
+                id: uuidv4(),
+                title: (e as { comment?: string }).comment || urlStr.substring(0, 96) || `HAR ${i + 1}`,
+                url: urlStr,
+                httpMethod: method,
+                httpHeaders: headers,
+                httpParameters: [],
+                requestBody: body,
+                body: body ? ({ mode: 'text' as const, raw: body }) : undefined,
+                script: { preRequest: '', postRequest: '' },
+                order: requests.length,
+            };
+            requests.push(request);
+        }
+        if (!requests.length) {
+            throw new Error('No usable entries in HAR');
+        }
+        return {
+            id: uuidv4(),
+            order: 0,
+            title: 'Imported HAR',
+            requests,
+            folders: [],
+        };
+    }
+
+    /**
+     * Insomnia export format 4: flat list of `request` resources.
+     */
+    importInsomniaExport(content: string | object): Collection {
+        const j = typeof content === 'string' ? this.parseContent(content) : content;
+        if ((j as { __export_format?: number }).__export_format !== 4) {
+            throw new Error('Unsupported Insomnia export (expected format 4)');
+        }
+        const resources = (j as { resources?: any[] })?.resources;
+        if (!Array.isArray(resources)) {
+            throw new Error('Invalid Insomnia export: resources');
+        }
+        const requests: Request[] = [];
+        for (const r of resources) {
+            if (r._type !== 'request') {
+                continue;
+            }
+            const url = (r.url || '') as string;
+            if (!url) {
+                continue;
+            }
+            const m = (r.method || 'GET').toString();
+            const request: Request = {
+                id: r._id && typeof r._id === 'string' ? r._id : uuidv4(),
+                title: (r.name as string) || url.substring(0, 80),
+                url,
+                httpMethod: this.parsePostmanMethod(m),
+                httpHeaders: (Array.isArray(r.headers) ? r.headers : []).map((h: any) => ({
+                    key: h.name,
+                    value: h.value,
+                    enabled: h.disabled !== true,
+                })),
+                httpParameters: [],
+                requestBody: (r.body && (r.body as { text?: string }).text) || '',
+                body: r.body && (r.body as { text?: string }).text
+                    ? { mode: 'text' as const, raw: (r.body as { text: string }).text }
+                    : undefined,
+                script: { preRequest: '', postRequest: '' },
+                order: requests.length,
+            };
+            requests.push(request);
+        }
+        if (!requests.length) {
+            throw new Error('No request resources in Insomnia export');
+        }
+        return {
+            id: uuidv4(),
+            order: 0,
+            title: 'Imported Insomnia',
+            requests,
+            folders: [],
+        };
+    }
 }
 
 /**

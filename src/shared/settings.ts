@@ -20,6 +20,18 @@ export interface UiSettings {
   hideRequestMethod: boolean;
 }
 
+/**
+ * Sub-tabs in the main request editor (URL bar area). Per-tab view state, when
+ * present, overrides {@link RequestSettings.defaultRequestEditorSection}.
+ */
+export type RequestEditorSection =
+  | 'params'
+  | 'headers'
+  | 'body'
+  | 'scripts'
+  | 'auth'
+  | 'settings';
+
 export interface RequestSettings {
   defaultHttpMethod: HttpMethod;
   timeoutMs: number;
@@ -30,6 +42,11 @@ export interface RequestSettings {
    * unaffected.
    */
   allowHttp2?: boolean;
+  /**
+   * Which section is active when a request tab opens and has no saved
+   * per-tab UI state (or only partial state without `activeRequestTab`).
+   */
+  defaultRequestEditorSection: RequestEditorSection;
 }
 
 export interface RetrySettings {

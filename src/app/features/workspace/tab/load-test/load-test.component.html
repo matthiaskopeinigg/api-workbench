@@ -6,12 +6,18 @@
       (ngModelChange)="onTitleChange()"
       placeholder="Untitled load test"
     />
+    <div class="lt-header-end">
+    <app-run-environment-select
+      [value]="runEnvironmentId"
+      (valueChange)="onRunEnvironmentChange($event)"
+    />
     <div class="header-actions">
       <button type="button" class="btn ghost" *ngIf="result" (click)="exportResultJson()">Export JSON</button>
       <button type="button" class="btn primary" *ngIf="!running" (click)="start()">▶ Start</button>
       <button type="button" class="btn danger" *ngIf="running" [disabled]="cancelling" (click)="cancel()">
         {{ cancelling ? 'Cancelling…' : '■ Cancel' }}
       </button>
+    </div>
     </div>
   </header>
 
@@ -107,6 +113,11 @@
                    [(ngModel)]="a.config.thinkMs" (change)="onConfigChange()" />
           </label>
         </div>
+        <label class="lt-capture-option">
+          <input type="checkbox" [(ngModel)]="a.config.captureResponseDetails" (change)="onConfigChange()" />
+          <span>Capture response details</span>
+        </label>
+        <p class="lt-capture-hint">When enabled, each request records response headers and a truncated body preview so you can open any row in <strong>Slowest 10</strong> (or an error sample) after the run. Uses more memory on long tests.</p>
       </section>
     </aside>
 
@@ -161,7 +172,15 @@
           <h5>Slowest 10</h5>
           <table>
             <thead>
-              <tr><th>#</th><th>Status</th><th>Duration</th><th>VU</th><th>Iter</th><th>Started</th></tr>
+              <tr>
+                <th>#</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>VU</th>
+                <th>Iter</th>
+                <th>Started</th>
+                <th>Response</th>
+              </tr>
             </thead>
             <tbody>
               <tr *ngFor="let s of result.slowest; let i = index; trackBy: trackBySampleIndex">
@@ -175,6 +194,9 @@
                 <td>{{ s.vu }}</td>
                 <td>{{ s.iteration }}</td>
                 <td>{{ s.startedAt | date: 'HH:mm:ss.SSS' }}</td>
+                <td>
+                  <button type="button" class="lt-view-response" (click)="openSampleDetails(s)">View</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -185,11 +207,67 @@
             <li *ngFor="let e of result.errors">
               <span class="err-count">×{{ e.count }}</span>
               <span class="err-msg">{{ e.message }}</span>
+              <button
+                *ngIf="e.sample"
+                type="button"
+                class="lt-view-response inline"
+                (click)="openSampleDetails(e.sample)">
+                View sample
+              </button>
             </li>
           </ul>
         </div>
       </section>
     </main>
+  </div>
+</div>
+
+<div
+  class="lt-detail-backdrop"
+  *ngIf="detailSample as d"
+  (click)="closeSampleDetails()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Response details">
+  <div class="lt-detail-panel" (click)="$event.stopPropagation()">
+    <div class="lt-detail-head">
+      <h4>Response details</h4>
+      <button type="button" class="lt-detail-close" (click)="closeSampleDetails()" aria-label="Close">×</button>
+    </div>
+    <div class="lt-detail-meta">
+      <div><span class="k">Target</span> {{ sampleTargetLabel(d) }}</div>
+      <div><span class="k">Status</span>
+        <span class="bucket-pill" [class]="'tone-' + bucketTone(d.errorMessage ? 'error' : (d.status + ''))">
+          {{ d.errorMessage ? 'ERR' : d.status }}
+        </span>
+        <ng-container *ngIf="d.responseStatusText"> {{ d.responseStatusText }}</ng-container>
+      </div>
+      <div><span class="k">Duration</span> {{ formatDuration(d.durationMs) }}</div>
+      <div><span class="k">Size</span> {{ d.responseBytes | number }} B</div>
+      <div><span class="k">VU / iteration</span> {{ d.vu }} / {{ d.iteration }}</div>
+      <div *ngIf="d.errorMessage"><span class="k">Error</span> <span class="err-inline">{{ d.errorMessage }}</span></div>
+    </div>
+    <p class="lt-detail-missing" *ngIf="!sampleHasCapturedResponse(d)">
+      No response headers or body were recorded for this sample.
+      Turn on <strong>Capture response details</strong> in the load profile before the next run to inspect text responses here (binary responses show a short placeholder).
+    </p>
+    <ng-container *ngIf="sampleHasCapturedResponse(d)">
+      <h5 class="lt-detail-sub">Response headers</h5>
+      <div class="lt-detail-headers" *ngIf="d.responseHeaders?.length; else noHdr">
+        <div class="hdr-row" *ngFor="let h of d.responseHeaders; trackBy: trackByIndex">
+          <span class="hdr-k">{{ h.key }}</span>
+          <span class="hdr-v">{{ h.value }}</span>
+        </div>
+      </div>
+      <ng-template #noHdr>
+        <p class="lt-detail-missing subtle">No headers stored.</p>
+      </ng-template>
+      <h5 class="lt-detail-sub">Body preview</h5>
+      <pre class="lt-detail-body" *ngIf="d.responseBodyPreview != null; else noBody">{{ d.responseBodyPreview }}</pre>
+      <ng-template #noBody>
+        <p class="lt-detail-missing subtle">Empty body</p>
+      </ng-template>
+    </ng-container>
   </div>
 </div>
 

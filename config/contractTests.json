@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000022",
+      "title": "Sample: OpenAPI (JSONPlaceholder posts)",
+      "updatedAt": 1700000000000,
+      "spec": {
+        "kind": "inline",
+        "format": "yaml",
+        "body": "openapi: 3.0.0\ninfo:\n  title: JSONPlaceholder\n  version: \"1.0\"\nservers:\n  - url: https://jsonplaceholder.typicode.com\npaths:\n  /posts/{id}:\n    get:\n      summary: Get post\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema: { type: string }\n      responses:\n        \"200\":\n          description: ok\n          content:\n            application/json:\n              schema:\n                type: object\n",
+        "updatedAt": 1700000000000
+      },
+      "scope": {
+        "collectionId": "root",
+        "folderId": "a1000000-0000-4000-8000-000000000002"
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000033",
+      "title": "Complex: OpenAPI (JSONPlaceholder multi-path)",
+      "updatedAt": 1700000001000,
+      "spec": {
+        "kind": "inline",
+        "format": "yaml",
+        "body": "openapi: 3.0.0\ninfo:\n  title: JSONPlaceholder (multi)\n  version: \"1.0\"\nservers:\n  - url: https://jsonplaceholder.typicode.com\npaths:\n  /posts/{id}:\n    get:\n      summary: Get post by id\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema: { type: string }\n      responses:\n        \"200\":\n          description: ok\n  /users/{id}:\n    get:\n      summary: Get user by id\n      parameters:\n        - name: id\n          in: path\n          required: true\n          schema: { type: string }\n      responses:\n        \"200\":\n          description: ok\n  /posts:\n    post:\n      summary: Create post\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema: { type: object }\n      responses:\n        \"201\":\n          description: created\n",
+        "updatedAt": 1700000001000
+      },
+      "scope": {
+        "collectionId": "root"
+      }
+    }
+  ]
+}

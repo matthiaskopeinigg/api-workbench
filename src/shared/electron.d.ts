@@ -1,7 +1,7 @@
 import { Settings } from './settings';
 import { Collection } from './collection';
 import { Environment } from './environment';
-import { FileDialogResult, SaveFileOptions } from './file-dialog';
+import { FileDialogResult, OpenFilesDialogResult, ReadImportFolderOptions, SaveFileOptions, WriteFilesToDirectoryResult } from './file-dialog';
 import type { IpcHttpRequest } from './ipc-http-request';
 import type { IpcHttpResponse } from './ipc-http-response';
 
@@ -80,6 +80,11 @@ export interface AwElectronApi {
   saveSession: <T = unknown>(key: string, value: T) => Promise<void>;
 
   openFileDialog: <T = unknown>(extensions?: string[]) => Promise<FileDialogResult<T> | null>;
+  /** Multi-select. Returns `{ files: [...] }` or `null` if cancelled. */
+  openFilesDialog: <T = unknown>(extensions?: string[]) => Promise<OpenFilesDialogResult | null>;
+  readImportFolder: (options?: ReadImportFolderOptions) => Promise<OpenFilesDialogResult | null>;
+  openDirectoryDialog: () => Promise<string | null>;
+  writeFilesToDirectory: (options: { dir: string; files: Array<{ name: string; data: string }> }) => Promise<WriteFilesToDirectoryResult>;
   saveFileDialog: <T = unknown>(options: SaveFileOptions<T>) => Promise<string | null>;
 
   /** Path-only file picker used when main reads the file at send time. */

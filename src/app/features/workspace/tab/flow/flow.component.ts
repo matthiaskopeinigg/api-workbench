@@ -37,6 +37,7 @@ import type { Collection, Folder } from '@models/collection';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
+import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
 
 interface RequestPick { id: string; label: string; method: string; }
 
@@ -77,7 +78,7 @@ const VIEW_DEFAULT_H = 1500;
 @Component({
   selector: 'app-flow',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatCardComponent],
+  imports: [CommonModule, FormsModule, StatCardComponent, RunEnvironmentSelectComponent],
   templateUrl: './flow.component.html',
   styleUrls: ['./flow.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -101,6 +102,9 @@ export class FlowComponent implements OnInit, OnDestroy {
   nodeMessages = new Map<string, string>();
 
   requestPicks: RequestPick[] = [];
+
+  /** `null` = workspace default; seeds flow `{{var}}` from the chosen env. */
+  runEnvironmentId: string | null = null;
 
   private dragNodeId: string | null = null;
   private dragOffset = { x: 0, y: 0 };
@@ -363,6 +367,11 @@ export class FlowComponent implements OnInit, OnDestroy {
 
   onInspectorChange(): void { this.persist(); }
 
+  onRunEnvironmentChange(id: string | null): void {
+    this.runEnvironmentId = id;
+    this.cdr.markForCheck();
+  }
+
   setRequestTargetKind(n: RequestNode, kind: 'saved' | 'inline'): void {
     n.target = kind === 'saved'
       ? { kind: 'saved', requestId: '' }
@@ -379,7 +388,10 @@ export class FlowComponent implements OnInit, OnDestroy {
     this.runId = uuidv4();
     this.cdr.markForCheck();
     try {
-      await this.executor.run(this.artifact);
+      await this.executor.run(
+        this.artifact,
+        this.runEnvironmentId != null ? { environmentId: this.runEnvironmentId } : undefined,
+      );
     } finally {
       this.running = false;
       this.cdr.markForCheck();

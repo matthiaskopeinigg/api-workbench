@@ -53,6 +53,11 @@ __screenshots__/
 /configs/
 /release/
 
+# App workspace (Electron user data under /config; only seed/snapshot JSON and README)
+/config/*
+!/config/*.json
+!/config/README.md
+
 # Environment / local secrets
 .env
 .env.*

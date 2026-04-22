@@ -1,0 +1,188 @@
+.batch-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 24000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.batch-import-panel {
+  width: min(720px, 100%);
+  max-height: min(90vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--aw-chrome-surface, var(--aw-surface, var(--surface)));
+  color: var(--aw-text, var(--text-color));
+  border: 1px solid var(--aw-border, var(--border-color));
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.batch-import-header {
+  padding: 1rem 1.25rem 0.5rem;
+  h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.1rem;
+  }
+}
+
+.batch-import-lede {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.batch-import-merge {
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 40%);
+}
+
+.batch-import-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  opacity: 0.85;
+}
+
+.merge-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.merge-option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.merge-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.merge-hint {
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.prefix-row {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  input {
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--aw-border, var(--border-color));
+    background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 96%);
+    color: inherit;
+  }
+}
+
+.batch-import-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.35rem 1.25rem;
+  font-size: 0.82rem;
+}
+
+.btn-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--secondary-color, #6c9eff);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.batch-import-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 1.25rem;
+}
+
+.batch-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  th,
+  td {
+    text-align: left;
+    padding: 0.45rem 0.35rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 50%);
+  }
+  th {
+    font-weight: 600;
+    opacity: 0.85;
+    position: sticky;
+    top: 0;
+    background: var(--aw-chrome-surface, var(--aw-surface, var(--surface)));
+  }
+  tr.is-warn td {
+    opacity: 0.75;
+  }
+}
+
+.col-check {
+  width: 2rem;
+}
+.col-file {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warn {
+  color: #e8a034;
+}
+
+.batch-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 40%);
+}
+
+.btn-ghost,
+.btn-primary {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid var(--aw-border, var(--border-color));
+  background: transparent;
+  color: inherit;
+}
+
+.btn-primary {
+  background: var(--secondary-color, #6c9eff);
+  color: #0b0d12;
+  border-color: transparent;
+}
+
+.progress-bar {
+  height: 8px;
+  margin: 0.5rem 1.25rem 1rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 90%);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--secondary-color, #6c9eff);
+  transition: width 0.15s ease;
+}

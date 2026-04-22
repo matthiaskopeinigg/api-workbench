@@ -9,6 +9,11 @@
         placeholder="Untitled suite" />
       <span class="updated">Updated {{ artifact.updatedAt | date:'short' }}</span>
     </div>
+    <div class="header-end">
+    <app-run-environment-select
+      [value]="runEnvironmentId"
+      (valueChange)="onRunEnvironmentChange($event)"
+    />
     <div class="actions">
       <button type="button" class="btn primary" [disabled]="running" (click)="runAll()">
         <span class="dot"></span>
@@ -24,6 +29,7 @@
         <span class="switch" aria-hidden="true"><span class="knob"></span></span>
         <span class="label">Regression mode</span>
       </button>
+    </div>
     </div>
   </header>
 
@@ -69,14 +75,40 @@
           </li>
         </ul>
 
-        <div class="add-case">
-          <select #savedPick (change)="addSavedCase(savedPick.value); savedPick.value = ''">
-            <option value="">+ Add saved request…</option>
-            <option *ngFor="let r of requestPicks" [value]="r.id">{{ r.method }} — {{ r.label }}</option>
-          </select>
-          <button type="button" class="btn-link" (click)="showAddInline = !showAddInline">
-            {{ showAddInline ? 'Cancel' : '+ Inline' }}
-          </button>
+        <div class="add-case" role="group" aria-label="Add cases">
+          <div class="add-case-toolbar">
+            <div class="add-case-labeled">
+              <span class="add-case-eyebrow">Add request</span>
+              <div class="add-case-row-pair">
+                <div class="add-case-dd-wrap" title="Pick a saved request from collections">
+                  <app-dropdown
+                    [options]="requestDdOptions"
+                    [value]="addRequestValue"
+                    placeholder="Select request…"
+                    [menuMaxWidth]="'min(100%, 24rem)'"
+                    (valueChange)="onPickedRequest($event)" />
+                </div>
+                <button type="button" class="btn sm add-case-inline"
+                        (click)="showAddInline = !showAddInline"
+                        [class.active]="showAddInline"
+                        [attr.aria-expanded]="showAddInline">
+                  {{ showAddInline ? 'Cancel' : 'Inline' }}
+                </button>
+              </div>
+            </div>
+            <div class="add-case-labeled" title="Add one case per request in a folder, or the whole collection">
+              <span class="add-case-eyebrow">Batch from</span>
+              <div class="add-case-dd-wrap">
+                <app-dropdown
+                  [options]="folderDdOptions"
+                  [value]="addFolderValue"
+                  placeholder="Folder or collection…"
+                  align="right"
+                  [menuMaxWidth]="'min(100%, 24rem)'"
+                  (valueChange)="onPickedFolder($event)" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="inline-draft" *ngIf="showAddInline">
@@ -205,7 +237,7 @@
 
               <ng-container *ngSwitchCase="'snapshot'">
                 <div class="snapshot-editor">
-                  <div class="snapshot-top">
+                  <div class="snapshot-head">
                     <span class="kind-tag tag-snapshot">snapshot</span>
                     <span class="baseline-state"
                           [class.captured]="hasBaseline(asSnapshot(a))"
@@ -218,33 +250,35 @@
                       </ng-template>
                     </span>
                   </div>
-                  <div class="snapshot-row">
-                    <label class="check-inline">
-                      <input type="checkbox"
-                             [checked]="asSnapshot(a).matchStatus !== false"
-                             (change)="asSnapshot(a).matchStatus = !!$any($event.target).checked; onCaseEdit()" />
-                      Compare status code
-                    </label>
-                  </div>
-                  <div class="snapshot-row">
-                    <label class="field-label">Compare headers (comma-separated)</label>
-                    <input type="text"
-                           placeholder="content-type, cache-control"
-                           [value]="snapshotIncludeHeadersText(asSnapshot(a))"
-                           (change)="setSnapshotIncludeHeaders(asSnapshot(a), $any($event.target).value)" />
-                  </div>
-                  <div class="snapshot-row">
-                    <label class="field-label">Ignore JSON paths (comma-separated)</label>
-                    <input type="text"
-                           placeholder="$.timestamp, $.id, $.items.*.updatedAt"
-                           [value]="snapshotIgnorePathsText(asSnapshot(a))"
-                           (change)="setSnapshotIgnorePaths(asSnapshot(a), $any($event.target).value)" />
+                  <label class="snapshot-check">
+                    <input type="checkbox"
+                           [checked]="asSnapshot(a).matchStatus !== false"
+                           (change)="asSnapshot(a).matchStatus = !!$any($event.target).checked; onCaseEdit()" />
+                    Match status line
+                  </label>
+                  <div class="snapshot-field-grid">
+                    <div class="sf-field">
+                      <span class="sf-label">Compare headers</span>
+                      <input type="text"
+                             class="sf-input"
+                             placeholder="e.g. content-type"
+                             [value]="snapshotIncludeHeadersText(asSnapshot(a))"
+                             (change)="setSnapshotIncludeHeaders(asSnapshot(a), $any($event.target).value)" />
+                    </div>
+                    <div class="sf-field">
+                      <span class="sf-label">Ignore JSON paths</span>
+                      <input type="text"
+                             class="sf-input"
+                             placeholder="e.g. $.timestamp, $.id"
+                             [value]="snapshotIgnorePathsText(asSnapshot(a))"
+                             (change)="setSnapshotIgnorePaths(asSnapshot(a), $any($event.target).value)" />
+                    </div>
                   </div>
                   <div class="snapshot-actions">
                     <button type="button" class="btn sm"
                             [disabled]="!hasBaseline(asSnapshot(a))"
                             (click)="markForAccept(asSnapshot(a))">
-                      Mark for re-accept
+                      Re-accept
                     </button>
                     <button type="button" class="btn sm danger"
                             [disabled]="!hasBaseline(asSnapshot(a))"

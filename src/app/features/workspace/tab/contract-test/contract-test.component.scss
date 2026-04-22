@@ -50,7 +50,16 @@
 
 .updated { font-size: 11px; color: color-mix(in srgb, var(--text-color), transparent 45%); }
 
-.actions { display: flex; gap: 8px; }
+.header-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.actions { display: flex; align-items: center; gap: 8px; }
 
 .btn {
   display: inline-flex; align-items: center; gap: 6px;

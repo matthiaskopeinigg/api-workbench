@@ -4,15 +4,33 @@ const fs = require('fs');
 const { logInfo, logError } = require('./logger.service');
 const db = require('../db/database');
 
-function getLegacyConfigDir() {
+/**
+ * Prefer repo-local `config/` (dev) over legacy `configs/`; packaged builds
+ * also check beside the exe (configs) for backward compatibility.
+ */
+function getConfigDir() {
   if (app.isPackaged) {
-    return path.join(path.dirname(app.getPath('exe')), 'configs');
+    const nextToExe = path.join(path.dirname(app.getPath('exe')), 'configs');
+    if (fs.existsSync(nextToExe)) {
+      return nextToExe;
+    }
+    return path.join(path.dirname(app.getPath('exe')), 'config');
   }
-  return path.join(app.getAppPath(), 'configs');
+  const appPath = app.getAppPath();
+  const devConfig = path.join(appPath, 'config');
+  if (fs.existsSync(devConfig)) {
+    return devConfig;
+  }
+  return path.join(appPath, 'configs');
 }
 
-function readLegacyStoreJson(fileBaseName) {
-  const dir = getLegacyConfigDir();
+/** When true, successful imports rename JSON to *.bak. Skip for `config/` to ease local dev re-runs. */
+function shouldArchiveAfterImport() {
+  return path.basename(getConfigDir()) !== 'config';
+}
+
+function readConfigJsonFile(fileBaseName) {
+  const dir = getConfigDir();
   const filePath = path.join(dir, `${fileBaseName}.json`);
   if (!fs.existsSync(filePath)) {
     return null;
@@ -21,13 +39,16 @@ function readLegacyStoreJson(fileBaseName) {
     const raw = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(raw);
   } catch (e) {
-    logError(`Failed to read legacy store ${fileBaseName}`, e);
+    logError(`Failed to read config file ${fileBaseName}.json`, e);
     return null;
   }
 }
 
-function archiveLegacyFile(fileBaseName) {
-  const dir = getLegacyConfigDir();
+function archiveConfigFile(fileBaseName) {
+  if (!shouldArchiveAfterImport()) {
+    return;
+  }
+  const dir = getConfigDir();
   const filePath = path.join(dir, `${fileBaseName}.json`);
   if (!fs.existsSync(filePath)) {
     return;
@@ -35,9 +56,9 @@ function archiveLegacyFile(fileBaseName) {
   const archived = `${filePath}.migrated.${Date.now()}.bak`;
   try {
     fs.renameSync(filePath, archived);
-    logInfo('Archived legacy electron-store file', { from: filePath, to: archived });
+    logInfo('Archived migrated config file', { from: filePath, to: archived });
   } catch (e) {
-    logError('Failed to archive legacy store file', e);
+    logError('Failed to archive config file', e);
   }
 }
 
@@ -47,25 +68,30 @@ function importLegacyIfEmpty() {
     return;
   }
 
-  const settingsBlob = readLegacyStoreJson('settings');
+  const configDir = getConfigDir();
+  if (!fs.existsSync(configDir)) {
+    return;
+  }
+
+  const settingsBlob = readConfigJsonFile('settings');
   if (settingsBlob && settingsBlob.settings !== undefined) {
     db.setDocument('settings', JSON.stringify(settingsBlob));
-    archiveLegacyFile('settings');
+    archiveConfigFile('settings');
   }
 
-  const collectionsBlob = readLegacyStoreJson('collections');
+  const collectionsBlob = readConfigJsonFile('collections');
   if (collectionsBlob && collectionsBlob.collections !== undefined) {
     db.setDocument('collections', JSON.stringify(collectionsBlob));
-    archiveLegacyFile('collections');
+    archiveConfigFile('collections');
   }
 
-  const environmentsBlob = readLegacyStoreJson('environments');
+  const environmentsBlob = readConfigJsonFile('environments');
   if (environmentsBlob && environmentsBlob.environments !== undefined) {
     db.setDocument('environments', JSON.stringify(environmentsBlob));
-    archiveLegacyFile('environments');
+    archiveConfigFile('environments');
   }
 
-  const sessionBlob = readLegacyStoreJson('session');
+  const sessionBlob = readConfigJsonFile('session');
   if (sessionBlob && typeof sessionBlob === 'object') {
     for (const [key, value] of Object.entries(sessionBlob)) {
       if (key === 'version' || key === 'size') {
@@ -73,9 +99,19 @@ function importLegacyIfEmpty() {
       }
       db.setSessionKey(key, value);
     }
-    archiveLegacyFile('session');
+    archiveConfigFile('session');
   }
 
+  const hadArtifacts = importArtifactDocumentsFromConfig();
+
+  const hadCore =
+    (settingsBlob && settingsBlob.settings !== undefined) ||
+    (collectionsBlob && collectionsBlob.collections !== undefined) ||
+    (environmentsBlob && environmentsBlob.environments !== undefined) ||
+    (sessionBlob && typeof sessionBlob === 'object');
+  if (hadCore || hadArtifacts) {
+    void logInfo('Imported workspace seed from config', { configDir, archive: shouldArchiveAfterImport() });
+  }
 }
 
 async function initStores() {
@@ -184,6 +220,23 @@ const ARTIFACT_KEYS = {
   flows: 'flows',
   testSuiteSnapshots: 'testSuiteSnapshots',
 };
+
+/**
+ * Import `{ "items": [...] }` JSON files for each test artifact kind (first DB init only).
+ * @returns {boolean} true if at least one artifact document was written.
+ */
+function importArtifactDocumentsFromConfig() {
+  let any = false;
+  for (const key of Object.values(ARTIFACT_KEYS)) {
+    const blob = readConfigJsonFile(key);
+    if (blob && Array.isArray(blob.items)) {
+      db.setDocument(key, JSON.stringify({ items: blob.items }));
+      archiveConfigFile(key);
+      any = true;
+    }
+  }
+  return any;
+}
 
 module.exports = {
   initStores,

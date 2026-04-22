@@ -139,13 +139,21 @@ async function createWindow() {
     });
 
     if (isDev) {
+        const devUrl = 'http://127.0.0.1:4200/';
         const loadDevUrl = () => {
-            mainWindow.loadURL("http://127.0.0.1:4200").catch((e) => {
-                console.log('Dev server not ready yet, retrying in 1s...');
+            mainWindow.loadURL(devUrl).catch((e) => {
+                logInfo('Dev server not ready, retrying loadURL in 1s', e && e.message);
                 setTimeout(loadDevUrl, 1000);
             });
         };
         loadDevUrl();
+        // If renderer never calls appReady (stuck init / IPC), don't leave the user on the splash forever.
+        setTimeout(() => {
+            if (splashWindow) {
+                logInfo('Dev: showing main window after wait for app-ready (15s safety)');
+                showMainWindow();
+            }
+        }, 15000);
     } else {
         const indexPath = path.join(app.getAppPath(), "dist", "api-workbench", "browser", "index.html");
         mainWindow.loadFile(indexPath).catch(e => console.error('Failed to load file:', e));

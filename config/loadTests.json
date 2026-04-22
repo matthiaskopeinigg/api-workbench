@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000020",
+      "title": "Sample: JSONPlaceholder (light load)",
+      "updatedAt": 1700000000000,
+      "config": {
+        "targets": [
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" },
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000011" }
+        ],
+        "vus": 2,
+        "durationSec": 8,
+        "iterations": null,
+        "rampUpSec": 1,
+        "rpsCap": 5,
+        "thinkMs": 200,
+        "captureResponseDetails": false
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000032",
+      "title": "Complex: mixed targets + ramp",
+      "updatedAt": 1700000001000,
+      "config": {
+        "targets": [
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" },
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000012" },
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000016" }
+        ],
+        "vus": 3,
+        "durationSec": 12,
+        "iterations": null,
+        "rampUpSec": 3,
+        "rpsCap": 12,
+        "thinkMs": 120,
+        "captureResponseDetails": false
+      }
+    }
+  ]
+}

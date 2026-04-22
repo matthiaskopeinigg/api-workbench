@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { SessionService } from './session.service';
+import type { RequestEditorSection } from '@models/settings';
 
 /** Per-tab UI state that should survive an app restart. */
 export interface TabViewState {
-  activeRequestTab?: 'params' | 'auth' | 'headers' | 'body' | 'scripts' | 'settings';
+  activeRequestTab?: RequestEditorSection;
   activeResponseTab?: 'body' | 'preview' | 'headers' | 'cookies' | 'raw' | 'tests' | 'diff';
   responseHeight?: number;
   isRequestHidden?: boolean;

@@ -14,6 +14,10 @@ const awElectron = {
   saveSession: (key, value) => ipcRenderer.invoke('save-session', key, value),
 
   openFileDialog: (extensions = []) => ipcRenderer.invoke('open-file-dialog', extensions),
+  openFilesDialog: (extensions = []) => ipcRenderer.invoke('open-files-dialog', extensions),
+  readImportFolder: (options) => ipcRenderer.invoke('read-import-folder', options),
+  openDirectoryDialog: () => ipcRenderer.invoke('open-directory-dialog'),
+  writeFilesToDirectory: (options) => ipcRenderer.invoke('write-files-to-directory', options),
   saveFileDialog: (options) => ipcRenderer.invoke('save-file-dialog', options),
   pickFilePath: (options) => ipcRenderer.invoke('pick-file-path', options),
   saveResponseBody: (payload) => ipcRenderer.invoke('save-response-body', payload),

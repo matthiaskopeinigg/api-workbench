@@ -97,6 +97,16 @@
         </div>
 
         <div class="form-group">
+          <label>Active section when opening a request:</label>
+          <app-dropdown
+            [options]="defaultRequestEditorSectionOptions"
+            [value]="settingsForm.get('requests.defaultRequestEditorSection')?.value"
+            (valueChange)="settingsForm.get('requests.defaultRequestEditorSection')?.setValue($event)">
+          </app-dropdown>
+          <p class="form-hint">Applies to new tabs, or when a tab has no saved section. Returning to a tab restores the last section you had open.</p>
+        </div>
+
+        <div class="form-group">
           <label>Timeout (ms):</label>
           <input type="number" formControlName="timeoutMs">
         </div>
@@ -400,6 +410,27 @@
                 <span>Import YAML or JSON definitions</span>
               </div>
             </button>
+            <button class="action-card" (click)="importBatchFromMultipleFiles()">
+              <div class="card-icon">📑</div>
+              <div class="card-content">
+                <strong>Import multiple files</strong>
+                <span>Postman, OpenAPI, Workbench, HAR, or Insomnia; review before import</span>
+              </div>
+            </button>
+            <button class="action-card" (click)="importBatchFromFolder()">
+              <div class="card-icon">📁</div>
+              <div class="card-content">
+                <strong>Import from folder</strong>
+                <span>All matching import files in the selected folder (not subfolders); respects <code class="file-code">.awignore</code> when set</span>
+              </div>
+            </button>
+            <button class="action-card" (click)="importBatchFromFolder({ recursive: true, maxDepth: 2 })">
+              <div class="card-icon">🗂️</div>
+              <div class="card-content">
+                <strong>Import from folder (recursive)</strong>
+                <span>Subfolders up to 2 levels; skips node_modules, .git, dist, and <code class="file-code">.awignore</code></span>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -410,7 +441,21 @@
               <div class="card-icon">💾</div>
               <div class="card-content">
                 <strong>Native Export</strong>
-                <span>Save all collections to a JSON file</span>
+                <span>Save all collections to a JSON file (Save As)</span>
+              </div>
+            </button>
+            <button class="action-card" [disabled]="!collectionsExist || isLoading" (click)="exportCollectionsToFolderSingleFile()">
+              <div class="card-icon">📂</div>
+              <div class="card-content">
+                <strong>Export to folder (one file)</strong>
+                <span>Write <code class="file-code">api-workbench-collections.json</code> to a folder you pick</span>
+              </div>
+            </button>
+            <button class="action-card" [disabled]="!collectionsExist || isLoading" (click)="exportCollectionsToFolderSplit()">
+              <div class="card-icon">🗃️</div>
+              <div class="card-content">
+                <strong>Export to folder (split)</strong>
+                <span>One Workbench JSON per top-level collection or per root folder</span>
               </div>
             </button>
           </div>

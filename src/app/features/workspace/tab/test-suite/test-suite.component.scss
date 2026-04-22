@@ -61,6 +61,15 @@
   color: color-mix(in srgb, var(--text-color), transparent 45%);
 }
 
+.header-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -260,20 +269,59 @@
 }
 
 .add-case {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-
-  select {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 6px 8px;
-    font-size: 12px;
+  .add-case-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .btn-link {
+  .add-case-labeled {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .add-case-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--text-color), transparent 48%);
+    user-select: none;
+  }
+
+  .add-case-row-pair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .add-case-dd-wrap {
+    flex: 1;
+    min-width: 0;
+
+    app-dropdown {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  .add-case-inline {
     flex-shrink: 0;
-    white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--text-color), transparent 80%);
+    background: var(--aw-surface);
+    color: color-mix(in srgb, var(--text-color), transparent 8%);
+
+    &:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--text-color), transparent 60%);
+    }
+
+    &.active {
+      border-color: var(--secondary-color);
+      color: var(--secondary-color);
+    }
   }
 }
 
@@ -405,6 +453,15 @@
   background: var(--aw-surface-muted);
   border: 1px solid var(--border-color);
   border-radius: 5px;
+
+  &.is-snapshot {
+    align-items: flex-start;
+
+    > .icon-btn {
+      align-self: flex-start;
+      margin-top: 2px;
+    }
+  }
 
   input, select {
     padding: 4px 8px;
@@ -621,57 +678,80 @@
 }
 
 .snapshot-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: min(100%, 720px);
 
-  .snapshot-top {
+  .snapshot-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 8px 10px;
   }
+
   .baseline-state {
     font-size: 11px;
-    color: color-mix(in srgb, var(--text-color), transparent 45%);
+    color: color-mix(in srgb, var(--text-color), transparent 40%);
     padding: 2px 8px;
     border-radius: 999px;
-    background: var(--aw-surface-muted);
+    background: var(--aw-surface);
 
     &.captured { color: var(--aw-status-success); background: color-mix(in srgb, var(--aw-status-success) 12%, transparent); }
     &.pending  { color: var(--aw-status-warning); background: color-mix(in srgb, var(--aw-status-warning) 15%, transparent); }
   }
 
-  .snapshot-row {
+  .snapshot-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-color);
+    cursor: pointer;
+    user-select: none;
+    input { margin: 0; }
+  }
+
+  .snapshot-field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    @media (max-width: 720px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .sf-field {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
+    min-width: 0;
+  }
 
-    .field-label {
-      font-size: 10.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: color-mix(in srgb, var(--text-color), transparent 45%);
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 5px 8px;
-      font-size: 12px;
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      font-family: var(--aw-font-mono);
-    }
-    .check-inline {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-    }
+  .sf-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: color-mix(in srgb, var(--text-color), transparent 35%);
+  }
+
+  .sf-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    font-size: 11.5px;
+    line-height: 1.35;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background: var(--aw-surface);
+    font-family: var(--aw-font-mono, ui-monospace, monospace);
   }
 
   .snapshot-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
   }
 }

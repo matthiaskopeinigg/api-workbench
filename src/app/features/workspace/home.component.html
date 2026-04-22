@@ -69,6 +69,17 @@
             </button>
 
             <button class="cta cta-ghost"
+                    (click)="importManyFilesFromPicker()"
+                    [disabled]="isImporting"
+                    type="button">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M4 6h4v2H4V6zm0 5h4v2H4v-2zm0 5h4v2H4v-2zM11 5h8v2h-8V5zm0 5h8v2h-8v-2zm0 5h8v2h-8v-2z"
+                      fill="currentColor" />
+              </svg>
+              <span>Import many files</span>
+            </button>
+
+            <button class="cta cta-ghost"
                     (click)="openCurlModal()"
                     [disabled]="isImporting"
                     type="button">
@@ -136,7 +147,7 @@
           <kbd class="kbd">,</kbd>
           <span class="landing-footer-label">opens settings</span>
           <span class="sep" aria-hidden="true">•</span>
-          <span class="landing-footer-label">Drop a Postman or OpenAPI file anywhere to import</span>
+          <span class="landing-footer-label">Drop Postman, OpenAPI, or Workbench JSON files anywhere to import</span>
         </footer>
       </div>
 

@@ -26,13 +26,14 @@ import { parseOpenApi, type ParsedSpec } from '@core/openapi-parser';
 
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
 import { TreeResultsComponent, type TreeNode } from '../../shared/testing-ui/tree-results.component';
+import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
 
 type SeverityFilter = 'all' | 'error' | 'warning' | 'info';
 
 @Component({
   selector: 'app-contract-test',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatCardComponent, TreeResultsComponent],
+  imports: [CommonModule, FormsModule, StatCardComponent, TreeResultsComponent, RunEnvironmentSelectComponent],
   templateUrl: './contract-test.component.html',
   styleUrls: ['./contract-test.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,6 +57,9 @@ export class ContractTestComponent implements OnInit, OnDestroy {
 
   /** Selected finding, for the detail panel. */
   selectedFinding: ContractFinding | null = null;
+
+  /** `null` = workspace default for `{{var}}` in request URLs. */
+  runEnvironmentId: string | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -206,6 +210,11 @@ export class ContractTestComponent implements OnInit, OnDestroy {
   async runAll(): Promise<void> { await this.startRun(false); }
   async runStaticOnly(): Promise<void> { await this.startRun(true); }
 
+  onRunEnvironmentChange(id: string | null): void {
+    this.runEnvironmentId = id;
+    this.cdr.markForCheck();
+  }
+
   private async startRun(staticOnly: boolean): Promise<void> {
     if (!this.artifact || this.running) return;
     if (!this.artifact.scope.collectionId) {
@@ -219,7 +228,10 @@ export class ContractTestComponent implements OnInit, OnDestroy {
     this.rebuildTree();
     this.cdr.markForCheck();
     try {
-      await this.validator.run(this.artifact, { staticOnly });
+      await this.validator.run(this.artifact, {
+        staticOnly,
+        ...(this.runEnvironmentId != null ? { environmentId: this.runEnvironmentId } : {}),
+      });
     } finally {
       this.running = false;
       this.cdr.markForCheck();

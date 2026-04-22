@@ -166,7 +166,8 @@
   left: 56px;
   display: flex;
   flex-direction: column;
-  z-index: 900;
+  // Below app-titlebar (z-index: 60 in home) so settings/cookie modals in the titlebar sit above.
+  z-index: 50;
   height: calc(100vh - var(--aw-titlebar-height, 48px));
   transition: width var(--aw-duration-base, 200ms) var(--aw-ease-standard, ease),
     background-color var(--aw-duration-base, 200ms) ease;

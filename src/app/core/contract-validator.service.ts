@@ -4,6 +4,8 @@ import { Subject } from 'rxjs';
 
 import { CollectionService } from './collection.service';
 import { SettingsService } from './settings.service';
+import { EnvironmentsService } from './environments.service';
+import { buildWorkspaceVariableMap, substituteVariables } from './env-substitute';
 import type { Certificate } from '@models/settings';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 import type { Collection, Folder } from '@models/collection';
@@ -26,6 +28,8 @@ interface RawResponse {
 interface RunOptions {
   /** When true, skip sending requests and only do static analysis (documented-vs-undocumented). */
   staticOnly?: boolean;
+  /** When set, use this environment for `{{var}}` in URLs and request parts. */
+  environmentId?: string | null;
 }
 
 const METHOD_LABELS: Record<number, string> = {
@@ -61,6 +65,7 @@ export class ContractValidatorService {
     private collections: CollectionService,
     private zone: NgZone,
     private settings: SettingsService,
+    private environments: EnvironmentsService,
   ) {}
 
   onFinding() { return this.finding$.asObservable(); }
@@ -68,6 +73,10 @@ export class ContractValidatorService {
 
   async run(artifact: ContractTestArtifact, opts: RunOptions = {}): Promise<ContractRunResult> {
     await this.settings.loadSettings();
+    await this.environments.loadEnvironments();
+    const varMap = buildWorkspaceVariableMap(this.environments, {
+      environmentId: opts.environmentId == null || opts.environmentId === '' ? undefined : opts.environmentId,
+    });
     const startedAt = Date.now();
     const findings: ContractFinding[] = [];
     const emit = (f: ContractFinding) => {
@@ -90,7 +99,7 @@ export class ContractValidatorService {
 
     for (const req of requests) {
       const method = METHOD_LABELS[req.httpMethod] || 'GET';
-      const url = req.url || '';
+      const url = resolveRequestUrlForContract(req, varMap);
       const match = matchOperation(spec, method, url);
 
       if (!match) {
@@ -106,7 +115,7 @@ export class ContractValidatorService {
 
       for (const p of match.operation.parameters) {
         if (!p.required) continue;
-        const present = paramPresent(p.in, p.name, req);
+        const present = paramPresent(p.in, p.name, req, { resolvedUrl: url, pathParams: match.pathParams });
         if (!present) {
           emit({
             id: uuidv4(), kind: 'mismatch', severity: 'warning',
@@ -119,7 +128,7 @@ export class ContractValidatorService {
       if (opts.staticOnly) continue;
 
       try {
-        const response = await this.sendRequest(req);
+        const response = await this.sendRequest(req, varMap);
         const declaredStatuses = Object.keys(match.operation.responses);
         const expectedMatch = declaredStatuses.some((code) =>
           code === String(response.status) || code === rangeOf(response.status) || code === 'default',
@@ -190,20 +199,22 @@ export class ContractValidatorService {
     return folder ? flattenFolder(folder) : [];
   }
 
-  private async sendRequest(req: RequestModel): Promise<RawResponse> {
+  private async sendRequest(req: RequestModel, varMap: Map<string, string>): Promise<RawResponse> {
     const method = METHOD_LABELS[req.httpMethod] || 'GET';
     const headers: Record<string, string> = {};
     for (const h of req.httpHeaders || []) {
       if (h.enabled === false || !h.key) continue;
-      headers[h.key] = h.value || '';
+      headers[substituteVariables(h.key, varMap)] = substituteVariables(h.value || '', varMap);
     }
     const params: Record<string, string> = {};
     for (const p of req.httpParameters || []) {
       if (p.enabled === false || !p.key) continue;
-      params[p.key] = p.value || '';
+      params[substituteVariables(p.key, varMap)] = substituteVariables(p.value || '', varMap);
     }
-    const body = typeof req.requestBody === 'string' ? req.requestBody : (req.body && typeof req.body === 'object' ? req.body.raw : undefined);
-    const url = req.url || '';
+    const rawBody =
+      typeof req.requestBody === 'string' ? req.requestBody : (req.body && typeof req.body === 'object' ? req.body.raw : undefined);
+    const body = rawBody != null ? substituteVariables(String(rawBody), varMap) : undefined;
+    let url = resolveRequestUrlForContract(req, varMap);
     let certificate: Certificate | undefined;
     try {
       certificate = this.settings.getClientCertificateForHost(new URL(url).hostname);
@@ -236,10 +247,20 @@ function opKey(op: SpecOperation): string {
   return `${op.method} ${op.path}`;
 }
 
+/** Resolve `{{var}}` in the request URL; match OpenAPI the same way as Send / test runs. */
+function resolveRequestUrlForContract(req: RequestModel, varMap: Map<string, string>): string {
+  let url = substituteVariables(req.url || '', varMap).trim();
+  if (url && !/^https?:\/\//i.test(url)) {
+    url = 'http://' + url;
+  }
+  return url;
+}
+
 function paramPresent(
   where: 'query' | 'header' | 'path' | 'cookie',
   name: string,
   req: RequestModel,
+  ctx?: { resolvedUrl: string; pathParams: Record<string, string> },
 ): boolean {
   if (where === 'header') {
     return (req.httpHeaders || []).some((h) => h.key?.toLowerCase() === name.toLowerCase() && h.enabled !== false);
@@ -248,7 +269,11 @@ function paramPresent(
     return (req.httpParameters || []).some((p) => p.key === name && p.enabled !== false);
   }
   if (where === 'path') {
-    return (req.url || '').includes(`{${name}}`) || (req.url || '').includes(`:${name}`);
+    if (ctx?.pathParams && name in ctx.pathParams && String(ctx.pathParams[name] ?? '') !== '') {
+      return true;
+    }
+    const u = ctx?.resolvedUrl || (req.url || '');
+    return u.includes(`{${name}}`) || u.includes(`:${name}`);
   }
   return true;
 }

@@ -5,6 +5,7 @@ import { CollectionService } from '@core/collection.service';
 import { ImportService } from '@core/import.service';
 import { FileDialogService } from '@core/file-dialog.service';
 import { ImportIntentsService } from '@core/import-intents.service';
+import { ImportBatchService } from '@core/import-batch.service';
 import { Collection } from '@models/collection';
 
 describe('HomeComponent', () => {
@@ -14,6 +15,7 @@ describe('HomeComponent', () => {
   let importServiceSpy: jasmine.SpyObj<ImportService>;
   let fileDialogServiceSpy: jasmine.SpyObj<FileDialogService>;
   let importIntentsServiceSpy: jasmine.SpyObj<ImportIntentsService>;
+  let importBatchServiceSpy: jasmine.SpyObj<ImportBatchService>;
 
   const makeCollection = (title: string): Collection => ({
     id: 'imported-' + title,
@@ -35,7 +37,15 @@ describe('HomeComponent', () => {
       'importPostmanCollection',
       'importOpenApi',
     ]);
-    fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', ['openFile']);
+    fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', [
+      'openFile',
+      'openFiles',
+      'readImportFolder',
+    ]);
+    importBatchServiceSpy = jasmine.createSpyObj('ImportBatchService', ['runBatch']);
+    importBatchServiceSpy.runBatch.and.returnValue(
+      Promise.resolve({ ok: 0, failed: 0, errors: [] }),
+    );
     importIntentsServiceSpy = jasmine.createSpyObj('ImportIntentsService', [
       'triggerPostmanImport',
       'triggerOpenApiImport',
@@ -43,10 +53,14 @@ describe('HomeComponent', () => {
       'postman$',
       'openApi$',
       'curl$',
+      'importBatchFiles$',
+      'importFromFolder$',
     ]);
     importIntentsServiceSpy.postman$.and.returnValue(of<void>());
     importIntentsServiceSpy.openApi$.and.returnValue(of<void>());
     importIntentsServiceSpy.curl$.and.returnValue(of<void>());
+    importIntentsServiceSpy.importBatchFiles$.and.returnValue(of<void>());
+    importIntentsServiceSpy.importFromFolder$.and.returnValue(of(undefined));
 
     collectionServiceSpy.getCollections.and.returnValue([]);
     collectionServiceSpy.saveCollections.and.returnValue(Promise.resolve());
@@ -58,6 +72,7 @@ describe('HomeComponent', () => {
         { provide: ImportService, useValue: importServiceSpy },
         { provide: FileDialogService, useValue: fileDialogServiceSpy },
         { provide: ImportIntentsService, useValue: importIntentsServiceSpy },
+        { provide: ImportBatchService, useValue: importBatchServiceSpy },
       ]
     }).compileComponents();
 

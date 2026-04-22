@@ -9,6 +9,7 @@ import type {
 import { CollectionService } from './collection.service';
 import { EnvironmentsService } from './environments.service';
 import { SettingsService } from './settings.service';
+import { buildWorkspaceVariableMap } from './env-substitute';
 import { pruneEmptyKv } from './kv-utils';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 import type { Certificate } from '@models/settings';
@@ -50,13 +51,17 @@ export class LoadTestService {
    * time-outs) like Send / the collection runner, then hands off to the main
    * process load engine.
    */
-  async start(config: LoadTestConfig): Promise<string | null> {
+  async start(
+    config: LoadTestConfig,
+    runOptions?: { environmentId?: string | null },
+  ): Promise<string | null> {
     if (!window.awElectron?.loadStart) {
       console.warn('Load engine unavailable (no awElectron bridge).');
       return null;
     }
     await this.settings.loadSettings();
-    const vars = this.snapshotVariables();
+    await this.environments.loadEnvironments();
+    const vars = this.snapshotVariables(runOptions?.environmentId);
     const targets = (config.targets || [])
       .map((t) => this.resolveTargetToIpc(t, vars))
       .filter((t): t is IpcHttpRequest => !!t);
@@ -95,14 +100,12 @@ export class LoadTestService {
     await window.awElectron.loadCancel(runId);
   }
 
-  private snapshotVariables(): Record<string, string> {
-    const env = this.environments.getActiveContext();
+  private snapshotVariables(environmentId?: string | null): Record<string, string> {
+    const m = buildWorkspaceVariableMap(this.environments, {
+      environmentId: environmentId == null || environmentId === '' ? undefined : environmentId,
+    });
     const map: Record<string, string> = {};
-    if (env?.variables) {
-      for (const v of env.variables) {
-        if (v.key) map[v.key] = v.value ?? '';
-      }
-    }
+    m.forEach((v, k) => { map[k] = v; });
     return map;
   }
 

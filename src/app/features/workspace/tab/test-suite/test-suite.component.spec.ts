@@ -4,10 +4,12 @@ import { TestSuiteComponent } from './test-suite.component';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { TestSuiteRunnerService } from '@core/test-suite-runner.service';
 import { CollectionService } from '@core/collection.service';
+import { EnvironmentsService } from '@core/environments.service';
 import type { TabItem } from '@core/tab.service';
 import { TabType } from '@core/tab.service';
 import { NEW_TEST_SUITE } from '@models/testing/test-suite';
 import type { TestSuiteArtifact, CaseRunResult, SuiteRunResult, SnapshotAssertion } from '@models/testing/test-suite';
+import type { Folder } from '@models/collection';
 
 describe('TestSuiteComponent', () => {
   let fixture: ComponentFixture<TestSuiteComponent>;
@@ -21,6 +23,7 @@ describe('TestSuiteComponent', () => {
   let artifactsSpy: jasmine.SpyObj<TestArtifactService>;
   let runnerSpy: jasmine.SpyObj<TestSuiteRunnerService>;
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
+  let envSpy: jasmine.SpyObj<EnvironmentsService>;
 
   const suiteId = 'suite-1';
   const mockTab: TabItem = { id: `ts:${suiteId}`, title: 'Suite', type: TabType.TEST_SUITE };
@@ -47,12 +50,21 @@ describe('TestSuiteComponent', () => {
     runnerSpy.run.and.resolveTo({} as any);
 
     collectionsSpy = jasmine.createSpyObj('CollectionService',
-      ['getCollectionsObservable', 'getCollections', 'findRequestById']);
+      ['getCollectionsObservable', 'getCollections', 'findRequestById', 'findFolderById', 'findCollectionByCollectionId']);
     collectionsSpy.getCollectionsObservable.and.returnValue(of([]));
     collectionsSpy.getCollections.and.returnValue([]);
     collectionsSpy.findRequestById.and.returnValue({
       id: 'req-1', title: 'Sample', url: 'https://x', httpMethod: 0,
     } as any);
+    collectionsSpy.findFolderById.and.returnValue(null);
+    collectionsSpy.findCollectionByCollectionId.and.callFake((id: string) => {
+      const col = (collectionsSpy.getCollections() as any[] | undefined)?.find((c) => c.id === id);
+      return col ?? null;
+    });
+
+    envSpy = jasmine.createSpyObj('EnvironmentsService', ['loadEnvironments', 'getEnvironmentsObservable']);
+    envSpy.loadEnvironments.and.resolveTo();
+    envSpy.getEnvironmentsObservable.and.returnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [TestSuiteComponent],
@@ -60,6 +72,7 @@ describe('TestSuiteComponent', () => {
         { provide: TestArtifactService,     useValue: artifactsSpy },
         { provide: TestSuiteRunnerService,  useValue: runnerSpy },
         { provide: CollectionService,       useValue: collectionsSpy },
+        { provide: EnvironmentsService,     useValue: envSpy },
       ],
     }).compileComponents();
 
@@ -79,6 +92,67 @@ describe('TestSuiteComponent', () => {
     expect(component.artifact!.cases.length).toBe(1);
     expect(component.selectedCaseId).toBe(component.artifact!.cases[0].id);
     expect(artifactsSpy.update).toHaveBeenCalledWith('testSuites', jasmine.any(Object));
+  });
+
+  it('addFromFolderList (entire collection) adds root and nested folder requests', () => {
+    const col: any = {
+      id: 'root',
+      order: 0,
+      title: 'Root',
+      requests: [{ id: 'r0', title: 'root req', httpMethod: 0, url: 'u' } as any],
+      folders: [
+        { id: 'f1', order: 0, title: 'A', requests: [{ id: 'r1', title: 'a1', httpMethod: 0, url: 'u' } as any], folders: [] },
+      ],
+    };
+    collectionsSpy.getCollections.and.returnValue([col]);
+    collectionsSpy.findRequestById.and.callFake((id: string) => {
+      if (id === 'r0') return { id: 'r0', title: 'root req', httpMethod: 0, url: 'u' } as any;
+      if (id === 'r1') return { id: 'r1', title: 'a1', httpMethod: 0, url: 'u' } as any;
+      return null;
+    });
+    component.addFromFolderList('col:root');
+    expect(component.artifact!.cases.length).toBe(2);
+  });
+
+  it('addCasesFromFolder adds a case for each request in the folder tree', () => {
+    const folder: Folder = {
+      id: 'f1',
+      order: 0,
+      title: 'API',
+      requests: [
+        { id: 'r1', title: 'A', url: 'https://a', httpMethod: 0 } as any,
+        { id: 'r2', title: 'B', url: 'https://b', httpMethod: 0 } as any,
+      ],
+      folders: [
+        { id: 'f2', order: 0, title: 'Sub', requests: [{ id: 'r3', title: 'C', url: 'https://c', httpMethod: 0 } as any], folders: [] },
+      ],
+    };
+    collectionsSpy.findFolderById.and.returnValue(folder);
+    collectionsSpy.findRequestById.and.callFake((id: string) => {
+      if (id === 'r1') return { id: 'r1', title: 'A', url: 'https://a', httpMethod: 0 } as any;
+      if (id === 'r2') return { id: 'r2', title: 'B', url: 'https://b', httpMethod: 0 } as any;
+      if (id === 'r3') return { id: 'r3', title: 'C', url: 'https://c', httpMethod: 0 } as any;
+      return null;
+    });
+    component.addCasesFromFolder('f1');
+    expect(component.artifact!.cases.length).toBe(3);
+    expect(component.selectedCaseId).toBe(component.artifact!.cases[2].id);
+  });
+
+  it('addCasesFromFolder alerts when the folder is empty and when all requests are already in the suite', () => {
+    spyOn(window, 'alert');
+    const empty: Folder = { id: 'fe', order: 0, title: 'Empty', requests: [], folders: [] };
+    collectionsSpy.findFolderById.and.returnValue(empty);
+    component.addCasesFromFolder('fe');
+    expect(window.alert).toHaveBeenCalledWith('No requests in that folder (including subfolders).');
+
+    collectionsSpy.findFolderById.and.returnValue({
+      id: 'f1', order: 0, title: 'API', requests: [{ id: 'req-1', title: 'Sample', httpMethod: 0, url: 'https://x' } as any], folders: [],
+    });
+    (window.alert as jasmine.Spy).calls.reset();
+    component.addSavedCase('req-1');
+    component.addCasesFromFolder('f1');
+    expect(window.alert).toHaveBeenCalledWith('All requests in that folder are already in the suite.');
   });
 
   it('adds an inline case when the draft has a URL, and resets the draft afterwards', () => {

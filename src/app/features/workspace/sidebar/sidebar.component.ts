@@ -46,9 +46,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
       component: EnvironmentComponent,
     },
     {
-      label: 'History',
-      icon: 'M13 3a9 9 0 1 0 8.94 10H20a7 7 0 1 1-2.05-5.95L15 10h7V3l-2.36 2.36A9 9 0 0 0 13 3zm-1 5v5l4.28 2.54.72-1.21L13.5 12V8z',
-      component: HistoryComponent,
+      label: 'Mock Server',
+      icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
+      component: null,
+      action: () => this.tabService.openMockServerTab(),
     },
     {
       label: 'Tests',
@@ -58,16 +59,15 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ];
 
   /**
-   * "Tool" entries pinned to the bottom of the activity strip. They open a
-   * full workspace tab instead of a side panel, so their `component` is null
-   * and they invoke an `action` on click.
+   * Entries pinned to the bottom of the activity strip (e.g. History), below
+   * the main list. "Tool" items that only open a tab (Mock Server) use
+   * `action` with `component: null` in the main `items` array instead.
    */
   toolItems: SidebarItem[] = [
     {
-      label: 'Mock Server',
-      icon: 'M4 4h16v4H4V4zm0 6h16v4H4v-4zm0 6h16v4H4v-4zM7 6h.01M7 12h.01M7 18h.01',
-      component: null,
-      action: () => this.tabService.openMockServerTab(),
+      label: 'History',
+      icon: 'M13 3a9 9 0 1 0 8.94 10H20a7 7 0 1 1-2.05-5.95L15 10h7V3l-2.36 2.36A9 9 0 0 0 13 3zm-1 5v5l4.28 2.54.72-1.21L13.5 12V8z',
+      component: HistoryComponent,
     },
   ];
 
@@ -83,6 +83,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   private skipNextClose = false;
+
+  /**
+   * Find a nav entry by label in the main list or the bottom tool strip
+   * (e.g. History after Mock Server was moved to the main list).
+   */
+  private findItemByLabel(label: string): SidebarItem | undefined {
+    return this.items.find((i) => i.label === label) ?? this.toolItems.find((i) => i.label === label);
+  }
+
+  /** Set which strip entry is active; `null` clears all highlights. */
+  private setActiveItem(item: SidebarItem | null): void {
+    this.items.forEach((i) => (i.active = item !== null && i === item));
+    this.toolItems.forEach((i) => (i.active = item !== null && i === item));
+  }
 
   secondarySidebarWidth = 300;
   isResizing = false;
@@ -127,15 +141,20 @@ export class SidebarComponent implements OnInit, OnDestroy {
     if (!savedView || savedView.collapsed || !savedView.label) {
       this.collapsed = true;
       this.selectedItem = null;
-      this.items.forEach((i) => (i.active = false));
+      this.setActiveItem(null);
       return;
     }
 
-    const item = this.items.find((i) => i.label === savedView.label);
-    if (!item) return;
+    const item = this.findItemByLabel(savedView.label);
+    if (!item) {
+      this.collapsed = true;
+      this.selectedItem = null;
+      this.setActiveItem(null);
+      return;
+    }
 
     this.selectedItem = item;
-    this.items.forEach((i) => (i.active = i === item));
+    this.setActiveItem(item);
     this.collapsed = false;
     this.secondaryToggled.next(true);
   }
@@ -153,11 +172,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
   }
 
   openSidebarByLabel(label: string) {
-    const item = this.items.find(i => i.label === label);
+    const item = this.findItemByLabel(label);
     if (!item) return;
 
     this.selectedItem = item;
-    this.items.forEach(i => i.active = (i === item));
+    this.setActiveItem(item);
 
     if (this.collapsed) {
       this.collapsed = false;
@@ -170,6 +189,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   selectItemFromClick(item: SidebarItem) {
     if (item.action && !item.component) {
       try { item.action(); } catch {  }
+      this.setActiveItem(null);
       item.active = true;
       setTimeout(() => { item.active = false; this.cdr.markForCheck(); }, 250);
       this.cdr.markForCheck();
@@ -180,7 +200,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.closeSecondarySidebar();
     } else {
       this.selectedItem = item;
-      this.items.forEach(i => i.active = (i === item));
+      this.setActiveItem(item);
       if (this.collapsed) {
         this.collapsed = false;
         this.secondaryToggled.next(true);
@@ -193,7 +213,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
   closeSecondarySidebar() {
     this.collapsed = true;
     this.selectedItem = null;
-    this.items.forEach(i => i.active = false);
+    this.setActiveItem(null);
     this.secondaryToggled.next(false);
     this.cdr.markForCheck();
     void this.persistView();

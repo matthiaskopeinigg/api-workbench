@@ -4,6 +4,8 @@ import { CommonModule } from '@angular/common';
 export interface DropdownOption {
     label: string;
     value: any;
+    /** Optional native tooltip (e.g. full path for truncated labels). */
+    title?: string;
 }
 
 @Component({
@@ -18,6 +20,8 @@ export class DropdownComponent {
     @Input() value: any;
     @Input() placeholder: string = '';
     @Input() align: 'left' | 'right' = 'left';
+    /** Max width for the menu panel (long labels). */
+    @Input() menuMaxWidth = 'min(100%, 20rem)';
     @Output() valueChange = new EventEmitter<any>();
 
     isOpen = false;

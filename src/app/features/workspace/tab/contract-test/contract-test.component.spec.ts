@@ -4,6 +4,8 @@ import { ContractTestComponent } from './contract-test.component';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { ContractValidatorService } from '@core/contract-validator.service';
 import { CollectionService } from '@core/collection.service';
+import { EnvironmentsService } from '@core/environments.service';
+import { SettingsService } from '@core/settings.service';
 import type { TabItem } from '@core/tab.service';
 import { TabType } from '@core/tab.service';
 import { NEW_CONTRACT_TEST } from '@models/testing/contract-test';
@@ -20,6 +22,8 @@ describe('ContractTestComponent', () => {
   let artifactsSpy: jasmine.SpyObj<TestArtifactService>;
   let validatorSpy: jasmine.SpyObj<ContractValidatorService>;
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
+  let settingsSpy: jasmine.SpyObj<SettingsService>;
+  let envSpy: jasmine.SpyObj<EnvironmentsService>;
 
   const contractId = 'ct-1';
   const tab: TabItem = { id: `ct:${contractId}`, title: 'Contract', type: TabType.CONTRACT_TEST };
@@ -55,12 +59,21 @@ describe('ContractTestComponent', () => {
     collectionsSpy.getCollectionsObservable.and.returnValue(of([]));
     collectionsSpy.getCollections.and.returnValue([]);
 
+    settingsSpy = jasmine.createSpyObj('SettingsService', ['loadSettings']);
+    settingsSpy.loadSettings.and.resolveTo();
+
+    envSpy = jasmine.createSpyObj('EnvironmentsService', ['loadEnvironments', 'getEnvironmentsObservable']);
+    envSpy.loadEnvironments.and.resolveTo();
+    envSpy.getEnvironmentsObservable.and.returnValue(of([]));
+
     await TestBed.configureTestingModule({
       imports: [ContractTestComponent],
       providers: [
         { provide: TestArtifactService,      useValue: artifactsSpy },
         { provide: ContractValidatorService, useValue: validatorSpy },
         { provide: CollectionService,        useValue: collectionsSpy },
+        { provide: SettingsService,          useValue: settingsSpy },
+        { provide: EnvironmentsService,      useValue: envSpy },
       ],
     }).compileComponents();
 

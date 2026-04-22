@@ -4,6 +4,8 @@ import { Subject } from 'rxjs';
 
 import { CollectionService } from './collection.service';
 import { SettingsService } from './settings.service';
+import { EnvironmentsService } from './environments.service';
+import { buildWorkspaceVariableMap } from './env-substitute';
 import type { Certificate } from '@models/settings';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
@@ -64,6 +66,7 @@ export class FlowExecutorService {
     private collections: CollectionService,
     private zone: NgZone,
     private settings: SettingsService,
+    private environments: EnvironmentsService,
   ) {}
 
   onStep() { return this.step$.asObservable(); }
@@ -71,13 +74,26 @@ export class FlowExecutorService {
 
   cancel(flowId: string): void { this.cancelled.add(flowId); }
 
-  async run(flow: FlowArtifact): Promise<FlowRunResult> {
+  async run(
+    flow: FlowArtifact,
+    runOptions?: { environmentId?: string | null },
+  ): Promise<FlowRunResult> {
     await this.settings.loadSettings();
+    await this.environments.loadEnvironments();
     this.cancelled.delete(flow.id);
     const runId = uuidv4();
     const startedAt = Date.now();
     const steps: FlowNodeRunResult[] = [];
+    const varMap = buildWorkspaceVariableMap(this.environments, {
+      environmentId:
+        runOptions?.environmentId == null || runOptions?.environmentId === ''
+          ? undefined
+          : runOptions.environmentId,
+    });
     const variables: Record<string, unknown> = {};
+    for (const [k, v] of varMap) {
+      variables[k] = v;
+    }
     const byId = new Map(flow.nodes.map((n) => [n.id, n] as const));
     const outgoing = (nodeId: string, port: FlowEdge['fromPort']) =>
       flow.edges.filter((e) => e.fromNodeId === nodeId && e.fromPort === port);

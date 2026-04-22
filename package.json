@@ -1,6 +1,6 @@
 {
   "name": "api-workbench",
-  "version": "1.0.0-beta.7",
+  "version": "1.0.0-beta.8",
   "description": "A local-first, open-source Postman alternative for API testing and development.",
   "author": {
     "name": "Matthias Kopeinigg",
@@ -38,7 +38,7 @@
     "test": "ng test",
     "lint": "tsc --noEmit -p tsconfig.app.json",
     "electron:dev": "electron electron/main.js",
-    "dev": "concurrently -k \"ng serve --host 127.0.0.1 --port 4200\" \"wait-on tcp:4200 && electron .\"",
+    "dev": "concurrently -k \"ng serve --host 127.0.0.1 --port 4200\" \"wait-on -t 120000 http://127.0.0.1:4200/ && electron .\"",
     "pack": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false ng build --configuration production && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --dir",
     "electron:build": "ng build --configuration production && electron-builder build --win --linux --mac",
     "electron:build:win": "ng build --configuration production && electron-builder build --win",

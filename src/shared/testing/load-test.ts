@@ -35,6 +35,11 @@ export interface LoadTestConfig {
   rpsCap: number | null;
   /** Wait between iterations within a single VU, in ms. */
   thinkMs: number;
+  /**
+   * When true, each request stores a truncated body preview and response headers
+   * on the sample (higher memory use). Use to inspect individual responses after the run.
+   */
+  captureResponseDetails?: boolean;
 }
 
 /** A single served request observed by the engine. */
@@ -49,6 +54,14 @@ export interface LoadSample {
   durationMs: number;
   errorMessage?: string;
   responseBytes: number;
+  /** HTTP status line text, when {@link LoadTestConfig.captureResponseDetails} was enabled. */
+  responseStatusText?: string;
+  /** Response headers, when capture was enabled. */
+  responseHeaders?: Array<{ key: string; value: string }>;
+  /**
+   * Truncated UTF-8 text preview of the body (or a placeholder for binary), when capture was enabled.
+   */
+  responseBodyPreview?: string;
 }
 
 export type LoadRunStatus = 'idle' | 'running' | 'finished' | 'cancelled' | 'error';
@@ -118,4 +131,5 @@ export const DEFAULT_LOAD_CONFIG: LoadTestConfig = {
   rampUpSec: 5,
   rpsCap: null,
   thinkMs: 0,
+  captureResponseDetails: false,
 };

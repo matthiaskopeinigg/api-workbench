@@ -25,6 +25,8 @@ const PROGRESS_INTERVAL_MS = 250;
 const RECENT_WINDOW = 5000;
 const SLOWEST_KEEP = 10;
 const ERROR_KEEP = 10;
+/** Max UTF-8 characters kept per response when `captureResponseDetails` is on. */
+const RESPONSE_PREVIEW_MAX = 8192;
 
 const runs = new Map(); 
 
@@ -191,11 +193,16 @@ function createRunHandle(runId, rawConfig, listeners) {
       const errorMessage = status === 0
         ? (result.body && result.body.message) || 'Network Error'
         : undefined;
-      return {
+      const base = {
         iteration: iter, vu: vuId, targetIndex,
         status, startedAt: start, durationMs,
         errorMessage, responseBytes,
       };
+      if (config.captureResponseDetails) {
+        const captured = extractResponseDetails(result, responseBytes);
+        if (captured) Object.assign(base, captured);
+      }
+      return base;
     } catch (err) {
       return {
         iteration: iter, vu: vuId, targetIndex,
@@ -349,7 +356,57 @@ function normalizeConfig(c) {
     rampUpSec: Math.max(0, Number(c?.rampUpSec) || 0),
     rpsCap: c?.rpsCap == null ? null : Math.max(1, Number(c.rpsCap)),
     thinkMs: Math.max(0, Number(c?.thinkMs) || 0),
+    captureResponseDetails: Boolean(c?.captureResponseDetails),
   };
+}
+
+/** @param {object} result handleHttpRequest result */
+function extractResponseDetails(result, responseBytes) {
+  if (!result || typeof result !== 'object') return null;
+  const out = {};
+  if (result.statusText) out.responseStatusText = String(result.statusText);
+  if (result.headers && typeof result.headers === 'object') {
+    out.responseHeaders = headersToPairs(result.headers);
+  }
+  if (result.isBinary) {
+    out.responseBodyPreview = `[Binary response, ${Number(responseBytes) || 0} bytes]`;
+  } else {
+    out.responseBodyPreview = bodyToPreviewString(result.body);
+  }
+  return out;
+}
+
+function headersToPairs(h) {
+  const out = [];
+  for (const [k, v] of Object.entries(h)) {
+    if (v == null) continue;
+    if (Array.isArray(v)) {
+      for (const x of v) out.push({ key: k, value: String(x) });
+    } else {
+      out.push({ key: k, value: String(v) });
+    }
+  }
+  return out;
+}
+
+function bodyToPreviewString(body) {
+  let s;
+  if (body == null) s = '';
+  else if (typeof body === 'string') s = body;
+  else if (typeof body === 'object') {
+    if (body.error && body.message) s = String(body.message);
+    else {
+      try {
+        s = JSON.stringify(body, null, 2);
+      } catch {
+        s = String(body);
+      }
+    }
+  } else s = String(body);
+  if (s.length > RESPONSE_PREVIEW_MAX) {
+    return s.slice(0, RESPONSE_PREVIEW_MAX) + '\n… [truncated]';
+  }
+  return s;
 }
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }

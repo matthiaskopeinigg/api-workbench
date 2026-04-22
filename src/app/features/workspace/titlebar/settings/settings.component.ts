@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormControl } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
-import { Certificate, Settings, Theme } from '@models/settings';
+import { Certificate, RequestEditorSection, Settings, Theme } from '@models/settings';
 import { HttpMethod } from '@models/request';
 import { SettingsService } from '@core/settings.service';
 
@@ -11,8 +11,10 @@ import { ThemeService } from '@core/theme.service';
 import { FileDialogService } from '@core/file-dialog.service';
 import { CollectionService } from '@core/collection.service';
 import { ImportService } from '@core/import.service';
+import { BatchImportDialogService } from '@core/batch-import-dialog.service';
+import type { ReadImportFolderOptions } from '@models/file-dialog';
 import { UpdateService } from '@core/update.service';
-import { Collection } from '@models/collection';
+import { Collection, Folder } from '@models/collection';
 import type { StorageInfo, UpdaterStatus } from '@models/electron';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
 
@@ -30,6 +32,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   updaterStatus: UpdaterStatus | null = null;
   private updaterSub?: Subscription;
+  private batchImportSub?: Subscription;
 
   settingsForm!: FormGroup;
   themes: Theme[] = [Theme.SYSTEM, ...(Object.values(Theme).filter((t) => t !== Theme.SYSTEM) as Theme[])];
@@ -40,6 +43,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
     { label: 'Open as Tab & Expand', value: 'both' },
     { label: 'Open as Tab Only', value: 'open' },
     { label: 'Expand Only', value: 'expand' }
+  ];
+
+  defaultRequestEditorSectionOptions: DropdownOption[] = [
+    { label: 'Params', value: 'params' as RequestEditorSection },
+    { label: 'Headers', value: 'headers' as RequestEditorSection },
+    { label: 'Body', value: 'body' as RequestEditorSection },
+    { label: 'Scripts', value: 'scripts' as RequestEditorSection },
+    { label: 'Auth', value: 'auth' as RequestEditorSection },
+    { label: 'Settings', value: 'settings' as RequestEditorSection },
   ];
 
   proxyTypeOptions: DropdownOption[] = [
@@ -118,6 +130,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private collectionService: CollectionService,
 
     private importService: ImportService,
+    private batchImportDialog: BatchImportDialogService,
     private updateService: UpdateService,
     private cdr: ChangeDetectorRef
   ) { }
@@ -130,10 +143,19 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.updaterStatus = status;
       this.cdr.markForCheck();
     });
+    this.batchImportSub = this.batchImportDialog.finished$.subscribe((result) => {
+      if (result == null) {
+        return;
+      }
+      const cols = this.collectionService.getCollections();
+      this.collectionsExist = cols.length > 0;
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy(): void {
     this.updaterSub?.unsubscribe();
+    this.batchImportSub?.unsubscribe();
   }
 
   checkForUpdates(): void {
@@ -185,6 +207,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
       requests: this.fb.group({
         defaultHttpMethod: [settings?.requests?.defaultHttpMethod ?? 'GET'],
+        defaultRequestEditorSection: [
+          (settings?.requests?.defaultRequestEditorSection ?? 'body') as RequestEditorSection,
+        ],
         timeoutMs: [settings?.requests?.timeoutMs ?? 0],
         useCookies: [settings?.requests?.useCookies ?? true],
         allowHttp2: [settings?.requests?.allowHttp2 ?? false]
@@ -429,6 +454,36 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  async importBatchFromMultipleFiles() {
+    const res = await this.fileDialogService.openFiles(['json', 'yaml', 'yml', 'har']);
+    if (res == null) {
+      return;
+    }
+    if (!res.files.length) {
+      this.showImportPopup('No files selected', true);
+      return;
+    }
+    this.batchImportDialog.startPreview(res.files);
+  }
+
+  async importBatchFromFolder(options?: ReadImportFolderOptions) {
+    const res = await this.fileDialogService.readImportFolder({
+      extensions: ['json', 'yaml', 'yml', 'har'],
+      maxFiles: 500,
+      recursive: false,
+      maxDepth: 0,
+      ...options,
+    });
+    if (res == null) {
+      return;
+    }
+    if (!res.files.length) {
+      this.showImportPopup('No matching import files in that folder', true);
+      return;
+    }
+    this.batchImportDialog.startPreview(res.files);
+  }
+
   async importOpenApi() {
     this.isLoading = true;
     try {
@@ -523,6 +578,127 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  async exportCollectionsToFolderSingleFile() {
+    this.isLoading = true;
+    try {
+      const collections = this.collectionService.getCollections();
+      if (!collections?.length) {
+        this.showImportPopup('No collections to export', true);
+        return;
+      }
+      const dir = await this.fileDialogService.openDirectoryForExport();
+      if (!dir) {
+        return;
+      }
+      const data = JSON.stringify({ collections }, null, 2);
+      const r = await this.fileDialogService.writeFilesToDirectory(dir, [
+        { name: 'api-workbench-collections.json', data },
+      ]);
+      if (!r.ok) {
+        this.showImportPopup(r.error || 'Failed to write export files', true);
+        return;
+      }
+      this.showImportPopup(`Exported one bundle file to the selected folder`);
+    } catch {
+      this.showImportPopup('Failed to export to folder', true);
+    } finally {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async exportCollectionsToFolderSplit() {
+    this.isLoading = true;
+    try {
+      const collections = this.collectionService.getCollections();
+      if (!collections?.length) {
+        this.showImportPopup('No collections to export', true);
+        return;
+      }
+      const dir = await this.fileDialogService.openDirectoryForExport();
+      if (!dir) {
+        return;
+      }
+      const files: Array<{ name: string; data: string }> = [];
+      const used = new Set<string>();
+      if (collections.length > 1) {
+        for (const c of collections) {
+          const name = this.uniqueExportFileName(c.title || c.id, used);
+          files.push({ name, data: JSON.stringify({ collections: [c] }, null, 2) });
+        }
+      } else {
+        const root = collections[0];
+        for (const f of root.folders) {
+          const col = this.folderToCollection(f);
+          const name = this.uniqueExportFileName(f.title, used);
+          files.push({ name, data: JSON.stringify({ collections: [col] }, null, 2) });
+        }
+        if (root.requests.length) {
+          const requestsOnly: Collection = {
+            id: root.id,
+            order: root.order,
+            title: root.title || 'Root',
+            requests: root.requests,
+            folders: [],
+            auth: root.auth,
+            settings: root.settings,
+            script: root.script,
+          };
+          files.push({
+            name: this.uniqueExportFileName(`${root.title || 'root'}-requests`, used),
+            data: JSON.stringify({ collections: [requestsOnly] }, null, 2),
+          });
+        }
+        if (files.length === 0) {
+          this.showImportPopup('Nothing to export (no folders or top-level requests)', true);
+          return;
+        }
+      }
+      const r = await this.fileDialogService.writeFilesToDirectory(dir, files);
+      if (!r.ok) {
+        this.showImportPopup(r.error || 'Failed to write export files', true);
+        return;
+      }
+      this.showImportPopup(
+        `Exported ${r.written} file(s) to the selected folder`,
+        false,
+      );
+    } catch {
+      this.showImportPopup('Failed to export to folder', true);
+    } finally {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  private folderToCollection(f: Folder): Collection {
+    return {
+      id: f.id,
+      order: f.order,
+      title: f.title,
+      requests: f.requests,
+      folders: f.folders,
+      auth: f.auth,
+      settings: f.settings,
+      script: f.script,
+    };
+  }
+
+  private uniqueExportFileName(base: string, used: Set<string>): string {
+    const stem0 = (base || 'collection')
+      .replace(/[^a-z0-9-_]+/gi, '-')
+      .replace(/^-+|-+$/g, '') || 'collection';
+    const stem = stem0.slice(0, 64).toLowerCase();
+    let name = `${stem}.json`;
+    let n = 2;
+    while (used.has(name)) {
+      name = `${stem}-${n}.json`;
+      n += 1;
+    }
+    used.add(name);
+    return name;
   }
 
   async chooseCertFile(type: 'crt' | 'key' | 'pfx') {

@@ -9,12 +9,18 @@
         placeholder="Untitled contract" />
       <span class="updated">Updated {{ artifact.updatedAt | date:'short' }}</span>
     </div>
+    <div class="header-end">
+    <app-run-environment-select
+      [value]="runEnvironmentId"
+      (valueChange)="onRunEnvironmentChange($event)"
+    />
     <div class="actions">
       <button type="button" class="btn" [disabled]="running" (click)="runStaticOnly()">Check (static)</button>
       <button type="button" class="btn primary" [disabled]="running" (click)="runAll()">
         {{ running ? 'Validating…' : 'Validate' }}
       </button>
       <button type="button" class="btn" [disabled]="!findings.length" (click)="exportJson()">Export JSON</button>
+    </div>
     </div>
   </header>
 

@@ -144,6 +144,27 @@ export class CommandSeedsService {
         run: () => this.importIntents.triggerCurlImport(),
       },
       {
+        id: 'workbench.import.batchFiles',
+        label: 'Import multiple files…',
+        category: 'Import',
+        hint: 'Postman, OpenAPI, or API Workbench JSON in one pass',
+        run: () => this.importIntents.triggerImportBatchFiles(),
+      },
+      {
+        id: 'workbench.import.folder',
+        label: 'Import from folder…',
+        category: 'Import',
+        hint: 'All .json, .yaml, .yml in the selected folder (not subfolders)',
+        run: () => this.importIntents.triggerImportFromFolder(),
+      },
+      {
+        id: 'workbench.import.folderRecursive',
+        label: 'Import from folder (include subfolders)…',
+        category: 'Import',
+        hint: 'Up to 2 levels deep; skips node_modules, .git, dist',
+        run: () => this.importIntents.triggerImportFromFolder({ recursive: true, maxDepth: 2 }),
+      },
+      {
         id: 'workbench.cookies.clear',
         label: 'Clear all cookies',
         category: 'Data',

@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: Settings = {
     timeoutMs: 10000,
     useCookies: true,
     allowHttp2: false,
+    defaultRequestEditorSection: 'body',
   },
   retries: {
     retryOnFailure: false,

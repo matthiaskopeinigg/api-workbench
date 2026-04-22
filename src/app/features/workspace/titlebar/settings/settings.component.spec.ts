@@ -6,7 +6,11 @@ import { ThemeService } from '@core/theme.service';
 import { FileDialogService } from '@core/file-dialog.service';
 import { CollectionService } from '@core/collection.service';
 import { ImportService } from '@core/import.service';
+import { BatchImportDialogService } from '@core/batch-import-dialog.service';
+import type { BatchImportResult } from '@core/import-batch.service';
+import { UpdateService } from '@core/update.service';
 import { Theme } from '@models/settings';
+import { of, Subject } from 'rxjs';
 import { CommonModule } from '@angular/common';
 
 describe('SettingsComponent', () => {
@@ -18,6 +22,10 @@ describe('SettingsComponent', () => {
   let fileDialogServiceSpy: jasmine.SpyObj<FileDialogService>;
   let collectionServiceSpy: jasmine.SpyObj<CollectionService>;
   let importServiceSpy: jasmine.SpyObj<ImportService>;
+  let batchImportDialogSpy: jasmine.SpyObj<BatchImportDialogService> & {
+    finished$: Subject<BatchImportResult | null>;
+  };
+  let updateServiceSpy: jasmine.SpyObj<UpdateService> & { statusStream: unknown };
 
   const mockSettings = {
     ui: { theme: Theme.DARK },
@@ -32,9 +40,34 @@ describe('SettingsComponent', () => {
   beforeEach(async () => {
     settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings', 'saveSettings']);
     themeServiceSpy = jasmine.createSpyObj('ThemeService', ['setTheme']);
-    fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', ['openFile', 'saveFile']);
+    fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', [
+      'openFile',
+      'saveFile',
+      'openFiles',
+      'readImportFolder',
+      'openDirectoryForExport',
+      'writeFilesToDirectory',
+    ]);
     collectionServiceSpy = jasmine.createSpyObj('CollectionService', ['getCollections', 'saveCollections', 'deleteAllCollections']);
     importServiceSpy = jasmine.createSpyObj('ImportService', ['importPostmanCollection', 'importOpenApi']);
+    const finished$ = new Subject<BatchImportResult | null>();
+    batchImportDialogSpy = jasmine.createSpyObj('BatchImportDialogService', [
+      'startPreview',
+    ]) as jasmine.SpyObj<BatchImportDialogService> & {
+      finished$: Subject<BatchImportResult | null>;
+    };
+    batchImportDialogSpy.finished$ = finished$;
+    updateServiceSpy = jasmine.createSpyObj('UpdateService', [
+      'checkForUpdates',
+      'downloadUpdate',
+      'installUpdate',
+    ]) as jasmine.SpyObj<UpdateService> & { statusStream: unknown };
+    (updateServiceSpy as { statusStream: unknown }).statusStream = of({
+      state: 'idle',
+      currentVersion: '0.0.0',
+      supported: false,
+      info: null,
+    } as any);
 
     settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
     collectionServiceSpy.getCollections.and.returnValue([]);
@@ -47,7 +80,9 @@ describe('SettingsComponent', () => {
         { provide: ThemeService, useValue: themeServiceSpy },
         { provide: FileDialogService, useValue: fileDialogServiceSpy },
         { provide: CollectionService, useValue: collectionServiceSpy },
-        { provide: ImportService, useValue: importServiceSpy }
+        { provide: ImportService, useValue: importServiceSpy },
+        { provide: BatchImportDialogService, useValue: batchImportDialogSpy },
+        { provide: UpdateService, useValue: updateServiceSpy },
       ]
     }).compileComponents();
 

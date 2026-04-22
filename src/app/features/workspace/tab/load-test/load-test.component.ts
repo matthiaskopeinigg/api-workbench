@@ -14,18 +14,23 @@ import { TabItem } from '@core/tab.service';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { LoadTestService } from '@core/load-test.service';
 import { CollectionService } from '@core/collection.service';
+import { SessionService } from '@core/session.service';
+import {
+  LOAD_TEST_SESSION_RUNS_KEY,
+  type LoadTestSessionRunsMap,
+} from '@core/load-test-session.keys';
 import type {
   LoadProgressEvent,
   LoadRunResult,
   LoadSample,
   LoadTestArtifact,
-  LoadTestConfig,
   LoadTestTarget,
 } from '@models/testing/load-test';
 import type { Collection, Folder } from '@models/collection';
 import { HttpMethod, type Request } from '@models/request';
 
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
+import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
 import {
   TimeSeriesChartComponent,
   type TimeSeriesSeries,
@@ -50,7 +55,7 @@ const HTTP_METHOD_LABELS: Record<number, string> = {
 @Component({
   selector: 'app-load-test',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatCardComponent, TimeSeriesChartComponent],
+  imports: [CommonModule, FormsModule, StatCardComponent, TimeSeriesChartComponent, RunEnvironmentSelectComponent],
   templateUrl: './load-test.component.html',
   styleUrls: ['./load-test.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,6 +73,8 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   progress: LoadProgressEvent | null = null;
   /** Final result, populated after run completion. */
   result: LoadRunResult | null = null;
+  /** Sample shown in the response-details overlay (slowest list or error sample). */
+  detailSample: LoadSample | null = null;
 
   /** Time-series data sliced for the chart. */
   chartXs: number[] = [];
@@ -86,12 +93,16 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   showInlineEditor = false;
   inlineDraft = { method: 'GET', url: '', body: '' };
 
+  /** `null` = use workspace default (active / single env). */
+  runEnvironmentId: string | null = null;
+
   private destroy$ = new Subject<void>();
 
   constructor(
     private artifacts: TestArtifactService,
     private loadTest: LoadTestService,
     private collections: CollectionService,
+    private session: SessionService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -112,8 +123,13 @@ export class LoadTestComponent implements OnInit, OnDestroy {
       const found = all.find((a) => a.id === id);
       if (!found) return;
       const wasNull = !this.artifact;
-      this.artifact = JSON.parse(JSON.stringify(found));
+      const next = JSON.parse(JSON.stringify(found)) as LoadTestArtifact;
+      if (next.config.captureResponseDetails == null) {
+        next.config.captureResponseDetails = false;
+      }
+      this.artifact = next;
       if (wasNull) this.cdr.markForCheck();
+      void this.restoreLastRunFromSession();
     });
   }
 
@@ -137,15 +153,45 @@ export class LoadTestComponent implements OnInit, OnDestroy {
       this.result = result;
       this.running = false;
       this.cancelling = false;
-      this.chartXs = result.series.map((p) => p.t);
-      this.rpsSeries = { ...this.rpsSeries, values: result.series.map((p) => p.rps) };
-      this.errorSeries = { ...this.errorSeries, values: result.series.map((p) => p.errors) };
-      this.p50Series = { ...this.p50Series, values: result.series.map((p) => p.p50) };
-      this.p95Series = { ...this.p95Series, values: result.series.map((p) => p.p95) };
-      this.rpsChartSeries = [this.rpsSeries, this.errorSeries];
-      this.latencyChartSeries = [this.p50Series, this.p95Series];
+      this.applyResultToCharts(result);
+      void this.persistResultToSession(result);
       this.cdr.markForCheck();
     });
+  }
+
+  private applyResultToCharts(result: LoadRunResult): void {
+    this.chartXs = result.series.map((p) => p.t);
+    this.rpsSeries = { ...this.rpsSeries, values: result.series.map((p) => p.rps) };
+    this.errorSeries = { ...this.errorSeries, values: result.series.map((p) => p.errors) };
+    this.p50Series = { ...this.p50Series, values: result.series.map((p) => p.p50) };
+    this.p95Series = { ...this.p95Series, values: result.series.map((p) => p.p95) };
+    this.rpsChartSeries = [this.rpsSeries, this.errorSeries];
+    this.latencyChartSeries = [this.p50Series, this.p95Series];
+  }
+
+  private async restoreLastRunFromSession(): Promise<void> {
+    if (!this.artifact || this.running) {
+      return;
+    }
+    await this.session.load(LOAD_TEST_SESSION_RUNS_KEY);
+    const map = this.session.get<LoadTestSessionRunsMap>(LOAD_TEST_SESSION_RUNS_KEY);
+    const entry = map?.[this.artifact.id];
+    if (!entry?.result) {
+      return;
+    }
+    this.result = entry.result;
+    this.applyResultToCharts(entry.result);
+    this.cdr.markForCheck();
+  }
+
+  private async persistResultToSession(result: LoadRunResult): Promise<void> {
+    if (!this.artifact) {
+      return;
+    }
+    await this.session.load(LOAD_TEST_SESSION_RUNS_KEY);
+    const prev = this.session.get<LoadTestSessionRunsMap>(LOAD_TEST_SESSION_RUNS_KEY) || {};
+    const next: LoadTestSessionRunsMap = { ...prev, [this.artifact.id]: { result, savedAt: Date.now() } };
+    await this.session.save(LOAD_TEST_SESSION_RUNS_KEY, next);
   }
 
   private appendChartPoint(event: LoadProgressEvent): void {
@@ -224,6 +270,11 @@ export class LoadTestComponent implements OnInit, OnDestroy {
 
   trackByIndex = (i: number) => i;
 
+  onRunEnvironmentChange(id: string | null): void {
+    this.runEnvironmentId = id;
+    this.cdr.markForCheck();
+  }
+
   async start(): Promise<void> {
     if (!this.artifact || this.running) return;
     if (this.artifact.config.targets.length === 0) {
@@ -240,7 +291,10 @@ export class LoadTestComponent implements OnInit, OnDestroy {
     this.rpsChartSeries = [this.rpsSeries, this.errorSeries];
     this.latencyChartSeries = [this.p50Series, this.p95Series];
 
-    const runId = await this.loadTest.start(this.artifact.config);
+    const runId = await this.loadTest.start(
+      this.artifact.config,
+      this.runEnvironmentId != null ? { environmentId: this.runEnvironmentId } : undefined,
+    );
     if (!runId) {
       alert('Failed to start load run. Check the console for details.');
       return;
@@ -296,6 +350,35 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   }
 
   trackBySampleIndex = (i: number, _: LoadSample) => i;
+
+  openSampleDetails(s: LoadSample): void {
+    this.detailSample = s;
+    this.cdr.markForCheck();
+  }
+
+  closeSampleDetails(): void {
+    this.detailSample = null;
+    this.cdr.markForCheck();
+  }
+
+  sampleHasCapturedResponse(s: LoadSample | null | undefined): boolean {
+    if (!s) {
+      return false;
+    }
+    return !!(
+      (s.responseHeaders && s.responseHeaders.length > 0) ||
+      (s.responseBodyPreview != null && s.responseBodyPreview.length > 0) ||
+      (s.responseStatusText != null && s.responseStatusText.length > 0)
+    );
+  }
+
+  sampleTargetLabel(s: LoadSample): string {
+    if (!this.artifact?.config?.targets?.length) {
+      return `Target #${s.targetIndex + 1}`;
+    }
+    const t = this.artifact.config.targets[s.targetIndex];
+    return t ? this.targetLabel(t) : `Target #${s.targetIndex + 1}`;
+  }
 
   private persist(): void {
     if (!this.artifact) return;

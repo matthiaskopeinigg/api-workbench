@@ -4,6 +4,7 @@ import { FlowComponent } from './flow.component';
 import { TestArtifactService } from '@core/test-artifact.service';
 import { FlowExecutorService } from '@core/flow-executor.service';
 import { CollectionService } from '@core/collection.service';
+import { EnvironmentsService } from '@core/environments.service';
 import type { TabItem } from '@core/tab.service';
 import { TabType } from '@core/tab.service';
 import { NEW_FLOW } from '@models/testing/flow';
@@ -20,6 +21,7 @@ describe('FlowComponent', () => {
   let artifactsSpy: jasmine.SpyObj<TestArtifactService>;
   let execSpy: jasmine.SpyObj<FlowExecutorService>;
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
+  let envSpy: jasmine.SpyObj<EnvironmentsService>;
 
   const id = 'fl-1';
   const tab: TabItem = { id: `fl:${id}`, title: 'Flow', type: TabType.FLOW };
@@ -45,12 +47,17 @@ describe('FlowComponent', () => {
     collectionsSpy.getCollectionsObservable.and.returnValue(of([]));
     collectionsSpy.getCollections.and.returnValue([]);
 
+    envSpy = jasmine.createSpyObj('EnvironmentsService', ['loadEnvironments', 'getEnvironmentsObservable']);
+    envSpy.loadEnvironments.and.resolveTo();
+    envSpy.getEnvironmentsObservable.and.returnValue(of([]));
+
     await TestBed.configureTestingModule({
       imports: [FlowComponent],
       providers: [
         { provide: TestArtifactService, useValue: artifactsSpy },
         { provide: FlowExecutorService, useValue: execSpy },
         { provide: CollectionService,   useValue: collectionsSpy },
+        { provide: EnvironmentsService, useValue: envSpy },
       ],
     }).compileComponents();
 
@@ -119,7 +126,7 @@ describe('FlowComponent', () => {
 
   it('runFlow delegates to the executor and flips the running flag', async () => {
     await component.runFlow();
-    expect(execSpy.run).toHaveBeenCalledWith(component.artifact!);
+    expect(execSpy.run).toHaveBeenCalledWith(component.artifact!, undefined);
     expect(component.running).toBeFalse();
   });
 

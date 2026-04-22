@@ -34,11 +34,22 @@ import { HttpMethod, type Request as RequestModel } from '@models/request';
 
 import { TreeResultsComponent, type TreeNode } from '../../shared/testing-ui/tree-results.component';
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
+import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
+import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
 
 interface RequestPick {
   id: string;
-  label: string;
   method: string;
+  /** Short text in the add-request dropdown. */
+  lineLabel: string;
+  /** Full location path, shown in a native tooltip. */
+  titleAttr: string;
+}
+
+interface FolderPick {
+  id: string;
+  lineLabel: string;
+  titleAttr: string;
 }
 
 const HTTP_METHOD_LABELS: Record<number, string> = {
@@ -56,7 +67,7 @@ type AssertionKind = Assertion['kind'];
 @Component({
   selector: 'app-test-suite',
   standalone: true,
-  imports: [CommonModule, FormsModule, TreeResultsComponent, StatCardComponent],
+  imports: [CommonModule, FormsModule, TreeResultsComponent, StatCardComponent, RunEnvironmentSelectComponent, DropdownComponent],
   templateUrl: './test-suite.component.html',
   styleUrls: ['./test-suite.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,10 +84,20 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
   running = false;
 
   requestPicks: RequestPick[] = [];
+  /** “Entire collection” rows (`col:…` ids) + each folder, for bulk add. */
+  folderPicks: FolderPick[] = [];
+  requestDdOptions: DropdownOption[] = [];
+  folderDdOptions: DropdownOption[] = [];
+  /** `null` after each pick so the trigger returns to the placeholder. */
+  addRequestValue: string | null = null;
+  addFolderValue: string | null = null;
   treeNodes: TreeNode[] = [];
 
   showAddInline = false;
   inlineDraft = { method: 'GET', url: '' };
+
+  /** `null` = workspace default for `{{var}}` during runs. */
+  runEnvironmentId: string | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -102,9 +123,14 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
 
     this.collections.getCollectionsObservable().pipe(takeUntil(this.destroy$)).subscribe((cols) => {
       this.requestPicks = flattenRequests(cols);
+      this.folderPicks = flattenFolderPicks(cols);
+      this.rebuildAddDropdownOptions();
       this.cdr.markForCheck();
     });
-    this.requestPicks = flattenRequests(this.collections.getCollections() || []);
+    const colSnap = this.collections.getCollections() || [];
+    this.requestPicks = flattenRequests(colSnap);
+    this.folderPicks = flattenFolderPicks(colSnap);
+    this.rebuildAddDropdownOptions();
 
     this.runner.onCaseResult().pipe(takeUntil(this.destroy$)).subscribe(({ suiteId, caseResult }) => {
       if (!this.artifact || suiteId !== this.artifact.id) return;
@@ -165,6 +191,11 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
   }
   async runOnly(caseId: string): Promise<void> { await this.startRun({ onlyCaseId: caseId }); }
 
+  onRunEnvironmentChange(id: string | null): void {
+    this.runEnvironmentId = id;
+    this.cdr.markForCheck();
+  }
+
   private async startRun(opts: { fromCaseId?: string; onlyCaseId?: string }): Promise<void> {
     if (!this.artifact || this.running) return;
     this.results.clear();
@@ -172,7 +203,10 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
     this.running = true;
     this.rebuildTree();
     try {
-      await this.runner.run(this.artifact, opts);
+      await this.runner.run(this.artifact, {
+        ...opts,
+        ...(this.runEnvironmentId != null ? { environmentId: this.runEnvironmentId } : {}),
+      });
     } finally {
       this.running = false;
       this.cdr.markForCheck();
@@ -192,6 +226,101 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
     };
     this.artifact.cases = [...this.artifact.cases, tc];
     this.selectedCaseId = tc.id;
+    this.persist();
+  }
+
+  /**
+   * Add multiple cases from the bulk dropdown: `col:<id>` = entire collection;
+   * otherwise a folder id (see {@link addCasesFromFolder}).
+   */
+  onPickedRequest(v: string | null): void {
+    if (v == null || v === '') return;
+    this.addSavedCase(v);
+    this.addRequestValue = null;
+    this.cdr.markForCheck();
+  }
+
+  onPickedFolder(v: string | null): void {
+    if (v == null || v === '') return;
+    this.addFromFolderList(v);
+    this.addFolderValue = null;
+    this.cdr.markForCheck();
+  }
+
+  addFromFolderList(raw: string): void {
+    if (!this.artifact || !raw) return;
+    if (raw.startsWith('col:')) {
+      this.addCasesFromCollection(raw.slice(4));
+    } else {
+      this.addCasesFromFolder(raw);
+    }
+  }
+
+  /**
+   * Adds one test case per saved request in the folder and nested subfolders.
+   * Skips request IDs that already have a “saved” case in this suite.
+   */
+  addCasesFromFolder(folderId: string): void {
+    if (!this.artifact || !folderId) return;
+    const folder = this.collections.findFolderById(folderId);
+    if (!folder) return;
+    this.addSavedCasesForRequestIds(
+      collectRequestIdsInFolderTree(folder),
+      'No requests in that folder (including subfolders).',
+      'All requests in that folder are already in the suite.',
+    );
+  }
+
+  /**
+   * Collection root + every request in nested folders, same as “flat” add from a collection.
+   */
+  addCasesFromCollection(collectionId: string): void {
+    if (!this.artifact || !collectionId) return;
+    const col = this.collections.findCollectionByCollectionId(collectionId);
+    if (!col) return;
+    this.addSavedCasesForRequestIds(
+      collectRequestIdsInCollection(col),
+      'No requests in that collection.',
+      'All requests in that collection are already in the suite.',
+    );
+  }
+
+  private addSavedCasesForRequestIds(
+    requestIds: string[],
+    emptyMessage: string,
+    allDuplicatedMessage: string,
+  ): void {
+    if (!this.artifact) return;
+    if (!requestIds.length) {
+      window.alert(emptyMessage);
+      return;
+    }
+    const existing = new Set(
+      this.artifact.cases
+        .map((c) => c.target)
+        .filter((t): t is { kind: 'saved'; requestId: string } => t.kind === 'saved')
+        .map((t) => t.requestId),
+    );
+    const added: TestCase[] = [];
+    for (const requestId of requestIds) {
+      if (existing.has(requestId)) continue;
+      existing.add(requestId);
+      const req = this.collections.findRequestById(requestId);
+      added.push({
+        id: uuidv4(),
+        name: req?.title || 'New case',
+        enabled: true,
+        target: { kind: 'saved', requestId },
+        assertions: [{ kind: 'status', expected: '2xx' } as StatusAssertion],
+        extracts: [],
+      });
+    }
+    if (!added.length) {
+      window.alert(allDuplicatedMessage);
+      return;
+    }
+    this.artifact.cases = [...this.artifact.cases, ...added];
+    this.selectedCaseId = added[added.length - 1].id;
     this.persist();
   }
 
@@ -417,6 +546,19 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
     this.selectedCaseId = baseId;
   }
 
+  private rebuildAddDropdownOptions(): void {
+    this.requestDdOptions = this.requestPicks.map((r) => ({
+      value: r.id,
+      label: `${r.method} · ${r.lineLabel}`,
+      title: r.titleAttr,
+    }));
+    this.folderDdOptions = this.folderPicks.map((f) => ({
+      value: f.id,
+      label: f.lineLabel,
+      title: f.titleAttr,
+    }));
+  }
+
   private persist(): void {
     if (!this.artifact) return;
     void this.artifacts.update('testSuites', { ...this.artifact, updatedAt: Date.now() });
@@ -427,6 +569,17 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
 
 function stripPrefix(tabId: string): string {
   return tabId.startsWith('ts:') ? tabId.slice(3) : tabId;
+}
+
+function toPick(req: RequestModel, pathPrefix: string): RequestPick {
+  const t = req.title?.trim() || req.url || '(untitled)';
+  const full = `${pathPrefix} / ${t}`.replace(/\s*\/\s*\/\s*/g, ' / ');
+  return {
+    id: req.id,
+    method: HTTP_METHOD_LABELS[req.httpMethod] || 'GET',
+    lineLabel: t,
+    titleAttr: full,
+  };
 }
 
 function flattenRequests(cols: Collection[]): RequestPick[] {
@@ -445,10 +598,65 @@ function flattenRequests(cols: Collection[]): RequestPick[] {
   return out;
 }
 
-function toPick(req: RequestModel, parentLabel: string): RequestPick {
-  return {
-    id: req.id,
-    label: `${parentLabel} / ${req.title || req.url || '(untitled)'}`,
-    method: HTTP_METHOD_LABELS[req.httpMethod] || 'GET',
+function flattenFolderPicks(cols: Collection[]): FolderPick[] {
+  const out: FolderPick[] = [];
+  for (const c of cols) {
+    if (countRequestsInCollection(c) > 0) {
+      out.push({
+        id: `col:${c.id}`,
+        lineLabel: `All in "${c.title}"`,
+        titleAttr: `Add every request in ${c.title} (root and all folders)`,
+      });
+    }
+  }
+  const walk = (folders: Folder[] = [], parentLabel: string, ctitle: string) => {
+    for (const f of folders) {
+      const label = parentLabel ? `${parentLabel} / ${f.title}` : f.title;
+      const lineLabel = pathWithoutCollectionPrefix(ctitle, label);
+      out.push({
+        id: f.id,
+        lineLabel,
+        titleAttr: label,
+      });
+      if (f.folders?.length) walk(f.folders, label, ctitle);
+    }
   };
+  for (const c of cols) {
+    walk(c.folders || [], c.title, c.title);
+  }
+  return out;
+}
+
+function pathWithoutCollectionPrefix(collectionTitle: string, fullPath: string): string {
+  const prefix = collectionTitle.trim() + ' / ';
+  if (fullPath.startsWith(prefix)) {
+    return fullPath.slice(prefix.length);
+  }
+  return fullPath;
+}
+
+function countRequestsInCollection(col: Collection): number {
+  let n = col.requests?.length ?? 0;
+  const countFolders = (folders: Folder[] = []) => {
+    for (const f of folders) {
+      n += f.requests?.length ?? 0;
+      if (f.folders?.length) countFolders(f.folders);
+    }
+  };
+  countFolders(col.folders || []);
+  return n;
+}
+
+function collectRequestIdsInFolderTree(folder: Folder): string[] {
+  const ids: string[] = [];
+  for (const r of folder.requests || []) ids.push(r.id);
+  for (const sub of folder.folders || []) ids.push(...collectRequestIdsInFolderTree(sub));
+  return ids;
+}
+
+function collectRequestIdsInCollection(col: Collection): string[] {
+  const ids: string[] = [];
+  for (const r of col.requests || []) ids.push(r.id);
+  for (const sub of col.folders || []) ids.push(...collectRequestIdsInFolderTree(sub));
+  return ids;
 }

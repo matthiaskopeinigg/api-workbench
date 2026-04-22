@@ -1,0 +1,108 @@
+{
+  "items": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000023",
+      "title": "Sample: fetch post then assert",
+      "updatedAt": 1700000000000,
+      "description": "Minimal flow using JSONPlaceholder.",
+      "nodes": [
+        { "id": "flow-start", "kind": "start", "label": "Start", "x": 40, "y": 120 },
+        {
+          "id": "flow-req-1",
+          "kind": "request",
+          "label": "GET post 1",
+          "x": 220,
+          "y": 100,
+          "target": { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
+        },
+        {
+          "id": "flow-assert-1",
+          "kind": "assert",
+          "label": "status 200",
+          "x": 420,
+          "y": 100,
+          "expression": "input && input.status === 200",
+          "message": "Expected 200 from JSONPlaceholder"
+        },
+        { "id": "flow-end-ok", "kind": "terminate", "label": "OK", "x": 620, "y": 100, "outcome": "success" }
+      ],
+      "edges": [
+        { "id": "e1", "fromNodeId": "flow-start", "fromPort": "out", "toNodeId": "flow-req-1" },
+        { "id": "e2", "fromNodeId": "flow-req-1", "fromPort": "out", "toNodeId": "flow-assert-1" },
+        { "id": "e3", "fromNodeId": "flow-assert-1", "fromPort": "out", "toNodeId": "flow-end-ok" }
+      ],
+      "viewport": { "x": 0, "y": 0, "zoom": 1 }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000031",
+      "title": "Complex: branch, delay, multi-request",
+      "updatedAt": 1700000001000,
+      "description": "GET JSONPlaceholder → assert → delay → httpbin → branch on 200 → success or failure path.",
+      "nodes": [
+        { "id": "cx-start", "kind": "start", "label": "Start", "x": 40, "y": 140 },
+        {
+          "id": "cx-req-jp",
+          "kind": "request",
+          "label": "GET /posts/1",
+          "x": 200,
+          "y": 120,
+          "target": { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
+        },
+        {
+          "id": "cx-assert-200",
+          "kind": "assert",
+          "label": "Post response 200",
+          "x": 400,
+          "y": 120,
+          "expression": "input && input.status === 200",
+          "message": "JSONPlaceholder should return 200"
+        },
+        {
+          "id": "cx-delay-1",
+          "kind": "delay",
+          "label": "Delay 120ms",
+          "x": 560,
+          "y": 120,
+          "ms": 120
+        },
+        {
+          "id": "cx-req-bin",
+          "kind": "request",
+          "label": "httpbin /get",
+          "x": 720,
+          "y": 120,
+          "target": { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000011" }
+        },
+        {
+          "id": "cx-branch",
+          "kind": "branch",
+          "label": "2xx from httpbin?",
+          "x": 920,
+          "y": 120,
+          "expression": "input && input.status === 200"
+        },
+        {
+          "id": "cx-delay-ok",
+          "kind": "delay",
+          "label": "Delay 40ms",
+          "x": 1100,
+          "y": 60,
+          "ms": 40
+        },
+        { "id": "cx-ok", "kind": "terminate", "label": "Success", "x": 1280, "y": 60, "outcome": "success" },
+        { "id": "cx-fail", "kind": "terminate", "label": "Expected 200", "x": 1100, "y": 200, "outcome": "failure" }
+      ],
+      "edges": [
+        { "id": "cxe1", "fromNodeId": "cx-start", "fromPort": "out", "toNodeId": "cx-req-jp" },
+        { "id": "cxe2", "fromNodeId": "cx-req-jp", "fromPort": "out", "toNodeId": "cx-assert-200" },
+        { "id": "cxe3", "fromNodeId": "cx-assert-200", "fromPort": "out", "toNodeId": "cx-delay-1" },
+        { "id": "cxe4", "fromNodeId": "cx-delay-1", "fromPort": "out", "toNodeId": "cx-req-bin" },
+        { "id": "cxe5", "fromNodeId": "cx-req-bin", "fromPort": "out", "toNodeId": "cx-branch" },
+        { "id": "cxe6", "fromNodeId": "cx-branch", "fromPort": "true", "toNodeId": "cx-delay-ok" },
+        { "id": "cxe7", "fromNodeId": "cx-delay-ok", "fromPort": "out", "toNodeId": "cx-ok" },
+        { "id": "cxe8", "fromNodeId": "cx-branch", "fromPort": "false", "toNodeId": "cx-fail" }
+      ],
+      "viewport": { "x": 0, "y": 0, "zoom": 0.9 }
+    }
+  ]
+}

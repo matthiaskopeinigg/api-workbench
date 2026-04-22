@@ -18,6 +18,8 @@ import { snapshotKey } from '@models/testing/test-suite';
 import { CollectionService } from './collection.service';
 import { TestArtifactService } from './test-artifact.service';
 import { SettingsService } from './settings.service';
+import { EnvironmentsService } from './environments.service';
+import { buildWorkspaceVariableMap, substituteVariables } from './env-substitute';
 import type { Certificate } from '@models/settings';
 import type { IpcHttpRequest } from '@models/ipc-http-request';
 import { diffJson, diffText } from './json-diff';
@@ -37,6 +39,8 @@ interface RawResponse {
 interface RunOptions {
   fromCaseId?: string;
   onlyCaseId?: string;
+  /** When set, use this environment for `{{var}}` in requests; otherwise workspace default. */
+  environmentId?: string | null;
 }
 
 /**
@@ -46,8 +50,8 @@ interface RunOptions {
  * cases can extract values used by later ones.
  *
  * Design notes:
- * - We do NOT touch the global environment. Suite variables live in their
- *   own bag; promoting them to the env is an explicit follow-up.
+ * - Active workspace environment variables are merged in first; suite-level
+ *   `variables` override on key collision (same as load tests using the env).
  * - Cases run sequentially. Parallel suites are out of scope for the MVP
  *   (failure ordering and shared-variable semantics get hairy).
  */
@@ -61,6 +65,7 @@ export class TestSuiteRunnerService {
     private artifacts: TestArtifactService,
     private zone: NgZone,
     private settings: SettingsService,
+    private environments: EnvironmentsService,
   ) {}
 
   onCaseResult() { return this.results$.asObservable(); }
@@ -81,9 +86,10 @@ export class TestSuiteRunnerService {
 
   async run(suite: TestSuiteArtifact, opts: RunOptions = {}): Promise<SuiteRunResult> {
     await this.settings.loadSettings();
+    await this.environments.loadEnvironments();
     const startedAt = Date.now();
     const cases = this.pickCases(suite, opts);
-    const variables = new Map<string, string>(suite.variables.map((v) => [v.key, v.value] as [string, string]));
+    const variables = this.buildRunVariables(suite, opts.environmentId);
     const caseResults: CaseRunResult[] = [];
     let overall: AssertionStatus = 'pass';
 
@@ -139,6 +145,17 @@ export class TestSuiteRunnerService {
     };
     this.zone.run(() => this.finished$.next(result));
     return result;
+  }
+
+  /** Active environment first, then suite `variables` (suite wins on duplicate keys). */
+  private buildRunVariables(suite: TestSuiteArtifact, runEnvironmentId?: string | null): Map<string, string> {
+    const m = buildWorkspaceVariableMap(this.environments, {
+      environmentId: runEnvironmentId == null || runEnvironmentId === '' ? undefined : runEnvironmentId,
+    });
+    for (const v of suite.variables) {
+      m.set(v.key, v.value);
+    }
+    return m;
   }
 
   private pickCases(suite: TestSuiteArtifact, opts: RunOptions): TestCase[] {
@@ -225,17 +242,17 @@ export class TestSuiteRunnerService {
 
     if (tc.target.kind === 'inline') {
       method = tc.target.method || 'GET';
-      url = applyVars(tc.target.url, variables);
-      headersList = (tc.target.headers || []).map((h) => ({ key: h.key, value: applyVars(h.value || '', variables) }));
-      body = tc.target.body != null ? applyVars(tc.target.body, variables) : undefined;
+      url = substituteVariables(tc.target.url, variables);
+      headersList = (tc.target.headers || []).map((h) => ({ key: h.key, value: substituteVariables(h.value || '', variables) }));
+      body = tc.target.body != null ? substituteVariables(tc.target.body, variables) : undefined;
     } else {
       const req = this.collections.findRequestById(tc.target.requestId);
       if (!req) return null;
       method = HttpMethod[req.httpMethod] || 'GET';
-      url = applyVars(req.url || '', variables);
+      url = substituteVariables(req.url || '', variables);
       headersList = (req.httpHeaders || [])
         .filter((h) => h.enabled !== false && !!h.key)
-        .map((h) => ({ key: h.key, value: applyVars(h.value || '', variables) }));
+        .map((h) => ({ key: h.key, value: substituteVariables(h.value || '', variables) }));
       body = extractBodyString(req, variables);
       per = {
         verifySsl: req.settings?.verifySsl,
@@ -443,19 +460,11 @@ export class TestSuiteRunnerService {
   }
 }
 
-function applyVars(input: string, vars: Map<string, string>): string {
-  if (!input) return input;
-  return input.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (full, name) => {
-    const v = vars.get(name);
-    return v == null ? full : v;
-  });
-}
-
 function extractBodyString(req: RequestModel, vars: Map<string, string>): string | undefined {
   if (req.body && typeof req.body === 'object' && typeof req.body.raw === 'string') {
-    return applyVars(req.body.raw, vars);
+    return substituteVariables(req.body.raw, vars);
   }
-  if (typeof req.requestBody === 'string' && req.requestBody) return applyVars(req.requestBody, vars);
+  if (typeof req.requestBody === 'string' && req.requestBody) return substituteVariables(req.requestBody, vars);
   return undefined;
 }
 

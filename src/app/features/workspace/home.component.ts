@@ -6,7 +6,9 @@ import { TabComponent } from './tab/tab.component';
 import { CollectionService } from '@core/collection.service';
 import { FileDialogService } from '@core/file-dialog.service';
 import { ImportIntentsService } from '@core/import-intents.service';
+import { BatchImportDialogService } from '@core/batch-import-dialog.service';
 import { ImportService } from '@core/import.service';
+import type { ReadImportFolderOptions } from '@models/file-dialog';
 import { Collection } from '@models/collection';
 import { v4 as uuidv4 } from 'uuid';
 import { SidebarComponent } from './sidebar/sidebar.component';
@@ -50,6 +52,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   constructor(
     private collectionService: CollectionService,
     private importService: ImportService,
+    private batchImportDialog: BatchImportDialogService,
     private fileDialogService: FileDialogService,
     private importIntents: ImportIntentsService,
     private cdr: ChangeDetectorRef,
@@ -59,6 +62,12 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.importIntents.postman$().pipe(takeUntil(this.destroy$)).subscribe(() => this.importPostman());
     this.importIntents.openApi$().pipe(takeUntil(this.destroy$)).subscribe(() => this.importOpenApi());
     this.importIntents.curl$().pipe(takeUntil(this.destroy$)).subscribe(() => this.openCurlModal());
+    this.importIntents.importBatchFiles$()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => { void this.importManyFilesFromPicker(); });
+    this.importIntents.importFromFolder$()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((opts) => { void this.importFromFolderWithOptions(opts); });
   }
 
   ngOnDestroy(): void {
@@ -92,6 +101,39 @@ export class HomeComponent implements OnInit, OnDestroy {
       },
       'OpenAPI definition',
     );
+  }
+
+  /**
+   * Multi-select: opens the batch import review dialog (Postman, OpenAPI,
+   * Workbench, HAR, Insomnia, YAML).
+   */
+  async importManyFilesFromPicker(): Promise<void> {
+    const res = await this.fileDialogService.openFiles(['json', 'yaml', 'yml', 'har']);
+    if (res == null) return;
+    if (!res.files.length) {
+      this.showToast('No files selected', 'error');
+      return;
+    }
+    this.batchImportDialog.startPreview(res.files);
+  }
+
+  /**
+   * Folder import. `options` from the command palette can enable recursion.
+   */
+  async importFromFolderWithOptions(options?: ReadImportFolderOptions): Promise<void> {
+    const res = await this.fileDialogService.readImportFolder({
+      extensions: ['json', 'yaml', 'yml', 'har'],
+      maxFiles: 500,
+      recursive: false,
+      maxDepth: 0,
+      ...options,
+    });
+    if (res == null) return;
+    if (!res.files.length) {
+      this.showToast('No matching import files in that folder', 'error');
+      return;
+    }
+    this.batchImportDialog.startPreview(res.files);
   }
 
   private async runImport(

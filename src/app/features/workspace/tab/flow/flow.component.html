@@ -9,11 +9,17 @@
         placeholder="Untitled flow" />
       <span class="updated">Updated {{ artifact.updatedAt | date:'short' }}</span>
     </div>
+    <div class="header-end">
+    <app-run-environment-select
+      [value]="runEnvironmentId"
+      (valueChange)="onRunEnvironmentChange($event)"
+    />
     <div class="actions">
       <button type="button" class="btn" [disabled]="!running" (click)="cancelFlow()">Cancel</button>
       <button type="button" class="btn primary" [disabled]="running" (click)="runFlow()">
         {{ running ? 'Running…' : 'Run Flow' }}
       </button>
+    </div>
     </div>
   </header>
 
