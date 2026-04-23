@@ -91,7 +91,8 @@
       "icon": "public/icon.icns"
     },
     "releaseInfo": {
-      "releaseName": "v${version}"
+      "releaseName": "v${version}",
+      "releaseNotesFile": "CHANGELOG.md"
     },
     "publish": [
       {

@@ -18,15 +18,15 @@ Do **not** use long-lived feature branches on the remote for release history; us
 
 ## Tags
 
-- One **annotated** Git tag per release: **`v` + version**, e.g. `v1.0.0`, `v1.0.1`, `v2.0.0` (matches the [Build/Release workflow](workflows/release.yml) filter `v*`).
+- One Git tag per release: **`v` + version**, e.g. `v1.0.0`, `v1.0.1`, `v2.0.0` (matches the [Build/Release workflow](workflows/release.yml) filter `v*`). Use **annotated** tags for stable GA (`git tag -a …`); **lightweight** tags are fine for moving snapshot lines (e.g. `v1.1.0-SNAPSHOT` updated with `git tag -f` + `git push -f` when you intentionally replace the snapshot build).
 - Create the tag **on the commit** that already contains the bumped `package.json` version for that release.
-- Tags are **immutable**: to replace a broken release, delete the remote tag and the GitHub Release, then re-create the tag on the correct commit (force-push tag only when intentional).
+- Tags are **immutable** for GA: to replace a broken release, delete the remote tag and the GitHub Release, then re-create the tag on the correct commit (force-push tag only when intentional). Snapshot tags may be **force-moved** on purpose to match Spring-style republish semantics.
 
 ## GitHub Releases
 
-- Pushing a `v*` tag runs **Build/Release** after **lint + tests** succeed; **electron-builder** publishes installers and update metadata to that GitHub Release.
+- Pushing a `v*` tag runs **Build/Release** after **lint + tests** succeed; **electron-builder** publishes installers and update metadata to that GitHub Release. The release **description** is filled from root [`CHANGELOG.md`](../CHANGELOG.md) via `build.releaseInfo.releaseNotesFile` in `package.json` (keep that file updated for each version).
 - Prefer **full** releases for GA; use GitHub’s **“Set as the latest release”** / non–pre-release for stable channels.
-- Release notes: summarize changes since the previous tag (Spring Boot publishes detailed notes per version; we can grow into that over time).
+- Release notes: add a section to the root [`CHANGELOG.md`](../CHANGELOG.md) (Keep a Changelog) for each version, then paste that section into the GitHub Release body (or point readers to the file on `main` / the release branch).
 
 ## Typical flows
 

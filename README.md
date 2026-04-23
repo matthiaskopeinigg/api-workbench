@@ -54,6 +54,7 @@ Everything stays on your machine. No cloud sync, no account sign-up, no telemetr
 
 ## Documentation
 
+- **Changelog / release notes:** [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog; copy sections into GitHub Releases when publishing).
 - **GitHub Wiki (full guide):** [github.com/matthiaskopeinigg/api-workbench/wiki](https://github.com/matthiaskopeinigg/api-workbench/wiki)  
   — environments, `{{variables}}`, `$` placeholders, features overview, and roadmap.
 - **Wiki source in this repository:** [`docs/wiki/`](docs/wiki/) (Markdown to copy into the wiki or to browse offline). Start with [`docs/wiki/README.md`](docs/wiki/README.md) for how to publish.
