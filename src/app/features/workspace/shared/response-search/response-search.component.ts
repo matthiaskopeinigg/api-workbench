@@ -42,85 +42,9 @@ export interface ResponseSearchOptions {
   standalone: true,
   imports: [CommonModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="response-search" *ngIf="isOpen" role="search">
-      <input #searchInput class="rs-input" type="text"
-             [(ngModel)]="query"
-             (ngModelChange)="onQueryChange()"
-             (keydown.enter)="navigate($event, 1)"
-             (keydown.shift.enter)="navigate($event, -1)"
-             (keydown.escape)="close.emit()"
-             placeholder="Find in response…"
-             aria-label="Find in response" />
-      <span class="rs-count" [class.rs-count-none]="matches.length === 0">
-        <ng-container *ngIf="matches.length === 0">{{ query ? '0 results' : '' }}</ng-container>
-        <ng-container *ngIf="matches.length > 0">{{ activeIndex + 1 }} / {{ matches.length }}</ng-container>
-      </span>
-      <button type="button" class="rs-btn" (click)="toggleCase()"
-              [class.rs-btn-on]="options.caseSensitive"
-              title="Match case">Aa</button>
-      <button type="button" class="rs-btn" (click)="toggleRegex()"
-              [class.rs-btn-on]="options.regex"
-              title="Regular expression">.*</button>
-      <button type="button" class="rs-btn" (click)="navigate($event, -1)"
-              [disabled]="matches.length === 0" title="Previous">↑</button>
-      <button type="button" class="rs-btn" (click)="navigate($event, 1)"
-              [disabled]="matches.length === 0" title="Next">↓</button>
-      <button type="button" class="rs-btn" (click)="close.emit()" title="Close">×</button>
-    </div>
-  `,
-  styles: [`
-    :host { display: contents; }
-    .response-search {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 6px;
-      background: color-mix(in srgb, var(--surface, var(--aw-bg)), #000 4%);
-      border: 1px solid color-mix(in srgb, var(--border-color), transparent 40%);
-      border-radius: var(--aw-radius-sm, 6px);
-      font-size: 12px;
-    }
-    .rs-input {
-      flex: 1;
-      min-width: 140px;
-      border: 0;
-      background: transparent;
-      color: var(--text-color);
-      font: inherit;
-      outline: none;
-      padding: 4px 2px;
-    }
-    .rs-count {
-      font-size: 11px;
-      color: color-mix(in srgb, var(--text-color), transparent 40%);
-      min-width: 56px;
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      &.rs-count-none { color: color-mix(in srgb, #c33, transparent 40%); }
-    }
-    .rs-btn {
-      appearance: none;
-      border: 1px solid transparent;
-      background: transparent;
-      color: color-mix(in srgb, var(--text-color), transparent 25%);
-      padding: 3px 7px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      &:hover:not([disabled]) {
-        background: color-mix(in srgb, var(--text-color), transparent 90%);
-        color: var(--text-color);
-      }
-      &[disabled] { opacity: 0.4; cursor: default; }
-      &.rs-btn-on {
-        background: color-mix(in srgb, var(--primary-color, #49f), transparent 75%);
-        color: var(--primary-color, #49f);
-        border-color: color-mix(in srgb, var(--primary-color, #49f), transparent 60%);
-      }
-    }
-  `]
+  templateUrl: './response-search.component.html',
+
+  styleUrl: './response-search.component.scss',
 })
 export class ResponseSearchComponent implements OnChanges {
   @Input() isOpen = false;

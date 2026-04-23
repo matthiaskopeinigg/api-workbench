@@ -43,40 +43,9 @@ const PAD = { l: 36, r: 12, t: 6, b: 20 };
   standalone: true,
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="ts-wrap">
-      <div class="ts-legend" *ngIf="series.length">
-        <span *ngFor="let s of series" class="legend-item">
-          <span class="dot" [style.background]="s.color"></span>{{ s.label }}
-        </span>
-      </div>
-      <canvas
-        #canvas
-        (mousedown)="onDown($event)"
-        (mousemove)="onMove($event)"
-        (mouseup)="onUp($event)"
-        (mouseleave)="onLeave($event)"
-        (dblclick)="onDbl($event)"></canvas>
-      <p class="ts-hint" *ngIf="enableBrush && showBrushHint">Drag to select a time range · Double-click to reset</p>
-    </div>
-  `,
-  styles: [`
-    :host { display: block; height: 100%; }
-    .ts-wrap { display: flex; flex-direction: column; gap: 4px; height: 100%; }
-    canvas { width: 100%; height: 100%; display: block; flex: 1 1 auto; touch-action: none; cursor: crosshair; }
-    .ts-legend {
-      display: flex; flex-wrap: wrap; gap: 12px;
-      font-size: 11px; color: color-mix(in srgb, var(--text-color), transparent 45%);
-    }
-    .legend-item { display: inline-flex; align-items: center; gap: 5px; }
-    .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
-    .ts-hint {
-      margin: 0;
-      font-size: 10px;
-      color: color-mix(in srgb, var(--text-color), transparent 45%);
-      flex: 0 0 auto;
-    }
-  `],
+  templateUrl: './time-series-chart.component.html',
+
+  styleUrl: './time-series-chart.component.scss',
 })
 export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;

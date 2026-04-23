@@ -13,81 +13,9 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from '@angular/f
             multi: true
         }
     ],
-    template: `
-    <div class="input-container" [class.has-label]="label">
-      <label *ngIf="label" [for]="id">{{ label }}</label>
-      <div class="input-wrapper">
-        <span *ngIf="icon" class="input-icon">{{ icon }}</span>
-        <input
-          [id]="id"
-          [type]="type"
-          [placeholder]="placeholder"
-          [disabled]="disabled"
-          [value]="value"
-          (input)="onInput($event)"
-          (blur)="onTouched()"
-          [class.has-icon]="icon"
-        />
-      </div>
-    </div>
-  `,
-    styles: [`
-    .input-container {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      width: 100%;
-      font-family: inherit;
-    }
+    templateUrl: './input.component.html',
 
-    label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-color);
-      opacity: 0.8;
-    }
-
-    .input-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    input {
-      width: 100%;
-      padding: 8px 12px;
-      font-size: 14px;
-      background-color: var(--surface);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      color: var(--text-color);
-      transition: all var(--transition-fast);
-      outline: none;
-
-      &.has-icon {
-        padding-left: 32px;
-      }
-
-      &:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
-      }
-
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        background-color: rgba(0,0,0,0.05);
-      }
-    }
-
-    .input-icon {
-      position: absolute;
-      left: 10px;
-      pointer-events: none;
-      color: var(--text-color);
-      opacity: 0.5;
-    }
-  `]
+    styleUrl: './input.component.scss',
 })
 export class InputComponent implements ControlValueAccessor {
     @Input() label = '';

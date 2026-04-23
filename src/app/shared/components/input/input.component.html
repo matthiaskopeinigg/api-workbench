@@ -1,0 +1,17 @@
+    <div class="input-container" [class.has-label]="label">
+      <label *ngIf="label" [for]="id">{{ label }}</label>
+      <div class="input-wrapper">
+        <span *ngIf="icon" class="input-icon">{{ icon }}</span>
+        <input
+          [id]="id"
+          [type]="type"
+          [placeholder]="placeholder"
+          [disabled]="disabled"
+          [value]="value"
+          (input)="onInput($event)"
+          (blur)="onTouched()"
+          [class.has-icon]="icon"
+        />
+      </div>
+    </div>
+  

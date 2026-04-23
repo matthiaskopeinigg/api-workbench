@@ -1,0 +1,190 @@
+    :host {
+      display: block;
+      width: 100%;
+    }
+
+    .variable-input-container {
+      position: relative;
+      width: 100%;
+      height: 36px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    .variable-input-container.suggest-open {
+      overflow: visible;
+      z-index: 20;
+    }
+
+    .dollar-suggest-panel {
+      position: fixed;
+      z-index: 10001;
+      margin-top: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+      background: var(--surface, #1e1e1e);
+      border: 1px solid var(--border-color, #333);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 12rem;
+    }
+
+    .dollar-suggest-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      width: 100%;
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: transparent;
+      color: var(--text-color);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .dollar-suggest-item:hover,
+    .dollar-suggest-item.active {
+      background: color-mix(in srgb, var(--secondary-color), transparent 80%);
+    }
+
+    .dollar-suggest-label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: var(--secondary-color, #4fc3f7);
+    }
+
+    .dollar-suggest-desc {
+      font-size: 10px;
+      color: color-mix(in srgb, var(--text-color), transparent 40%);
+      max-width: 20rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .variable-input-container:focus-within {
+      border-color: var(--secondary-color);
+    }
+
+    input, .backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 34px;
+      box-sizing: border-box;
+      padding: 0 12px;
+      padding-right: 32px;
+      white-space: pre;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: none;
+      background: transparent;
+      outline: none;
+      text-align: left;
+      letter-spacing: normal;
+      word-spacing: normal;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    input {
+      color: var(--text-color);
+      z-index: 2;
+      scrollbar-width: none;
+      
+      &[type="text"] {
+        color: transparent !important;
+        -webkit-text-fill-color: transparent;
+      }
+    }
+
+    input::-webkit-scrollbar { display: none; }
+
+    .backdrop {
+      z-index: 1;
+      pointer-events: none;
+      color: var(--text-color);
+      display: block; 
+      scrollbar-width: none;
+    }
+
+    .backdrop::-webkit-scrollbar { display: none; }
+
+    .variable-highlight {
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
+      color: var(--secondary-color);
+      border-radius: 4px;
+      font-weight: 400; 
+      box-shadow: 0 0 0 1px rgba(var(--secondary-color-rgb), 0.3);
+      padding: 1px 0;
+      transition: background-color 0.2s;
+      pointer-events: auto;
+    }
+
+    .variable-highlight.hovered {
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 70%);
+      box-shadow: 0 0 0 1px var(--secondary-color);
+    }
+
+    .path-variable {
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
+      color: var(--secondary-color);
+      border-radius: 4px;
+      font-weight: 400;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--secondary-color), transparent 80%);
+      padding: 1px 0;
+      transition: background-color 0.2s;
+      pointer-events: auto;
+    }
+
+    .path-variable.hovered {
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 70%);
+      box-shadow: 0 0 0 1px var(--secondary-color);
+    }
+
+    .variable-tooltip {
+      position: fixed;
+      z-index: 1000;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .variable-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tooltip-content {
+      background: #1e1e1e;
+      color: #ffffff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.4;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 1px solid #333;
+      white-space: nowrap;
+      font-family: sans-serif;
+    }
+  

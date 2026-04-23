@@ -53,7 +53,7 @@ describe('CollectionComponent', () => {
     requestServiceSpy = jasmine.createSpyObj('RequestService', ['getSelectedRequestAsObservable', 'selectRequest']);
     tabServiceSpy = jasmine.createSpyObj('TabService', ['getSelectedTab']);
     settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings']);
-    viewStateServiceSpy = jasmine.createSpyObj('ViewStateService', ['clearRequestView']);
+    viewStateServiceSpy = jasmine.createSpyObj('ViewStateService', ['clearRequestView', 'clearFolderView']);
 
     collectionServiceSpy.getCollectionsObservable.and.returnValue(of(mockCollections));
     collectionServiceSpy.getCollections.and.returnValue(mockCollections);

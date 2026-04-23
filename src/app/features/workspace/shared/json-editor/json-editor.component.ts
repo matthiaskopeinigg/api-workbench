@@ -6,34 +6,9 @@ import { CodeEditorComponent, EditorLanguage } from '../code-editor/code-editor.
   standalone: true,
   imports: [CodeEditorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="wrap" [style.minHeight.px]="minHeight" [style.maxHeight.px]="maxHeight">
-      <app-code-editor
-        [language]="editorType === 'javascript' ? 'javascript' : 'json'"
-        [content]="jsonString"
-        (contentChange)="jsonChange.emit($event)"
-        [readonly]="readonly"
-        [activeVariables]="activeVariables"
-        [hideToolbar]="true"
-      />
-    </div>
-  `,
-  styles: [
-    `
-      :host {
-        display: flex;
-        flex: 1;
-        flex-direction: column;
-        min-height: 0;
-      }
-      .wrap {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-      }
-    `,
-  ],
+  templateUrl: './json-editor.component.html',
+
+  styleUrl: './json-editor.component.scss',
 })
 export class JsonEditorComponent {
   @Input() editorType: 'json' | 'javascript' = 'json';

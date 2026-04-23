@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
 import { CodeEditorComponent } from './code-editor.component';
 
 describe('CodeEditorComponent', () => {
@@ -80,6 +80,23 @@ describe('CodeEditorComponent', () => {
     expect(component.highlightedContent).toContain('token-number');
   });
 
+  it('updateHighlighting should produce js token markup for javascript', () => {
+    component.language = 'javascript';
+    component.innerContent = 'const x = 1;';
+    component.updateHighlighting();
+    expect(component.highlightedContent).toContain('data-tok="k"');
+    expect(component.highlightedContent).toContain('data-tok="n"');
+  });
+
+  it('updateHighlighting should not corrupt empty string pairs with keyword spans', () => {
+    component.language = 'javascript';
+    component.innerContent = 'pm.session.set("", "");';
+    component.updateHighlighting();
+    expect(component.highlightedContent).toContain('data-tok="s"');
+    expect(component.highlightedContent).not.toContain('data-tok="k">class');
+    expect(component.highlightedContent).not.toMatch(/<span data-tok="k">class<\/span>/);
+  });
+
   it('updateHighlighting should wrap $uuid in variable-highlight in JSON', () => {
     component.innerContent = '"trace-$uuid"';
     component.language = 'json';
@@ -118,4 +135,91 @@ describe('CodeEditorComponent', () => {
     expect(component.innerContent).toContain('y');
   });
 
+  it('ngOnInit should strip class="token-…"> leak from saved javascript and emit', fakeAsync(() => {
+    component.language = 'javascript';
+    component.content = 'pm.session.set(class="token-string">"");';
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    component.ngOnInit();
+    flushMicrotasks();
+    expect(component.innerContent).toBe('pm.session.set("");');
+    expect(spy).toHaveBeenCalledWith('pm.session.set("");');
+  }));
+
+  it('ngOnChanges should strip leak when parent content matches corrupted innerContent', fakeAsync(() => {
+    component.language = 'javascript';
+    const dirty = 'pm.session.set(class="token-string">"")';
+    component.content = dirty;
+    component.innerContent = dirty;
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    component.ngOnChanges();
+    flushMicrotasks();
+    expect(component.innerContent).toBe('pm.session.set("")');
+    expect(spy).toHaveBeenCalledWith('pm.session.set("")');
+  }));
+
+  it('ngOnChanges should strip JS leak while textarea is focused', fakeAsync(() => {
+    component.language = 'javascript';
+    const dirty = 'pm.session.set(class="token-string">"");';
+    component.content = dirty;
+    fixture.detectChanges();
+    const ta = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    ta.focus();
+    expect(document.activeElement).toBe(ta);
+    component.innerContent = dirty;
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    component.ngOnChanges();
+    flushMicrotasks();
+    expect(component.innerContent).toBe('pm.session.set("");');
+    expect(spy).toHaveBeenCalledWith('pm.session.set("");');
+  }));
+
+  it('updateHighlighting should strip JS leak in innerContent and emit', fakeAsync(() => {
+    component.language = 'javascript';
+    component.innerContent = 'x(class="token-string">)y';
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    component.updateHighlighting();
+    flushMicrotasks();
+    expect(component.innerContent).not.toMatch(/class="token-/);
+    expect(spy).toHaveBeenCalled();
+  }));
+
+  it('javascript should not auto-close quote after ;)]}, (caret after delimiter)', () => {
+    component.language = 'javascript';
+    const v = 'foo();';
+    const should = (component as unknown as { shouldAutoCloseQuote: (a: string, b: number, c: number, d: string) => boolean })
+      .shouldAutoCloseQuote;
+    expect(should.call(component, '"', 6, 6, v)).toBe(false);
+  });
+
+  it('javascript should auto-close double-quote after (', () => {
+    component.language = 'javascript';
+    component.content = 'foo(';
+    component.innerContent = 'foo(';
+    fixture.detectChanges();
+    const ta = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+    ta.setSelectionRange(4, 4);
+    const ev = new KeyboardEvent('keydown', { key: '"', bubbles: true, cancelable: true });
+    const pd = spyOn(ev, 'preventDefault');
+    component.handleKeydown(ev);
+    expect(pd).toHaveBeenCalled();
+  });
+
+  it('applyCompletion should not append when identifier prefix is empty after statement', () => {
+    component.language = 'javascript';
+    component.scriptAutocomplete = true;
+    component.innerContent = 'foo();';
+    const end = 'foo();'.length;
+    const fakeTa = {
+      selectionStart: end,
+      selectionEnd: end,
+      focus: () => {},
+      setSelectionRange: jasmine.createSpy('setSelectionRange'),
+    } as unknown as HTMLTextAreaElement;
+    component.applyCompletion({ label: 'z', insert: 'BAR()' }, fakeTa);
+    expect(component.innerContent).toBe('foo();');
+  });
 });

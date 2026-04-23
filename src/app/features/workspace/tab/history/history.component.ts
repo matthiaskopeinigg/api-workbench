@@ -23,14 +23,6 @@ interface CollapsedSections {
   styleUrl: './history.component.scss',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
-    }
-  `]
 })
 export class HistoryComponent implements OnInit, OnChanges {
   @Input() tab!: TabItem;

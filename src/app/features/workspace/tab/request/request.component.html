@@ -625,7 +625,7 @@
         <div class="script-block">
           <app-code-editor [content]="request.script.preRequest || ''"
             (contentChange)="request.script.preRequest=$event; saveRequest()" [language]="'javascript'"
-            title="Pre-request Script" [activeVariables]="activeVariables"
+            title="Pre-request Script" [activeVariables]="activeVariables" [scriptAutocomplete]="true"
             class="script-editor">
           </app-code-editor>
         </div>
@@ -633,7 +633,7 @@
         <div class="script-block">
           <app-code-editor [content]="request.script.postRequest || ''"
             (contentChange)="request.script.postRequest=$event; saveRequest()" [language]="'javascript'"
-            title="Post-request Script" [activeVariables]="activeVariables"
+            title="Post-request Script" [activeVariables]="activeVariables" [scriptAutocomplete]="true"
             class="script-editor">
           </app-code-editor>
         </div>

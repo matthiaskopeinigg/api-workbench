@@ -5,6 +5,7 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   OnDestroy,
@@ -15,6 +16,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DYNAMIC_BARE_RE, DYNAMIC_BRACED_RE, DYNAMIC_PLACEHOLDER_TOOLTIPS } from '@core/placeholders/dynamic-placeholders';
+import { CodeJsHighlightMirrorComponent } from './code-js-highlight-mirror.component';
+import { SafeHtmlPipe } from '@shared-app/pipes/safe-html.pipe';
 
 export type EditorLanguage =
   | 'json'
@@ -25,277 +28,84 @@ export type EditorLanguage =
   | 'graphql'
   | 'python';
 
+/** Suggestions for pre/post request scripts (Ctrl+Space). */
+export interface ScriptCompletionItem {
+  label: string;
+  insert: string;
+  detail?: string;
+}
+
+const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
+  { label: 'console.log()', insert: 'console.log()', detail: 'Log to the script console' },
+  { label: 'console.info()', insert: 'console.info()', detail: 'Info log' },
+  { label: 'console.warn()', insert: 'console.warn()', detail: 'Warning log' },
+  { label: 'console.error()', insert: 'console.error()', detail: 'Error log' },
+  { label: 'pm.environment.get()', insert: 'pm.environment.get("")', detail: 'Read environment variable' },
+  { label: 'pm.environment.set()', insert: 'pm.environment.set("", "")', detail: 'Set environment variable' },
+  { label: 'pm.environment.unset()', insert: 'pm.environment.unset("")', detail: 'Remove environment variable' },
+  { label: 'pm.environment.has()', insert: 'pm.environment.has("")', detail: 'True if key exists' },
+  { label: 'pm.environment.toObject()', insert: 'pm.environment.toObject()', detail: 'Copy of environment' },
+  { label: 'pm.globals.get()', insert: 'pm.globals.get("")', detail: 'Read global variable' },
+  { label: 'pm.globals.set()', insert: 'pm.globals.set("", "")', detail: 'Set global variable' },
+  { label: 'pm.globals.unset()', insert: 'pm.globals.unset("")', detail: 'Remove global variable' },
+  { label: 'pm.globals.has()', insert: 'pm.globals.has("")', detail: 'True if key exists' },
+  { label: 'pm.globals.toObject()', insert: 'pm.globals.toObject()', detail: 'Copy of globals' },
+  { label: 'pm.variables.get()', insert: 'pm.variables.get("")', detail: 'Collection variable' },
+  { label: 'pm.variables.set()', insert: 'pm.variables.set("", "")', detail: 'Set collection variable' },
+  { label: 'pm.variables.unset()', insert: 'pm.variables.unset("")', detail: 'Unset collection variable' },
+  { label: 'pm.variables.has()', insert: 'pm.variables.has("")', detail: 'True if key exists' },
+  { label: 'pm.variables.toObject()', insert: 'pm.variables.toObject()', detail: 'Copy of collection vars' },
+  { label: 'pm.collectionVariables.get()', insert: 'pm.collectionVariables.get("")', detail: 'Alias of pm.variables' },
+  { label: 'pm.collectionVariables.set()', insert: 'pm.collectionVariables.set("", "")', detail: 'Alias of pm.variables' },
+  { label: 'pm.session.get()', insert: 'pm.session.get("")', detail: 'App session / login token store' },
+  { label: 'pm.session.set()', insert: 'pm.session.set("", "")', detail: 'Set session value' },
+  { label: 'pm.session.unset()', insert: 'pm.session.unset("")', detail: 'Remove session key' },
+  { label: 'pm.session.has()', insert: 'pm.session.has("")', detail: 'True if key exists' },
+  { label: 'pm.session.toObject()', insert: 'pm.session.toObject()', detail: 'Copy of session' },
+  { label: 'pm.request.method', insert: 'pm.request.method', detail: 'HTTP method' },
+  { label: 'pm.request.url', insert: 'pm.request.url', detail: 'Request URL object' },
+  { label: 'pm.request.url.raw', insert: 'pm.request.url.raw', detail: 'URL string' },
+  { label: 'pm.request.url.toString()', insert: 'pm.request.url.toString()', detail: 'URL string' },
+  { label: 'pm.request.headers.get()', insert: 'pm.request.headers.get("")', detail: 'Request header value' },
+  { label: 'pm.request.headers.all()', insert: 'pm.request.headers.all()', detail: 'All request headers' },
+  { label: 'pm.request.body', insert: 'pm.request.body', detail: 'Request body' },
+  { label: 'pm.response', insert: 'pm.response', detail: 'Response (post-request only)' },
+  { label: 'pm.response.code', insert: 'pm.response.code', detail: 'HTTP status code' },
+  { label: 'pm.response.status', insert: 'pm.response.status', detail: 'Status text' },
+  { label: 'pm.response.responseTime', insert: 'pm.response.responseTime', detail: 'Elapsed ms' },
+  { label: 'pm.response.responseSize', insert: 'pm.response.responseSize', detail: 'Body size' },
+  { label: 'pm.response.text()', insert: 'pm.response.text()', detail: 'Body as string' },
+  { label: 'pm.response.json()', insert: 'pm.response.json()', detail: 'Parse body as JSON' },
+  { label: 'pm.response.headers.get()', insert: 'pm.response.headers.get("")', detail: 'Response header' },
+  { label: 'pm.response.headers.has()', insert: 'pm.response.headers.has("")', detail: 'True if header present' },
+  { label: 'pm.response.headers.all()', insert: 'pm.response.headers.all()', detail: 'All response headers' },
+  { label: 'pm.response.to.have.status()', insert: 'pm.response.to.have.status(200)', detail: 'Assert status code' },
+  { label: 'pm.response.to.have.header()', insert: 'pm.response.to.have.header("")', detail: 'Assert header exists' },
+  { label: 'pm.response.to.have.body()', insert: 'pm.response.to.have.body("")', detail: 'Assert body contains' },
+  { label: 'pm.response.to.be.ok()', insert: 'pm.response.to.be.ok()', detail: 'Assert 2xx status' },
+  { label: 'pm.test()', insert: "pm.test('name', () => {\n  \n});", detail: 'Named test block' },
+  { label: 'pm.expect()', insert: 'pm.expect()', detail: 'Assertion chain' },
+  { label: 'expect()', insert: 'expect()', detail: 'Top-level assertion (same as pm.expect)' },
+  { label: 'pm.sendRequest()', insert: "pm.sendRequest('', (err, res) => {\n  \n});", detail: 'Fire nested HTTP request' },
+  { label: 'JSON.parse()', insert: 'JSON.parse()', detail: 'Parse JSON string' },
+  { label: 'JSON.stringify()', insert: 'JSON.stringify(, null, 2)', detail: 'Serialize to JSON' },
+  { label: 'url.parse()', insert: 'url.parse()', detail: 'Node url module' },
+  { label: 'crypto.randomUUID()', insert: 'crypto.randomUUID()', detail: 'Random UUID' },
+  { label: 'Buffer.from()', insert: 'Buffer.from("")', detail: 'Create buffer' },
+];
+
 @Component({
   selector: 'app-code-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CodeJsHighlightMirrorComponent, SafeHtmlPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="code-editor-container" [class.readonly]="readonly" [class.no-toolbar]="hideToolbar">
-      <div class="editor-toolbar" *ngIf="!hideToolbar && (!readonly || title)">
-        <div class="header-left">
-          <span class="editor-title" *ngIf="title">{{ title }}</span>
-          <div class="language-badge">{{ language.toUpperCase() }}</div>
-        </div>
-        <div class="actions">
-          <button type="button" class="action-btn" (click)="formatCode()" title="Format">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
-            </svg>
-            Format
-          </button>
-          <button type="button" class="action-btn" (click)="copyToClipboard()" title="Copy">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            Copy
-          </button>
-        </div>
-      </div>
-      <div class="editor-wrapper">
-        <div class="line-numbers" #lineNumbers>
-          <div class="line-number" *ngFor="let _ of lines; let i = index">{{ i + 1 }}</div>
-        </div>
-        <div class="code-container">
-          <textarea
-            #textarea
-            [class.readonly]="readonly"
-            [readonly]="readonly"
-            [(ngModel)]="innerContent"
-            (ngModelChange)="onContentChange($event)"
-            (scroll)="syncScroll()"
-            (keydown)="handleKeydown($event)"
-            spellcheck="false"
-            autocomplete="off"
-            autocorrect="off"
-            class="code-input"
-          ></textarea>
-          <pre #preBlock class="code-output" aria-hidden="true"><code [innerHTML]="highlightedContent"></code></pre>
-        </div>
-      </div>
-    </div>
-  `,
-  styles: [
-    `
-    :host {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      height: 100%;
-      width: 100%;
-      min-height: 100px;
-      overflow: hidden;
-    }
-
-    .code-editor-container {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      border: 1px solid var(--aw-border, var(--border-color));
-      border-radius: var(--aw-radius-md, 8px);
-      overflow: hidden;
-      background: var(--aw-surface, var(--surface));
-
-      &.readonly {
-        background: var(--aw-surface-muted, var(--surface-alt));
-      }
-
-      &.no-toolbar {
-        border: none;
-        border-radius: 0;
-        background: transparent;
-      }
-    }
-
-    .editor-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 12px;
-      background: var(--aw-bg, var(--bg-color));
-      border-bottom: 1px solid var(--aw-border, var(--border-color));
-      user-select: none;
-      flex-shrink: 0;
-
-      .header-left {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .editor-title {
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--aw-text, var(--text-color));
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .language-badge {
-        font-size: 9px;
-        font-weight: 800;
-        color: var(--secondary-color);
-        opacity: 0.5;
-        background: color-mix(in srgb, var(--secondary-color), transparent 90%);
-        padding: 2px 6px;
-        border-radius: 4px;
-        letter-spacing: 0.5px;
-      }
-
-      .actions {
-        display: flex;
-        gap: 8px;
-
-        .action-btn {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          background: transparent;
-          border: none;
-          color: var(--aw-text, var(--text-color));
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-          padding: 4px 8px;
-          border-radius: 4px;
-          opacity: 0.7;
-          transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-
-          &:hover {
-            opacity: 1;
-            background: var(--aw-surface-muted, var(--surface-alt));
-            color: var(--secondary-color);
-          }
-        }
-      }
-    }
-
-    .editor-wrapper {
-      position: relative;
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      font-family: var(--aw-font-mono, 'Cascadia Code', 'Fira Code', Consolas, monospace);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .line-numbers {
-      width: 44px;
-      background: var(--aw-surface-muted, var(--surface-alt));
-      border-right: 1px solid var(--aw-border, var(--border-color));
-      color: var(--secondary-color);
-      text-align: right;
-      padding: 10px 8px 10px 0;
-      user-select: none;
-      overflow: hidden;
-      flex-shrink: 0;
-
-      .line-number {
-        height: 1.5em;
-        font-size: 11px;
-        opacity: 0.55;
-      }
-    }
-
-    .code-container {
-      position: relative;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    textarea.code-input,
-    pre.code-output {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 10px;
-      border: none;
-      font-family: inherit;
-      font-size: inherit;
-      font-style: normal;
-      font-weight: 400;
-      line-height: inherit;
-      white-space: pre;
-      overflow: auto;
-      box-sizing: border-box;
-      tab-size: 2;
-      letter-spacing: normal;
-      word-spacing: normal;
-      font-feature-settings: 'liga' 0, 'calt' 0;
-      font-variant-ligatures: none;
-      scrollbar-gutter: stable;
-    }
-
-    textarea.code-input {
-      z-index: 2;
-      color: transparent;
-      background: transparent;
-      caret-color: var(--aw-text, var(--text-color));
-      resize: none;
-      outline: none;
-    }
-
-    textarea::selection,
-    textarea.code-input::selection {
-      background: color-mix(in srgb, var(--primary-color, #0078d4), transparent 65%);
-    }
-
-    textarea.code-input:focus-visible {
-      box-shadow: inset 0 0 0 1px var(--aw-focus, color-mix(in srgb, var(--primary-color), transparent 40%));
-    }
-
-    pre.code-output {
-      z-index: 1;
-      color: var(--aw-text, var(--text-color));
-      pointer-events: none;
-    }
-
-    /* UAs set <code> to smaller / different metrics than a bare textarea; that desyncs selection from the overlay. */
-    pre.code-output code {
-      display: block;
-      width: 100%;
-      font: inherit;
-      font-size: 100%;
-      line-height: inherit;
-      font-weight: 400;
-    }
-
-    /* Must match the textarea: same font metrics on every token (no bold — it shifts glyph widths in overlays). */
-    ::ng-deep pre.code-output code .token-string { color: #ce9178; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-number { color: #b5cea8; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-boolean { color: #569cd6; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-null { color: #569cd6; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-key { color: #9cdcfe; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-punctuation { color: #d4d4d4; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-keyword { color: #c586c0; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-function { color: #dcdcaa; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-comment { color: #6a9955; font-weight: 400; }
-    ::ng-deep pre.code-output code .token-attribute { color: #9cdcfe; font-weight: 400; }
-
-    ::ng-deep .variable-highlight {
-      color: var(--secondary-color) !important;
-      background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
-      border-radius: 3px;
-      font-weight: 400;
-    }
-
-    ::ng-deep .variable-highlight-error {
-      color: #f85149 !important;
-      background-color: color-mix(in srgb, #f85149, transparent 88%);
-      border-radius: 3px;
-      font-weight: 400;
-    }
-    `,
-  ],
+  templateUrl: './code-editor.component.html',
+  styleUrl: './code-editor.component.scss',
 })
 export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @ViewChild('textarea') textarea!: ElementRef<HTMLTextAreaElement>;
-  @ViewChild('preBlock') preBlock!: ElementRef<HTMLPreElement>;
+  @ViewChild('preBlock') preBlock?: ElementRef<HTMLPreElement>;
+  @ViewChild(CodeJsHighlightMirrorComponent) jsMirror?: CodeJsHighlightMirrorComponent;
   @ViewChild('lineNumbers') lineNumbers!: ElementRef<HTMLDivElement>;
 
   @Input() language: EditorLanguage = 'json';
@@ -306,6 +116,8 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   @Input() hideToolbar = false;
   /** When true (default), JSON/XML bodies are pretty-printed after a short pause while typing. Set false for bulk plain fields. */
   @Input() autoFormat = true;
+  /** When true, Ctrl+Space / typing `pm.` opens `pm.*` completions for JavaScript scripts. */
+  @Input() scriptAutocomplete = false;
 
   @Output() contentChange = new EventEmitter<string>();
 
@@ -313,30 +125,145 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   highlightedContent = '';
   lines: number[] = [1];
 
+  completionVisible = false;
+  completionFiltered: ScriptCompletionItem[] = [];
+  completionActiveIndex = 0;
+
   private readonly autoFormatDebounceMs = 420;
   private autoFormatTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private hostRef: ElementRef<HTMLElement>,
+  ) {}
+
+  @HostListener('document:mousedown', ['$event'])
+  onDocumentMouseDown(ev: MouseEvent): void {
+    if (!this.completionVisible || !this.scriptAutocomplete) {
+      return;
+    }
+    const t = ev.target as Node | null;
+    if (t && this.hostRef.nativeElement.contains(t)) {
+      return;
+    }
+    this.closeCompletion();
+  }
 
   ngOnDestroy(): void {
     this.clearAutoFormatTimer();
   }
 
   ngOnInit(): void {
-    this.innerContent = this.content ?? '';
+    this.applyJavascriptSanitizeFromParent(this.content ?? '', true);
     this.updateHighlighting();
   }
 
   ngOnChanges(): void {
-    if (this.content !== this.innerContent && document.activeElement !== this.textarea?.nativeElement) {
-      this.innerContent = this.content ?? '';
+    const raw = this.content ?? '';
+    const taFocused = this.isTextareaFocused();
+    if (this.language === 'javascript') {
+      const leakRaw = this.jsContentLikelyContainsHighlighterLeak(raw);
+      const leakInner = this.jsContentLikelyContainsHighlighterLeak(this.innerContent ?? '');
+      /** Never skip when the model still contains overlay markup — user often stays focused here. */
+      if (leakRaw || leakInner) {
+        const baseline = leakRaw ? raw : (this.innerContent ?? '');
+        const next = this.stripPastedSyntaxHighlightMarkup(baseline);
+        this.innerContent = next;
+        if (!this.readonly && next !== raw) {
+          queueMicrotask(() => this.contentChange.emit(next));
+        }
+      } else if (raw !== this.innerContent && !taFocused) {
+        this.innerContent = raw;
+      }
+    } else if (raw !== this.innerContent && !taFocused) {
+      this.innerContent = raw;
     }
     this.updateHighlighting();
     this.cdr.markForCheck();
   }
 
+  /**
+   * Highlighter leak cleanup used to run only on keystrokes; saved scripts then kept garbage like
+   * `class="token-string">` forever. Normalize when binding loads or parent replaces `content`.
+   */
+  private applyJavascriptSanitizeFromParent(raw: string, emitIfChanged: boolean): void {
+    const next =
+      this.language === 'javascript' ? this.stripPastedSyntaxHighlightMarkup(raw) : raw;
+    this.innerContent = next;
+    if (
+      emitIfChanged &&
+      !this.readonly &&
+      this.language === 'javascript' &&
+      next !== raw
+    ) {
+      queueMicrotask(() => this.contentChange.emit(next));
+    }
+  }
+
   ngAfterViewInit(): void {
     this.syncScroll();
+  }
+
+  /** Clipboard `text/html` from the highlight layer (or the web) must never become textarea text. */
+  /** Last chance to strip highlighter HTML if it ever landed in the model while the field had focus. */
+  onTextareaBlur(): void {
+    if (this.readonly || this.language !== 'javascript') {
+      return;
+    }
+    if (this.stripJavascriptHighlighterLeakFromModel(true)) {
+      this.updateHighlighting();
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * If `innerContent` contains highlighter HTML meant for the mirror only, strip it and optionally
+   * notify the parent. Returns true when `innerContent` was changed.
+   */
+  private stripJavascriptHighlighterLeakFromModel(emitSync: boolean): boolean {
+    if (this.language !== 'javascript') {
+      return false;
+    }
+    const v = this.innerContent ?? '';
+    if (!this.jsContentLikelyContainsHighlighterLeak(v)) {
+      return false;
+    }
+    const cleaned = this.stripPastedSyntaxHighlightMarkup(v);
+    if (cleaned === v) {
+      return false;
+    }
+    this.innerContent = cleaned;
+    if (!this.readonly) {
+      if (emitSync) {
+        this.contentChange.emit(cleaned);
+      } else {
+        queueMicrotask(() => this.contentChange.emit(cleaned));
+      }
+    }
+    this.reconcileCaretAfterLengthChange(cleaned.length);
+    return true;
+  }
+
+  onPaste(ev: ClipboardEvent): void {
+    if (this.readonly) {
+      return;
+    }
+    const dt = ev.clipboardData;
+    if (!dt || !dt.types.includes('text/plain')) {
+      return;
+    }
+    ev.preventDefault();
+    const plain = dt.getData('text/plain');
+    const ta = this.textarea?.nativeElement;
+    if (!ta) {
+      return;
+    }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const value = this.innerContent ?? '';
+    this.innerContent = value.slice(0, start) + plain + value.slice(end);
+    this.queueCaret(ta, start + plain.length);
+    this.onContentChange(this.innerContent);
   }
 
   onContentChange(value: string): void {
@@ -350,6 +277,10 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
         this.updateHighlighting();
         this.scheduleAutoFormat();
         this.reconcileCaretAfterLengthChange(v.length);
+        if (this.completionVisible && this.scriptAutocomplete) {
+          this.refreshCompletionFilter();
+        }
+        this.maybeOpenCompletionAfterPmDot();
         return;
       }
     }
@@ -357,6 +288,10 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     this.contentChange.emit(v);
     this.updateHighlighting();
     this.scheduleAutoFormat();
+    if (this.completionVisible && this.scriptAutocomplete) {
+      this.refreshCompletionFilter();
+    }
+    this.maybeOpenCompletionAfterPmDot();
   }
 
   /**
@@ -368,6 +303,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     return (
       /<span/i.test(text) ||
       /<\/span/i.test(text) ||
+      /data-tok=/i.test(text) ||
       /class="token-/i.test(text) ||
       /-string">/i.test(text) ||
       /-keyword">/i.test(text) ||
@@ -396,8 +332,9 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       s = s
         .replace(/<span[^>]*>/gi, '')
         .replace(/<\/span>/gi, '')
-        .replace(/class="token-[a-z-]+"/gi, '')
-        .replace(/class="variable-highlight(-error)?"/gi, '')
+        .replace(/data-tok="[^"]*">?/gi, '')
+        .replace(/class="token-[a-z-]+">?/gi, '')
+        .replace(/class="variable-highlight(-error)?">?/gi, '')
         // Half-pasted fragments like `)n-string">` (broken `token-string">`)
         .replace(mangledClose, (_, delim: string | undefined) => (delim ?? ''));
     }
@@ -524,6 +461,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   }
 
   updateHighlighting(): void {
+    this.stripJavascriptHighlighterLeakFromModel(false);
     const text = this.innerContent ?? '';
     if (!text) {
       this.highlightedContent = '';
@@ -588,14 +526,15 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   private highlightJavascript(html: string): string {
     const keywords =
       'break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|false|finally|for|function|if|import|in|instanceof|new|null|return|super|switch|this|throw|true|try|typeof|var|void|while|let|static|yield|await|async';
+    /** Use `data-tok` (not `class="token-…"`) so later `\bclass\b` etc. never match inside our own markup. */
     return html
-      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g, '<span class="token-string">$1</span>')
-      .replace(/('(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\'])*')/g, '<span class="token-string">$1</span>')
-      .replace(/(`[^`]*`)/g, '<span class="token-string">$1</span>')
-      .replace(/(\/\/.*)/g, '<span class="token-comment">$1</span>')
-      .replace(new RegExp(`\\b(${keywords})\\b`, 'g'), '<span class="token-keyword">$1</span>')
-      .replace(/\b(\d+)\b/g, '<span class="token-number">$1</span>')
-      .replace(/(\w+)(?=\()/g, '<span class="token-function">$1</span>');
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*)"/g, (m) => `<span data-tok="s">${m}</span>`)
+      .replace(/('(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\'])*')/g, (m) => `<span data-tok="s">${m}</span>`)
+      .replace(/(`[^`]*`)/g, (m) => `<span data-tok="s">${m}</span>`)
+      .replace(/(\/\/.*)/g, (m) => `<span data-tok="c">${m}</span>`)
+      .replace(new RegExp(`\\b(${keywords})\\b`, 'g'), (m) => `<span data-tok="k">${m}</span>`)
+      .replace(/\b(\d+)\b/g, (m) => `<span data-tok="n">${m}</span>`)
+      .replace(/(\w+)(?=\()/g, (m) => `<span data-tok="f">${m}</span>`);
   }
 
   /** Postman-style {varName} (runs after syntax spans are applied). */
@@ -745,13 +684,19 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   }
 
   syncScroll(): void {
-    if (!this.textarea || !this.preBlock || !this.lineNumbers) {
+    if (!this.textarea || !this.lineNumbers) {
       return;
     }
     const el = this.textarea.nativeElement;
-    this.preBlock.nativeElement.scrollTop = el.scrollTop;
-    this.preBlock.nativeElement.scrollLeft = el.scrollLeft;
-    this.lineNumbers.nativeElement.scrollTop = el.scrollTop;
+    const top = el.scrollTop;
+    const left = el.scrollLeft;
+    if (this.language === 'javascript' && this.jsMirror) {
+      this.jsMirror.syncFromTextarea(top, left);
+    } else if (this.preBlock) {
+      this.preBlock.nativeElement.scrollTop = top;
+      this.preBlock.nativeElement.scrollLeft = left;
+    }
+    this.lineNumbers.nativeElement.scrollTop = top;
   }
 
   handleKeydown(event: KeyboardEvent): void {
@@ -759,9 +704,21 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       return;
     }
     const ta = this.textarea.nativeElement;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
+    this.reconcileTextareaDomWithModelForKeydown(ta);
+    const start = Math.min(ta.selectionStart, (this.innerContent ?? '').length);
+    const end = Math.min(Math.max(ta.selectionEnd, start), (this.innerContent ?? '').length);
     const value = this.innerContent;
+
+    if (this.scriptAutocomplete && this.language === 'javascript') {
+      if (this.completionVisible && this.handleCompletionKeydown(event, ta)) {
+        return;
+      }
+      if (event.ctrlKey && !event.metaKey && event.code === 'Space') {
+        event.preventDefault();
+        this.openCompletion(ta);
+        return;
+      }
+    }
 
     if (event.key === 'Tab') {
       event.preventDefault();
@@ -908,6 +865,38 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
    * - Typing a closer while the caret already sits on that same closer steps over it instead of duplicating.
    * - Inside XML/HTML, quote auto-closing is skipped to avoid interfering with `attr="..."` typing.
    */
+  /**
+   * Caret offsets come from the textarea DOM; edits use `innerContent`. If those strings differ
+   * (e.g. leaked highlight markup in `.value`), splicing at `start` corrupts the script. Prefer DOM
+   * text for JS, strip leaks, then force `.value` and `innerContent` to match before key handling.
+   */
+  private reconcileTextareaDomWithModelForKeydown(ta: HTMLTextAreaElement): void {
+    const fromDom = ta.value;
+    const model = this.innerContent ?? '';
+    if (fromDom === model) {
+      return;
+    }
+    let next: string;
+    if (this.language === 'javascript') {
+      next = this.jsContentLikelyContainsHighlighterLeak(fromDom)
+        ? this.stripPastedSyntaxHighlightMarkup(fromDom)
+        : fromDom;
+    } else {
+      next = fromDom;
+    }
+    if (next !== model) {
+      this.innerContent = next;
+      ta.value = next;
+      if (!this.readonly) {
+        this.contentChange.emit(next);
+      }
+    } else {
+      ta.value = model;
+    }
+    const len = (this.innerContent ?? '').length;
+    ta.setSelectionRange(Math.min(ta.selectionStart, len), Math.min(ta.selectionEnd, len));
+  }
+
   private handleAutoClose(
     event: KeyboardEvent,
     ta: HTMLTextAreaElement,
@@ -958,6 +947,9 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     if (start === end && value[start] === key) return false;
     const prev = value[start - 1];
     if (prev && /[A-Za-z0-9_]/.test(prev)) return false;
+    if (this.language === 'javascript' && prev && ';)]},'.includes(prev)) {
+      return false;
+    }
     return true;
   }
 
@@ -1029,5 +1021,170 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       ta.selectionStart = start;
       ta.selectionEnd = end;
     }, 0);
+  }
+
+  private maybeOpenCompletionAfterPmDot(): void {
+    if (!this.scriptAutocomplete || this.language !== 'javascript' || this.readonly) {
+      return;
+    }
+    const ta = this.textarea?.nativeElement;
+    if (!ta) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (!this.textarea || document.activeElement !== this.textarea.nativeElement) {
+        return;
+      }
+      const t = this.textarea.nativeElement;
+      const v = this.innerContent ?? '';
+      const c = Math.max(0, Math.min(t.selectionStart, v.length));
+      if (c >= 3 && v.substring(c - 3, c) === 'pm.') {
+        this.openCompletion(t);
+      }
+    });
+  }
+
+  private openCompletion(ta: HTMLTextAreaElement): void {
+    this.completionVisible = true;
+    this.completionActiveIndex = 0;
+    this.refreshCompletionFilter(ta);
+    this.cdr.markForCheck();
+    requestAnimationFrame(() => ta.focus());
+  }
+
+  private closeCompletion(): void {
+    this.completionVisible = false;
+    this.completionFiltered = [];
+    this.completionActiveIndex = 0;
+    this.cdr.markForCheck();
+  }
+
+  private lineBeforeCaretIsWhitespaceOnly(value: string, caret: number): boolean {
+    const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
+    return value.substring(lineStart, caret).trim() === '';
+  }
+
+  private canApplyScriptCompletion(value: string, caret: number): boolean {
+    const { prefix } = this.getScriptPrefixBeforeCaret(value, caret);
+    if (prefix.length > 0) {
+      return true;
+    }
+    return this.lineBeforeCaretIsWhitespaceOnly(value, caret);
+  }
+
+  private getScriptPrefixBeforeCaret(value: string, caret: number): { start: number; prefix: string } {
+    const c = Math.max(0, Math.min(caret, value.length));
+    let i = c - 1;
+    while (i >= 0 && /[\w.]/.test(value[i])) {
+      i--;
+    }
+    const start = i + 1;
+    return { start, prefix: value.substring(start, c) };
+  }
+
+  private refreshCompletionFilter(ta?: HTMLTextAreaElement): void {
+    const el = ta ?? this.textarea?.nativeElement;
+    const v = this.innerContent ?? '';
+    const caret = el ? Math.min(el.selectionStart, v.length) : v.length;
+    const { prefix } = this.getScriptPrefixBeforeCaret(v, caret);
+    const pl = prefix.toLowerCase();
+    const matches = PM_SCRIPT_COMPLETIONS.filter(
+      (item) =>
+        !pl ||
+        item.label.toLowerCase().includes(pl) ||
+        item.insert.toLowerCase().includes(pl) ||
+        (item.detail && item.detail.toLowerCase().includes(pl)),
+    );
+    const ranked = this.rankCompletions(pl, matches);
+    this.completionFiltered = ranked.slice(0, 50);
+    this.completionActiveIndex = Math.min(
+      this.completionActiveIndex,
+      Math.max(0, this.completionFiltered.length - 1),
+    );
+    this.cdr.markForCheck();
+  }
+
+  private rankCompletions(prefixLower: string, items: ScriptCompletionItem[]): ScriptCompletionItem[] {
+    if (!prefixLower) {
+      return [...items].sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return [...items].sort((a, b) => {
+      const al = a.label.toLowerCase();
+      const bl = b.label.toLowerCase();
+      const aStarts = al.startsWith(prefixLower) ? 0 : 1;
+      const bStarts = bl.startsWith(prefixLower) ? 0 : 1;
+      if (aStarts !== bStarts) {
+        return aStarts - bStarts;
+      }
+      return al.localeCompare(bl);
+    });
+  }
+
+  private handleCompletionKeydown(event: KeyboardEvent, ta: HTMLTextAreaElement): boolean {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeCompletion();
+      return true;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (this.completionFiltered.length) {
+        this.completionActiveIndex = (this.completionActiveIndex + 1) % this.completionFiltered.length;
+        this.cdr.markForCheck();
+      }
+      return true;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (this.completionFiltered.length) {
+        this.completionActiveIndex =
+          (this.completionActiveIndex - 1 + this.completionFiltered.length) % this.completionFiltered.length;
+        this.cdr.markForCheck();
+      }
+      return true;
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      if (this.completionFiltered.length) {
+        const v = this.innerContent ?? '';
+        const caret = Math.min(ta.selectionStart, v.length);
+        if (!this.canApplyScriptCompletion(v, caret)) {
+          this.closeCompletion();
+          return false;
+        }
+        event.preventDefault();
+        this.applyCompletion(this.completionFiltered[this.completionActiveIndex], ta);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  applyCompletion(item: ScriptCompletionItem, ta?: HTMLTextAreaElement): void {
+    const textarea = ta ?? this.textarea?.nativeElement;
+    if (!textarea) {
+      return;
+    }
+    const v = this.innerContent ?? '';
+    const caret = Math.min(textarea.selectionStart, v.length);
+    const selEnd = Math.max(caret, textarea.selectionEnd);
+    if (!this.canApplyScriptCompletion(v, caret)) {
+      this.closeCompletion();
+      this.cdr.markForCheck();
+      return;
+    }
+    const { start } = this.getScriptPrefixBeforeCaret(v, caret);
+    const before = v.substring(0, start);
+    const after = v.substring(selEnd);
+    this.innerContent = before + item.insert + after;
+    this.closeCompletion();
+    const newPos = start + item.insert.length;
+    this.contentChange.emit(this.innerContent);
+    this.updateHighlighting();
+    this.queueCaret(textarea, newPos);
+    this.cdr.markForCheck();
+    requestAnimationFrame(() => {
+      textarea.focus();
+      this.syncScroll();
+    });
   }
 }

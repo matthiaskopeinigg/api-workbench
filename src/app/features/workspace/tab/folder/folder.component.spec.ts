@@ -3,6 +3,7 @@ import { Subject, of } from 'rxjs';
 import { FolderComponent } from './folder.component';
 import { CollectionService } from '@core/collection/collection.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
+import { ViewStateService } from '@core/session/view-state.service';
 import { TabItem, TabType } from '@core/tabs/tab.service';
 import { AuthType } from '@models/request';
 import { Folder } from '@models/collection';
@@ -13,6 +14,7 @@ describe('FolderComponent', () => {
 
   let collectionServiceSpy: jasmine.SpyObj<CollectionService>;
   let environmentsServiceSpy: jasmine.SpyObj<EnvironmentsService>;
+  let viewStateSpy: jasmine.SpyObj<ViewStateService>;
   let folderUpdated$: Subject<Folder>;
 
   const mockTab: TabItem = {
@@ -51,11 +53,21 @@ describe('FolderComponent', () => {
     environmentsServiceSpy.getActiveContextAsObservable.and.returnValue(of(null));
     environmentsServiceSpy.getActiveContext.and.returnValue(null as any);
 
+    viewStateSpy = jasmine.createSpyObj('ViewStateService', [
+      'get',
+      'patch',
+      'getFolderView',
+      'patchFolderView'
+    ]);
+    viewStateSpy.get.and.returnValue(undefined);
+    viewStateSpy.getFolderView.and.returnValue(undefined);
+
     await TestBed.configureTestingModule({
       imports: [FolderComponent],
       providers: [
         { provide: CollectionService, useValue: collectionServiceSpy },
-        { provide: EnvironmentsService, useValue: environmentsServiceSpy }
+        { provide: EnvironmentsService, useValue: environmentsServiceSpy },
+        { provide: ViewStateService, useValue: viewStateSpy }
       ]
     }).compileComponents();
 
@@ -71,6 +83,33 @@ describe('FolderComponent', () => {
     expect(component.variables.length).toBe(1);
     expect(component.variables[0].key).toBe('env');
     expect(component.headers.length).toBe(1);
+  });
+
+  it('setActiveFolderTab should persist active section to tab and folder view state', () => {
+    viewStateSpy.patch.calls.reset();
+    viewStateSpy.patchFolderView.calls.reset();
+    component.setActiveFolderTab('headers');
+    expect(component.activeTab).toBe('headers');
+    expect(viewStateSpy.patch).toHaveBeenCalledWith('folder-1', { activeFolderTab: 'headers' });
+    expect(viewStateSpy.patchFolderView).toHaveBeenCalledWith('folder-1', { activeFolderTab: 'headers' });
+  });
+
+  it('should restore the last folder editor section from session', () => {
+    viewStateSpy.getFolderView.and.returnValue({ activeFolderTab: 'scripts' });
+    fixture = TestBed.createComponent(FolderComponent);
+    component = fixture.componentInstance;
+    component.tab = mockTab;
+    fixture.detectChanges();
+    expect(component.activeTab).toBe('scripts');
+  });
+
+  it('should default to variables when saved section is invalid', () => {
+    viewStateSpy.get.and.returnValue({ activeFolderTab: 'nope' as any });
+    fixture = TestBed.createComponent(FolderComponent);
+    component = fixture.componentInstance;
+    component.tab = mockTab;
+    fixture.detectChanges();
+    expect(component.activeTab).toBe('variables');
   });
 
   it('should default script/auth/settings objects when missing on the stored folder', () => {

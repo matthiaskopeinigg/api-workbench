@@ -6,6 +6,7 @@ import { Folder } from '@models/collection';
 import { HttpHeader, Script, AuthType } from '@models/request';
 import { CollectionService } from '@core/collection/collection.service';
 import { TabItem } from '@core/tabs/tab.service';
+import { ViewStateService, TabViewState, FolderEditorSection } from '@core/session/view-state.service';
 import { CodeEditorComponent } from '../../shared/code-editor/code-editor.component';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
 import { EnvironmentsService } from '@core/environments/environments.service';
@@ -33,8 +34,12 @@ export class FolderComponent implements OnInit, OnChanges, OnDestroy {
     folder!: Folder;
     variables: FolderVariable[] = [];
     headers: HttpHeader[] = [];
-    activeTab: 'variables' | 'headers' | 'scripts' | 'auth' | 'settings' = 'variables';
+    activeTab: FolderEditorSection = 'variables';
     activeVariables: Record<string, string> = {};
+
+    private readonly folderEditorSections: readonly FolderEditorSection[] = [
+        'variables', 'headers', 'scripts', 'auth', 'settings'
+    ];
 
     authTypeOptions: DropdownOption[] = [
         { label: 'Inherit from parent', value: 'inherit' },
@@ -72,11 +77,13 @@ export class FolderComponent implements OnInit, OnChanges, OnDestroy {
     constructor(
         private collectionService: CollectionService,
         private environmentsService: EnvironmentsService,
+        private viewState: ViewStateService,
         private cdr: ChangeDetectorRef
     ) { }
 
     ngOnInit() {
         this.loadFolder();
+        this.restoreViewState();
 
         this.environmentsService.getActiveContextAsObservable()
             .pipe(takeUntil(this.destroy$))
@@ -105,6 +112,32 @@ export class FolderComponent implements OnInit, OnChanges, OnDestroy {
             return;
         }
         this.loadFolder();
+        this.restoreViewState();
+    }
+
+    setActiveFolderTab(tab: FolderEditorSection) {
+        this.activeTab = tab;
+        this.persistViewState({ activeFolderTab: tab });
+        this.cdr.markForCheck();
+    }
+
+    private persistViewState(partial: Pick<TabViewState, 'activeFolderTab'>) {
+        if (!this.tab?.id) return;
+        this.viewState.patch(this.tab.id, partial);
+        this.viewState.patchFolderView(this.tab.id, partial);
+    }
+
+    private restoreViewState() {
+        if (!this.tab?.id) return;
+        const fromFolder = this.viewState.getFolderView(this.tab.id);
+        const fromTab = this.viewState.get(this.tab.id);
+        const saved: TabViewState = { ...fromFolder, ...fromTab };
+        const section = saved.activeFolderTab;
+        if (section && this.folderEditorSections.includes(section)) {
+            this.activeTab = section;
+        } else {
+            this.activeTab = 'variables';
+        }
     }
 
     ngOnDestroy() {

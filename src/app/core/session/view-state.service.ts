@@ -2,9 +2,18 @@ import { Injectable } from '@angular/core';
 import { SessionService } from './session.service';
 import type { RequestEditorSection } from '@models/settings';
 
+/** Sub-tabs in the folder editor (variables, headers, etc.). */
+export type FolderEditorSection =
+  | 'variables'
+  | 'headers'
+  | 'scripts'
+  | 'auth'
+  | 'settings';
+
 /** Per-tab UI state that should survive an app restart. */
 export interface TabViewState {
   activeRequestTab?: RequestEditorSection;
+  activeFolderTab?: FolderEditorSection;
   activeResponseTab?: 'body' | 'preview' | 'headers' | 'cookies' | 'raw' | 'tests' | 'diff';
   responseHeight?: number;
   isRequestHidden?: boolean;
@@ -21,13 +30,16 @@ type ViewStateMap = Record<string, TabViewState>;
  * State is keyed by tab id. When a tab is closed, its entry is evicted via `clear()`.
  * The same state is also mirrored per **request id** via `patchRequestView()` so that
  * closing a request tab and reopening the same request still restores the last layout.
+ * Folder editor sections use `patchFolderView()` the same way for **folder id**.
  */
 @Injectable({ providedIn: 'root' })
 export class ViewStateService {
   private static readonly KEY = 'tabViewStates';
   private static readonly REQUEST_KEY = 'requestViewStates';
+  private static readonly FOLDER_KEY = 'folderViewStates';
   private cache: ViewStateMap = {};
   private requestCache: ViewStateMap = {};
+  private folderCache: ViewStateMap = {};
   private loaded = false;
   private saveHandle: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,8 +49,10 @@ export class ViewStateService {
     if (this.loaded) return;
     await this.sessionService.load(ViewStateService.KEY);
     await this.sessionService.load(ViewStateService.REQUEST_KEY);
+    await this.sessionService.load(ViewStateService.FOLDER_KEY);
     this.cache = this.sessionService.get<ViewStateMap>(ViewStateService.KEY) ?? {};
     this.requestCache = this.sessionService.get<ViewStateMap>(ViewStateService.REQUEST_KEY) ?? {};
+    this.folderCache = this.sessionService.get<ViewStateMap>(ViewStateService.FOLDER_KEY) ?? {};
     this.loaded = true;
   }
 
@@ -73,6 +87,22 @@ export class ViewStateService {
     this.scheduleFlush();
   }
 
+  /** Per-folder (survives tab close and `retainOnly`). Keyed by folder id. */
+  getFolderView(folderId: string): TabViewState | undefined {
+    return this.folderCache[folderId];
+  }
+
+  patchFolderView(folderId: string, partial: TabViewState): void {
+    this.folderCache[folderId] = { ...(this.folderCache[folderId] ?? {}), ...partial };
+    this.scheduleFlush();
+  }
+
+  clearFolderView(folderId: string): void {
+    if (!(folderId in this.folderCache)) return;
+    delete this.folderCache[folderId];
+    this.scheduleFlush();
+  }
+
   /** Drops every entry whose id is not in `keepIds`. Use after restoring tabs on boot. */
   retainOnly(keepIds: string[]): void {
     const keep = new Set(keepIds);
@@ -92,6 +122,7 @@ export class ViewStateService {
       this.saveHandle = null;
       void this.sessionService.save(ViewStateService.KEY, this.cache);
       void this.sessionService.save(ViewStateService.REQUEST_KEY, this.requestCache);
+      void this.sessionService.save(ViewStateService.FOLDER_KEY, this.folderCache);
     }, 200);
   }
 }

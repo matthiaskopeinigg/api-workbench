@@ -1,0 +1,73 @@
+:host {
+  display: block;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+pre.mirror {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 10px;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-style: normal;
+  font-weight: 400;
+  line-height: inherit;
+  white-space: pre;
+  overflow: auto;
+  box-sizing: border-box;
+  tab-size: 2;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+  font-variant-ligatures: none;
+  scrollbar-gutter: stable;
+  color: var(--aw-text, var(--text-color));
+}
+
+pre.mirror code {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  font-weight: 400;
+}
+
+/* highlightJavascript emits data-tok so keyword regex never corrupts `class="…"`. */
+[data-tok='s'] { color: #ce9178; font-weight: 400; }
+[data-tok='n'] { color: #b5cea8; font-weight: 400; }
+[data-tok='k'] { color: #c586c0; font-weight: 400; }
+[data-tok='f'] { color: #dcdcaa; font-weight: 400; }
+[data-tok='c'] { color: #6a9955; font-weight: 400; }
+
+.token-string { color: #ce9178; font-weight: 400; }
+.token-number { color: #b5cea8; font-weight: 400; }
+.token-boolean { color: #569cd6; font-weight: 400; }
+.token-null { color: #569cd6; font-weight: 400; }
+.token-key { color: #9cdcfe; font-weight: 400; }
+.token-punctuation { color: #d4d4d4; font-weight: 400; }
+.token-keyword { color: #c586c0; font-weight: 400; }
+.token-function { color: #dcdcaa; font-weight: 400; }
+.token-comment { color: #6a9955; font-weight: 400; }
+.token-attribute { color: #9cdcfe; font-weight: 400; }
+
+.variable-highlight {
+  color: var(--secondary-color) !important;
+  background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
+  border-radius: 3px;
+  font-weight: 400;
+}
+
+.variable-highlight-error {
+  color: #f85149 !important;
+  background-color: color-mix(in srgb, #f85149, transparent 88%);
+  border-radius: 3px;
+  font-weight: 400;
+}

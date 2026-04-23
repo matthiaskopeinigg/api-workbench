@@ -1,0 +1,71 @@
+    <div class="code-editor-container" [class.readonly]="readonly" [class.no-toolbar]="hideToolbar">
+      <div class="editor-toolbar" *ngIf="!hideToolbar && (!readonly || title)">
+        <div class="header-left">
+          <span class="editor-title" *ngIf="title">{{ title }}</span>
+          <div class="language-badge">{{ language.toUpperCase() }}</div>
+        </div>
+        <div class="actions">
+          <button type="button" class="action-btn" (click)="formatCode()" title="Format">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
+            </svg>
+            Format
+          </button>
+          <button type="button" class="action-btn" (click)="copyToClipboard()" title="Copy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy
+          </button>
+        </div>
+      </div>
+      <div class="editor-wrapper">
+        <div class="line-numbers" #lineNumbers>
+          <div class="line-number" *ngFor="let _ of lines; let i = index">{{ i + 1 }}</div>
+        </div>
+        <div class="code-container">
+          <!-- Not [(ngModel)]: that adds (ngModelChange)="innerContent=$event" which can run after our handler and undo JS leak stripping. -->
+          <textarea
+            #textarea
+            [class.readonly]="readonly"
+            [readonly]="readonly"
+            [ngModel]="innerContent"
+            (ngModelChange)="onContentChange($event)"
+            (scroll)="syncScroll()"
+            (keydown)="handleKeydown($event)"
+            (paste)="onPaste($event)"
+            (blur)="onTextareaBlur()"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            class="code-input"
+          ></textarea>
+          <app-code-js-highlight-mirror *ngIf="language === 'javascript'" [html]="highlightedContent" />
+          <pre *ngIf="language !== 'javascript'" #preBlock class="code-output" aria-hidden="true"><code [innerHTML]="highlightedContent | safeHtml"></code></pre>
+        </div>
+      </div>
+      <div
+        class="completion-panel"
+        *ngIf="scriptAutocomplete && completionVisible"
+        role="listbox"
+        aria-label="Script suggestions"
+      >
+        <div class="completion-hint">Ctrl+Space or Ctrl+Shift+Space — type pm. to open — ↑↓ Enter/Tab Esc</div>
+        <div class="completion-scroll">
+          <button
+            type="button"
+            class="completion-item"
+            *ngFor="let item of completionFiltered; let i = index"
+            role="option"
+            [class.active]="i === completionActiveIndex"
+            (mousedown)="$event.preventDefault(); applyCompletion(item)"
+            (mouseenter)="completionActiveIndex = i"
+          >
+            <span class="completion-label">{{ item.label }}</span>
+            <span class="completion-detail" *ngIf="item.detail">{{ item.detail }}</span>
+          </button>
+          <div class="completion-empty" *ngIf="completionFiltered.length === 0">No matches</div>
+        </div>
+      </div>
+    </div>

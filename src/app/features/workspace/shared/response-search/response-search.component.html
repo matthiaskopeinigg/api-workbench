@@ -1,0 +1,26 @@
+    <div class="response-search" *ngIf="isOpen" role="search">
+      <input #searchInput class="rs-input" type="text"
+             [(ngModel)]="query"
+             (ngModelChange)="onQueryChange()"
+             (keydown.enter)="navigate($event, 1)"
+             (keydown.shift.enter)="navigate($event, -1)"
+             (keydown.escape)="close.emit()"
+             placeholder="Find in response…"
+             aria-label="Find in response" />
+      <span class="rs-count" [class.rs-count-none]="matches.length === 0">
+        <ng-container *ngIf="matches.length === 0">{{ query ? '0 results' : '' }}</ng-container>
+        <ng-container *ngIf="matches.length > 0">{{ activeIndex + 1 }} / {{ matches.length }}</ng-container>
+      </span>
+      <button type="button" class="rs-btn" (click)="toggleCase()"
+              [class.rs-btn-on]="options.caseSensitive"
+              title="Match case">Aa</button>
+      <button type="button" class="rs-btn" (click)="toggleRegex()"
+              [class.rs-btn-on]="options.regex"
+              title="Regular expression">.*</button>
+      <button type="button" class="rs-btn" (click)="navigate($event, -1)"
+              [disabled]="matches.length === 0" title="Previous">↑</button>
+      <button type="button" class="rs-btn" (click)="navigate($event, 1)"
+              [disabled]="matches.length === 0" title="Next">↓</button>
+      <button type="button" class="rs-btn" (click)="close.emit()" title="Close">×</button>
+    </div>
+  

@@ -1,0 +1,9 @@
+    <div class="stat-card" [class]="'tone-' + tone">
+      <div class="label">{{ label }}</div>
+      <div class="value">
+        <span class="num">{{ value }}</span>
+        <span class="unit" *ngIf="unit">{{ unit }}</span>
+      </div>
+      <div class="sub" *ngIf="sub">{{ sub }}</div>
+    </div>
+  

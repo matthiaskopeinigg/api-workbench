@@ -1,0 +1,31 @@
+    <ul class="tree" *ngIf="nodes?.length; else empty">
+      <ng-container *ngFor="let n of nodes; trackBy: trackById">
+        <ng-container *ngTemplateOutlet="branch; context: { node: n, depth: 0 }"></ng-container>
+      </ng-container>
+    </ul>
+
+    <ng-template #branch let-node="node" let-depth="depth">
+      <li class="row" [class]="'status-' + node.status" [style.paddingLeft.px]="depth * 14 + 6">
+        <button
+          type="button"
+          class="row-btn"
+          [class.has-children]="(node.children?.length ?? 0) > 0"
+          (click)="onClick(node)">
+          <span class="caret" *ngIf="(node.children?.length ?? 0) > 0">{{ isOpen(node.id) ? '▾' : '▸' }}</span>
+          <span class="caret-spacer" *ngIf="!(node.children?.length ?? 0)"></span>
+          <span class="status-pill" [class]="'pill-' + node.status" [attr.title]="node.status"></span>
+          <span class="label">{{ node.label }}</span>
+          <span class="meta" *ngIf="node.meta">{{ node.meta }}</span>
+        </button>
+      </li>
+      <ng-container *ngIf="(node.children?.length ?? 0) > 0 && isOpen(node.id)">
+        <ng-container *ngFor="let child of node.children; trackBy: trackById">
+          <ng-container *ngTemplateOutlet="branch; context: { node: child, depth: depth + 1 }"></ng-container>
+        </ng-container>
+      </ng-container>
+    </ng-template>
+
+    <ng-template #empty>
+      <div class="tree-empty">No results yet.</div>
+    </ng-template>
+  

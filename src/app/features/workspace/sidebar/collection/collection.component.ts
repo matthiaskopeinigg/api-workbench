@@ -733,7 +733,10 @@ export class CollectionComponent implements OnInit, OnDestroy {
       this.viewState.clearRequestView(id);
       this.collectionService.triggerRequestDeleted(id);
     });
-    childFolderIds.forEach(id => this.collectionService.triggerFolderDeleted(id));
+    childFolderIds.forEach(id => {
+      this.viewState.clearFolderView(id);
+      this.collectionService.triggerFolderDeleted(id);
+    });
 
     this.closeMenu();
   }

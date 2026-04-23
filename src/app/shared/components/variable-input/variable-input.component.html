@@ -1,0 +1,46 @@
+    <div class="variable-input-container" [class.disabled]="disabled" [class.suggest-open]="suggestOpen">
+      
+      <div class="variable-tooltip" [class.visible]="!!hoveredValue" [style.left.px]="tooltipX" [style.top.px]="tooltipY">
+        <div class="tooltip-content" [innerHTML]="hoveredValue"></div>
+      </div>
+
+      <div class="backdrop" #backdrop *ngIf="type === 'text'"><span *ngFor="let part of parsedParts" [class.variable-highlight]="part.isVariable && !part.isPathVar" [class.path-variable]="part.isPathVar" [attr.data-tooltip]="getTooltip(part)">{{ part.text }}</span></div>
+      <input
+        #input
+        [type]="type"
+        [placeholder]="placeholder"
+        [disabled]="disabled"
+        [(ngModel)]="value"
+        (input)="onInput($event)"
+        (keydown)="onKeydown($event)"
+        (keyup)="onKeyupCaret($event)"
+        (scroll)="onScroll($event)"
+        (mousemove)="onMouseMove($event)"
+        (mouseleave)="clearHover()"
+        (blur)="onInputBlur($event)"
+        spellcheck="false"
+        autocomplete="off"
+      />
+      <div
+        *ngIf="suggestOpen && suggestList.length > 0"
+        class="dollar-suggest-panel"
+        [style.top.px]="dollarPanelTop"
+        [style.left.px]="dollarPanelLeft"
+        [style.minWidth.px]="dollarPanelWidth"
+        role="listbox"
+        (mousedown)="$event.preventDefault()"
+      >
+        <button
+          *ngFor="let opt of suggestList; let i = index"
+          type="button"
+          class="dollar-suggest-item"
+          [class.active]="i === suggestActiveIndex"
+          role="option"
+          (mousedown)="pickSuggest(opt, $event)"
+        >
+          <span class="dollar-suggest-label">{{ opt.label }}</span>
+          <span class="dollar-suggest-desc" [title]="opt.description">{{ shortDesc(opt.description) }}</span>
+        </button>
+      </div>
+    </div>
+  

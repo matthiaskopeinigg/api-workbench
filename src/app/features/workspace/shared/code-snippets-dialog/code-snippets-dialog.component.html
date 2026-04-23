@@ -1,0 +1,32 @@
+    <div class="dialog-overlay" (click)="close.emit()">
+      <div class="dialog-content" (click)="$event.stopPropagation()">
+        <div class="dialog-header">
+          <h2>Code Snippets</h2>
+          <button class="close-btn" (click)="close.emit()">✕</button>
+        </div>
+        
+        <div class="dialog-body">
+          <div class="snippet-tabs">
+            <button *ngFor="let g of generators"
+                    [class.active]="selectedId === g.id"
+                    (click)="setLang(g.id)">{{ g.label }}</button>
+          </div>
+
+          <div class="editor-wrapper">
+            <app-code-editor
+              [content]="snippetText"
+              [language]="$any(editorLang)"
+              [readonly]="true"
+              [hideToolbar]="false"
+              [title]="activeLabel + ' Snippet'">
+            </app-code-editor>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button class="btn-primary" (click)="copySnippet()">Copy to Clipboard</button>
+          <button class="btn-secondary" (click)="close.emit()">Close</button>
+        </div>
+      </div>
+    </div>
+  

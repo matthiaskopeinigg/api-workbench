@@ -1,0 +1,285 @@
+:host {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      height: 100%;
+      width: 100%;
+      min-height: 100px;
+      overflow: hidden;
+    }
+
+    .code-editor-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      border: 1px solid var(--aw-border, var(--border-color));
+      border-radius: var(--aw-radius-md, 8px);
+      overflow: hidden;
+      background: var(--aw-surface, var(--surface));
+
+      &.readonly {
+        background: var(--aw-surface-muted, var(--surface-alt));
+      }
+
+      &.no-toolbar {
+        border: none;
+        border-radius: 0;
+        background: transparent;
+      }
+    }
+
+    .editor-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 12px;
+      background: var(--aw-bg, var(--bg-color));
+      border-bottom: 1px solid var(--aw-border, var(--border-color));
+      user-select: none;
+      flex-shrink: 0;
+
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .editor-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--aw-text, var(--text-color));
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .language-badge {
+        font-size: 9px;
+        font-weight: 800;
+        color: var(--secondary-color);
+        opacity: 0.5;
+        background: color-mix(in srgb, var(--secondary-color), transparent 90%);
+        padding: 2px 6px;
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+
+        .action-btn {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: transparent;
+          border: none;
+          color: var(--aw-text, var(--text-color));
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 4px;
+          opacity: 0.7;
+          transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+          &:hover {
+            opacity: 1;
+            background: var(--aw-surface-muted, var(--surface-alt));
+            color: var(--secondary-color);
+          }
+        }
+      }
+    }
+
+    .editor-wrapper {
+      position: relative;
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      font-family: var(--aw-font-mono, 'Cascadia Code', 'Fira Code', Consolas, monospace);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .line-numbers {
+      width: 44px;
+      background: var(--aw-surface-muted, var(--surface-alt));
+      border-right: 1px solid var(--aw-border, var(--border-color));
+      color: var(--secondary-color);
+      text-align: right;
+      padding: 10px 8px 10px 0;
+      user-select: none;
+      overflow: hidden;
+      flex-shrink: 0;
+
+      .line-number {
+        height: 1.5em;
+        font-size: 11px;
+        opacity: 0.55;
+      }
+    }
+
+    .code-container {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    textarea.code-input,
+    pre.code-output {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 10px;
+      border: none;
+      font-family: inherit;
+      font-size: inherit;
+      font-style: normal;
+      font-weight: 400;
+      line-height: inherit;
+      white-space: pre;
+      overflow: auto;
+      box-sizing: border-box;
+      tab-size: 2;
+      letter-spacing: normal;
+      word-spacing: normal;
+      font-feature-settings: 'liga' 0, 'calt' 0;
+      font-variant-ligatures: none;
+      scrollbar-gutter: stable;
+    }
+
+    textarea.code-input {
+      z-index: 2;
+      color: transparent;
+      background: transparent;
+      caret-color: var(--aw-text, var(--text-color));
+      resize: none;
+      outline: none;
+    }
+
+    textarea::selection,
+    textarea.code-input::selection {
+      background: color-mix(in srgb, var(--primary-color, #0078d4), transparent 65%);
+    }
+
+    textarea.code-input:focus-visible {
+      box-shadow: inset 0 0 0 1px var(--aw-focus, color-mix(in srgb, var(--primary-color), transparent 40%));
+    }
+
+    pre.code-output {
+      z-index: 1;
+      color: var(--aw-text, var(--text-color));
+      pointer-events: none;
+    }
+
+    /* UAs set <code> to smaller / different metrics than a bare textarea; that desyncs selection from the overlay. */
+    pre.code-output code {
+      display: block;
+      width: 100%;
+      font: inherit;
+      font-size: 100%;
+      line-height: inherit;
+      font-weight: 400;
+    }
+
+    /* Must match the textarea: same font metrics on every token (no bold — it shifts glyph widths in overlays). */
+    ::ng-deep pre.code-output code [data-tok='s'] { color: #ce9178; font-weight: 400; }
+    ::ng-deep pre.code-output code [data-tok='n'] { color: #b5cea8; font-weight: 400; }
+    ::ng-deep pre.code-output code [data-tok='k'] { color: #c586c0; font-weight: 400; }
+    ::ng-deep pre.code-output code [data-tok='f'] { color: #dcdcaa; font-weight: 400; }
+    ::ng-deep pre.code-output code [data-tok='c'] { color: #6a9955; font-weight: 400; }
+
+    ::ng-deep pre.code-output code .token-string { color: #ce9178; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-number { color: #b5cea8; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-boolean { color: #569cd6; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-null { color: #569cd6; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-key { color: #9cdcfe; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-punctuation { color: #d4d4d4; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-keyword { color: #c586c0; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-function { color: #dcdcaa; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-comment { color: #6a9955; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-attribute { color: #9cdcfe; font-weight: 400; }
+
+    ::ng-deep .variable-highlight {
+      color: var(--secondary-color) !important;
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
+      border-radius: 3px;
+      font-weight: 400;
+    }
+
+    ::ng-deep .variable-highlight-error {
+      color: #f85149 !important;
+      background-color: color-mix(in srgb, #f85149, transparent 88%);
+      border-radius: 3px;
+      font-weight: 400;
+    }
+
+    .completion-panel {
+      flex-shrink: 0;
+      border-top: 1px solid var(--aw-border, var(--border-color));
+      background: var(--aw-bg, var(--bg-color));
+      max-height: 200px;
+      display: flex;
+      flex-direction: column;
+      z-index: 5;
+    }
+
+    .completion-hint {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--secondary-color);
+      opacity: 0.75;
+      padding: 4px 10px 2px;
+      user-select: none;
+    }
+
+    .completion-scroll {
+      overflow-y: auto;
+      max-height: 168px;
+      padding: 0 4px 6px;
+    }
+
+    .completion-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      width: 100%;
+      text-align: left;
+      gap: 2px;
+      padding: 6px 8px;
+      margin: 2px 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--aw-text, var(--text-color));
+      cursor: pointer;
+      font-family: var(--aw-font-mono, 'Cascadia Code', 'Fira Code', Consolas, monospace);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .completion-item:hover,
+    .completion-item.active {
+      background: var(--aw-surface-muted, var(--surface-alt));
+      color: var(--secondary-color);
+    }
+
+    .completion-label {
+      font-weight: 600;
+    }
+
+    .completion-detail {
+      font-size: 10px;
+      font-weight: 500;
+      opacity: 0.75;
+      white-space: normal;
+    }
+
+    .completion-empty {
+      padding: 10px 12px;
+      font-size: 12px;
+      opacity: 0.6;
+    }

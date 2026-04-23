@@ -1,2 +1,11 @@
-<div #editorContainer class="editor"></div>
-
+    <div class="wrap" [style.minHeight.px]="minHeight" [style.maxHeight.px]="maxHeight">
+      <app-code-editor
+        [language]="editorType === 'javascript' ? 'javascript' : 'json'"
+        [content]="jsonString"
+        (contentChange)="jsonChange.emit($event)"
+        [readonly]="readonly"
+        [activeVariables]="activeVariables"
+        [hideToolbar]="true"
+      />
+    </div>
+  
