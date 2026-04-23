@@ -18,8 +18,8 @@ export interface LoadTestProfile {
   /** Shown in the profile picker / editor for context. */
   description?: string;
   /**
-   * `false` = built-in preset copy: the first load-setting edit forks a new “Custom”
-   * profile and resets this row. Omitted or `true` = user-owned (edits apply in place).
+   * `false` = catalog / preset row (still edited in place). Omitted or `true` = user-owned.
+   * New profiles are added only via “New profile from current” or the header template/empty actions.
    */
   userCustom?: boolean;
   /**

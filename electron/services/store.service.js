@@ -117,8 +117,14 @@ function importLegacyIfEmpty() {
 async function initStores() {
   try {
     db.openDatabase();
-    importLegacyIfEmpty();
-    importArtifactSeedsIfDocumentsEmpty();
+    // Packaged installs: do not import bundled workspace/artifact JSON — start with an empty DB
+    // (collections/environments resolve to in-memory defaults in the renderer until the user saves).
+    if (!app.isPackaged) {
+      importLegacyIfEmpty();
+      importArtifactSeedsIfDocumentsEmpty();
+    } else {
+      await logInfo('Skipping bundled config seed (packaged build — clean install)');
+    }
     await logInfo('Stores initialized (SQLite)');
   } catch (err) {
     await logError('Failed to initialize stores', err);

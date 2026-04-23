@@ -23,7 +23,6 @@ import {
   appendEmptyLoadTestProfile,
   appendLoadTestProfileCloningFromActive,
   appendLoadTestProfileFromTemplate,
-  cloneConfig,
   DEFAULT_LOAD_CONFIG,
   ensureLoadTestProfiles,
   findLoadTestProfileTemplateById,
@@ -39,7 +38,6 @@ import {
   type LoadTestProfile,
   type LoadTestTarget,
 } from '@models/testing/load-test';
-import { v4 as uuidv4 } from 'uuid';
 import type { Collection, Folder } from '@models/collection';
 import { HttpMethod, type Request } from '@models/request';
 
@@ -281,14 +279,12 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   onTitleChange(): void { this.persist(); }
   /** Profile name / notes only (does not fork off a preset). */
   onProfileMetaChange(): void { this.persist(); }
-  /** VUs, targets, stop mode, and other load fields — will fork a “Custom” profile if needed. */
+  /** VUs, targets, stop mode, and other load fields — apply to the active profile only. */
   onLoadConfigChange(): void {
     if (!this.artifact) return;
-    this.ensureCustomWorkProfile(this.artifact);
     this.persist();
   }
   onRpsCapChange(a: LoadTestArtifact, value: number | string | null): void {
-    this.ensureCustomWorkProfile(a);
     a.config.rpsCap = value === '' || value == null ? null : Number(value);
     this.persist();
   }
@@ -396,7 +392,6 @@ export class LoadTestComponent implements OnInit, OnDestroy {
 
   setStopMode(mode: 'duration' | 'iterations'): void {
     if (!this.artifact) return;
-    this.ensureCustomWorkProfile(this.artifact);
     if (mode === 'duration') {
       this.artifact.config.iterations = null;
       if (!this.artifact.config.durationSec) this.artifact.config.durationSec = 30;
@@ -421,7 +416,6 @@ export class LoadTestComponent implements OnInit, OnDestroy {
 
   addSavedTarget(requestId: string): void {
     if (!this.artifact || !requestId) return;
-    this.ensureCustomWorkProfile(this.artifact);
     this.artifact.config.targets = [{ kind: 'saved', requestId }];
     this.persist();
   }
@@ -429,7 +423,6 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   addInlineTarget(): void {
     if (!this.artifact) return;
     if (!this.inlineDraft.url.trim()) return;
-    this.ensureCustomWorkProfile(this.artifact);
     this.artifact.config.targets = [{
       kind: 'inline',
       method: this.inlineDraft.method,
@@ -443,7 +436,6 @@ export class LoadTestComponent implements OnInit, OnDestroy {
 
   clearTarget(): void {
     if (!this.artifact) return;
-    this.ensureCustomWorkProfile(this.artifact);
     this.artifact.config.targets = [];
     this.persist();
   }
@@ -452,7 +444,8 @@ export class LoadTestComponent implements OnInit, OnDestroy {
     if (target.kind === 'inline') return `${target.method} ${target.url}`;
     const req = this.collections.findRequestById(target.requestId);
     if (!req) return `(deleted request) ${target.requestId.slice(0, 6)}`;
-    return `${HTTP_METHOD_LABELS[req.httpMethod] || 'GET'} ${req.title || req.url || '(untitled)'}`;
+    const name = req.title?.trim() || req.url || '(untitled)';
+    return `${HTTP_METHOD_LABELS[req.httpMethod] || 'GET'} ${name}`;
   }
 
   /** At most one target per config — used for the Target row in the template. */
@@ -795,52 +788,6 @@ export class LoadTestComponent implements OnInit, OnDestroy {
     }
     const t = this.artifact.config.targets[s.targetIndex];
     return t ? this.targetLabel(t) : `Target #${s.targetIndex + 1}`;
-  }
-
-  /**
-   * When editing load settings on a built-in / template row (`!userCustom`), copy the
-   * in‑progress values into a new “Custom” profile and leave the preset reset.
-   */
-  private ensureCustomWorkProfile(a: LoadTestArtifact): void {
-    ensureLoadTestProfiles(a);
-    const ap = a.profiles?.find((p) => p.id === a.activeProfileId);
-    if (!ap || ap.userCustom !== false) {
-      return;
-    }
-    const edited = cloneConfig(a.config);
-    ap.config = this.configResetForNonCustomProfile(ap);
-    const id = `p-${uuidv4()}`;
-    const created: LoadTestProfile = {
-      id,
-      name: this.nextCustomProfileName(a),
-      description: 'Your load settings (forked from a preset). The preset is unchanged.',
-      userCustom: true,
-      isTemplate: false,
-      config: edited,
-    };
-    a.profiles = [...(a.profiles || []), created];
-    a.activeProfileId = id;
-    a.config = created.config;
-  }
-
-  private configResetForNonCustomProfile(p: LoadTestProfile): LoadTestConfig {
-    const t = this.profileTemplates.find((x) => x.name === p.name);
-    if (t) {
-      return t.factory();
-    }
-    return cloneConfig({ ...DEFAULT_LOAD_CONFIG });
-  }
-
-  private nextCustomProfileName(a: LoadTestArtifact): string {
-    const names = new Set((a.profiles || []).map((p) => p.name));
-    if (!names.has('Custom')) {
-      return 'Custom';
-    }
-    let n = 2;
-    while (names.has(`Custom ${n}`)) {
-      n += 1;
-    }
-    return `Custom ${n}`;
   }
 
   headerProfileOptions(a: LoadTestArtifact): DropdownOption[] {

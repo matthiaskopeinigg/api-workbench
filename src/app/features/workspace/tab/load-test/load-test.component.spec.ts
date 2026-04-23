@@ -118,7 +118,7 @@ describe('LoadTestComponent', () => {
     expect(component.artifact!.config.durationSec).toBe(30);
   });
 
-  it('forks a Custom profile when load settings change on a preset (userCustom: false)', () => {
+  it('does not fork a new profile when load settings change on a preset; edits the active profile', () => {
     const tpl = LOAD_TEST_PROFILE_TEMPLATES[0];
     const cfg = tpl.factory();
     const withPreset: LoadTestArtifact = {
@@ -143,9 +143,9 @@ describe('LoadTestComponent', () => {
     expect(component.artifact?.profiles?.length).toBe(1);
     expect(component.artifact?.activeProfileId).toBe('p-preset');
     component.setStopMode('iterations');
-    expect(component.artifact?.profiles?.length).toBe(2);
-    expect(component.artifact?.activeProfileId).not.toBe('p-preset');
-    expect(component.activeProfile(component.artifact ?? null)?.name).toMatch(/^Custom/);
+    expect(component.artifact?.profiles?.length).toBe(1);
+    expect(component.artifact?.activeProfileId).toBe('p-preset');
+    expect(component.activeProfile(component.artifact ?? null)?.name).toBe(tpl.name);
     expect(component.artifact!.config.iterations).toBe(100);
   });
 
@@ -196,7 +196,9 @@ describe('LoadTestComponent', () => {
   });
 
   it('addSavedTarget sets the only saved target; a second call replaces it', () => {
+    const beforeProfiles = component.artifact!.profiles?.length ?? 0;
     component.addSavedTarget('req-1');
+    expect(component.artifact!.profiles?.length).toBe(beforeProfiles);
     expect(component.artifact!.config.targets.length).toBe(1);
     expect(component.artifact!.config.targets[0]).toEqual(jasmine.objectContaining({ kind: 'saved', requestId: 'req-1' }));
     component.addSavedTarget('req-2');

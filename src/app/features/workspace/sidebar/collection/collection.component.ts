@@ -896,8 +896,11 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (id === targetId) return false;
 
     if (type === 'folder') {
+      if (targetType === 'folder' && this.areSameFolderSiblings(id, targetId)) {
+        return true;
+      }
 
-      const folder = this.findFolderById(id); 
+      const folder = this.findFolderById(id);
       if (folder) {
         if (this.isFolderInOffspring(folder.folders, targetId)) {
           return false;
@@ -915,6 +918,77 @@ export class CollectionComponent implements OnInit, OnDestroy {
     }
 
     return true;
+  }
+
+  /** Same `folders` array under a collection or parent folder (canonical tree). */
+  private areSameFolderSiblings(folderIdA: string, folderIdB: string): boolean {
+    const a = this.findFolderListContext(folderIdA);
+    const b = this.findFolderListContext(folderIdB);
+    return !!(a && b && a.siblings === b.siblings);
+  }
+
+  private findFolderListContext(folderId: string): { siblings: Folder[]; index: number } | null {
+    for (const col of this.collections) {
+      const idx = col.folders.findIndex(f => f.id === folderId);
+      if (idx !== -1) {
+        return { siblings: col.folders, index: idx };
+      }
+      const nested = this.findFolderListContextInList(col.folders, folderId);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  private findFolderListContextInList(folders: Folder[], folderId: string): { siblings: Folder[]; index: number } | null {
+    for (const f of folders) {
+      const idx = f.folders.findIndex(c => c.id === folderId);
+      if (idx !== -1) {
+        return { siblings: f.folders, index: idx };
+      }
+      const nested = this.findFolderListContextInList(f.folders, folderId);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  /** Move folder at `fromIdx` so it sits immediately before the folder that was at `toIdx` (same `siblings` list). */
+  private reorderFolderBeforeTarget(siblings: Folder[], fromIdx: number, toIdx: number): boolean {
+    if (fromIdx === toIdx) return false;
+    const [item] = siblings.splice(fromIdx, 1);
+    let insertAt = toIdx;
+    if (fromIdx < toIdx) insertAt--;
+    siblings.splice(insertAt, 0, item);
+    siblings.forEach((f, i) => { f.order = i; });
+    return true;
+  }
+
+  canReorderFolderUp(folderId: string): boolean {
+    const ctx = this.findFolderListContext(folderId);
+    return !!ctx && ctx.index > 0;
+  }
+
+  canReorderFolderDown(folderId: string): boolean {
+    const ctx = this.findFolderListContext(folderId);
+    return !!ctx && ctx.index < ctx.siblings.length - 1;
+  }
+
+  async moveFolderUpInList(folderId: string) {
+    const ctx = this.findFolderListContext(folderId);
+    if (!ctx || ctx.index <= 0) return;
+    this.closeMenu();
+    if (this.reorderFolderBeforeTarget(ctx.siblings, ctx.index, ctx.index - 1)) {
+      await this.saveCollections();
+    }
+  }
+
+  async moveFolderDownInList(folderId: string) {
+    const ctx = this.findFolderListContext(folderId);
+    if (!ctx || ctx.index >= ctx.siblings.length - 1) return;
+    this.closeMenu();
+    const toIdx = ctx.index + 2;
+    if (this.reorderFolderBeforeTarget(ctx.siblings, ctx.index, toIdx)) {
+      await this.saveCollections();
+    }
   }
 
   private getFolderSubtreeDepth(folder: Folder): number {
@@ -954,7 +1028,20 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     this.triggerDropAnimation(targetId);
 
-    const { id, type, parentId } = this.draggedItem; 
+    const { id, type, parentId } = this.draggedItem;
+
+    if (type === 'folder' && targetType === 'folder') {
+      const srcCtx = this.findFolderListContext(id);
+      const dstCtx = this.findFolderListContext(targetId);
+      if (srcCtx && dstCtx && srcCtx.siblings === dstCtx.siblings) {
+        if (this.reorderFolderBeforeTarget(srcCtx.siblings, srcCtx.index, dstCtx.index)) {
+          await this.saveCollections();
+        }
+        this.collections = this.collectionService.getCollections();
+        this.draggedItem = null;
+        return;
+      }
+    }
 
     if (parentId === targetId) {
       this.draggedItem = null;

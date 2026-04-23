@@ -151,7 +151,10 @@ export class AppComponent implements OnInit {
         this.testArtifactService.loadAll(),
       ]);
 
-      await this.sampleWorkspaceSeeder.runIfEmptyWorkspace();
+      // Packaged app: no sample folder / demo artifacts on first launch.
+      if (!window.awElectron?.isPackaged) {
+        await this.sampleWorkspaceSeeder.runIfEmptyWorkspace();
+      }
 
       this.isReady = true;
       this.initError = null;

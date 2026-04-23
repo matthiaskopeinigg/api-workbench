@@ -67,6 +67,9 @@ export interface StorageInfo {
 }
 
 export interface AwElectronApi {
+  /** True in production installers; false in `ng serve` / `electron .` dev. */
+  isPackaged: boolean;
+
   getSettings: () => Promise<Settings | undefined>;
   saveSettings: (settings: Settings) => Promise<void>;
 
