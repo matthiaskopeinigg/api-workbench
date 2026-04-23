@@ -1,13 +1,17 @@
 const { app, BrowserWindow, crashReporter } = require('electron');
-const { applyUserDataOverride } = require('./user-data-override');
+// Reduces GPU disk cache creation failures on some Windows setups (logged as net\disk_cache errors).
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+
+const { applyUserDataOverride, applyRendererCachePath } = require('./user-data-override');
 applyUserDataOverride();
+applyRendererCachePath();
 
 const { registerIpcHandlers } = require('./ipc');
 const { initStores, getSession, setSession } = require('./services/store.service');
 const httpService = require('./services/http.service');
 const scriptService = require('./services/script.service');
 const mockService = require('./services/mock.service');
-const { createWindow } = require('./services/window.service');
+const { createWindow, getMainWindow } = require('./services/window.service');
 const updaterService = require('./services/updater.service');
 const { logInfo, logError } = require('./services/logger.service');
 
@@ -91,7 +95,15 @@ app.whenReady().then(async () => {
     if (mockService.getOptions().autoStart) {
       mockService.start().catch((err) => logError('Mock server auto-start failed', err));
     }
-    setTimeout(() => { void updaterService.checkForUpdates(); }, 5000);
+
+    const mainWin = getMainWindow();
+    if (mainWin) {
+      mainWin.webContents.once('did-finish-load', () => {
+        setTimeout(() => {
+          void updaterService.checkForUpdates();
+        }, 2500);
+      });
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

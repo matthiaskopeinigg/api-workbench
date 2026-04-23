@@ -12,6 +12,23 @@ function getMarkerFilePath() {
 }
 
 /**
+ * Puts Chromium/Electron disk cache under our userData tree. On Windows this avoids
+ * frequent "Unable to move the cache: Access is denied" noise when the default profile
+ * cache is locked (AV, another instance, or permissions).
+ */
+function applyRendererCachePath() {
+  try {
+    const cacheRoot = path.join(app.getPath('userData'), 'renderer-cache');
+    if (!fs.existsSync(cacheRoot)) {
+      fs.mkdirSync(cacheRoot, { recursive: true });
+    }
+    app.setPath('cache', cacheRoot);
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
  * If present, the first line is an absolute (or home-relative) directory used as
  * app.getPath("userData") (database, config). Must run before app.ready / DB open.
  * Env API_WORKBENCH_USER_DATA wins over the marker file.
@@ -91,6 +108,7 @@ function clearDataDirectoryOverride() {
 
 module.exports = {
   applyUserDataOverride,
+  applyRendererCachePath,
   getMarkerFilePath,
   getMarkerDir,
   readOverrideTargetFromDisk,

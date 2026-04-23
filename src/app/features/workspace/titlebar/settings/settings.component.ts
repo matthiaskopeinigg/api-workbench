@@ -180,7 +180,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       case 'idle': return `You are running version ${s.currentVersion}.`;
       case 'checking': return 'Checking for updates\u2026';
       case 'not-available': return `You\u2019re on the latest version (${s.currentVersion}).`;
-      case 'available': return `Version ${s.info?.version ?? ''} is available.`;
+      case 'available':
+        return `Version ${s.info?.version ?? ''} is available. It downloads automatically; you can restart when prompted.`;
       case 'downloading': {
         const p = s.info?.percent ?? 0;
         return `Downloading update\u2026 ${p}%`;

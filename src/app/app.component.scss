@@ -3,6 +3,90 @@
   height: 100%;
 }
 
+.app-container.has-update-banner {
+  padding-bottom: 72px;
+  box-sizing: border-box;
+}
+
+.update-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+  background: color-mix(in srgb, var(--bg-color, #1a1d21) 92%, var(--secondary-color, #6c9eff) 8%);
+  border-top: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color, #444)), transparent 35%);
+  box-shadow: 0 -6px 24px color-mix(in srgb, #000, transparent 55%);
+}
+
+.update-banner-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.update-banner-text {
+  flex: 1 1 200px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-color, #e8eaed);
+}
+
+.update-banner-progress {
+  flex: 1 1 140px;
+  height: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-color, #e8eaed), transparent 88%);
+  overflow: hidden;
+}
+
+.update-banner-progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--secondary-color, #6c9eff);
+  transition: width 0.2s ease-out;
+}
+
+.update-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.update-banner-primary,
+.update-banner-secondary {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.update-banner-primary {
+  background: var(--secondary-color, #6c9eff);
+  color: #0f1114;
+}
+
+.update-banner-primary:hover {
+  filter: brightness(1.06);
+}
+
+.update-banner-secondary {
+  background: color-mix(in srgb, var(--surface, #252830), transparent 20%);
+  color: var(--text-color, #e8eaed);
+  border-color: color-mix(in srgb, var(--border-color, #444), transparent 40%);
+}
+
+.update-banner-secondary:hover {
+  background: var(--surface-alt, #2d323c);
+}
+
 .boot-shell {
   display: flex;
   flex-direction: column;

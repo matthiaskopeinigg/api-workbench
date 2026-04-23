@@ -138,6 +138,12 @@ async function createWindow() {
         if (isDev) mainWindow.webContents.openDevTools();
     });
 
+    // Dismiss splash as soon as the first document loads. Workspace init can take longer;
+    // the Angular shell shows its own loading state until `app-ready` (still used elsewhere).
+    mainWindow.webContents.once('did-finish-load', () => {
+        showMainWindow();
+    });
+
     if (isDev) {
         const devUrl = 'http://127.0.0.1:4200/';
         const loadDevUrl = () => {
@@ -147,13 +153,13 @@ async function createWindow() {
             });
         };
         loadDevUrl();
-        // If renderer never calls appReady (stuck init / IPC), don't leave the user on the splash forever.
+        // If ng serve never comes up, did-finish-load never fires — avoid an infinite splash.
         setTimeout(() => {
             if (splashWindow) {
-                logInfo('Dev: showing main window after wait for app-ready (15s safety)');
+                logInfo('Dev: showing main window (load fallback; dev server may be unreachable)');
                 showMainWindow();
             }
-        }, 15000);
+        }, 60000);
     } else {
         const indexPath = path.join(app.getAppPath(), "dist", "api-workbench", "browser", "index.html");
         mainWindow.loadFile(indexPath).catch(e => console.error('Failed to load file:', e));

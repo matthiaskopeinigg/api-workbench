@@ -63,8 +63,11 @@ function init() {
         return;
     }
 
-    autoUpdater.autoDownload = false;
+    // Download in the background as soon as an update is found (no manual “Download” step).
+    autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
+    // GitHub “Pre-release” betas are skipped unless this is true, which breaks updates for this repo.
+    autoUpdater.allowPrerelease = true;
 
     autoUpdater.on('checking-for-update', () => pushStatus(STATE.CHECKING));
     autoUpdater.on('update-available', (info) =>

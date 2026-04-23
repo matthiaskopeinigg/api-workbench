@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { FileDialogResult } from '@models/file-dialog';
 import { BatchImportDialogService } from '@core/import-pipeline/batch-import-dialog.service';
 import { RouterOutlet } from '@angular/router';
@@ -22,6 +22,7 @@ import { RunnerDialogService, RunnerDialogRequest } from '@core/testing/runner-d
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { SampleWorkspaceSeeder } from '@core/seeding/sample-workspace.seeder';
 import { LOAD_TEST_SESSION_RUNS_KEY } from '@core/testing/load-test-session.keys';
+import type { UpdaterStatus } from '@models/electron';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -38,12 +39,17 @@ import { Subscription } from 'rxjs';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
 
   isReady = false;
   initError: string | null = null;
   runnerRequest: RunnerDialogRequest | null = null;
   private runnerSub?: Subscription;
+  private updateSub?: Subscription;
+
+  /** Latest updater status for the global banner (packaged builds only). */
+  updaterUi: UpdaterStatus | null = null;
+  private updateBannerDismissed = false;
 
   constructor(
 
@@ -63,11 +69,61 @@ export class AppComponent implements OnInit {
     private batchImportDialog: BatchImportDialogService) { }
 
   async ngOnInit() {
+    this.updateSub = this.updateService.statusStream.subscribe((status) => {
+      this.updaterUi = status;
+      if (status.state === 'checking' || status.state === 'available' || status.state === 'downloading') {
+        this.updateBannerDismissed = false;
+      }
+    });
     await this.runInit();
     this.commandSeedsService.register();
     this.runnerSub = this.runnerDialogService.open$().subscribe(req => {
       this.runnerRequest = req;
     });
+  }
+
+  ngOnDestroy(): void {
+    this.runnerSub?.unsubscribe();
+    this.updateSub?.unsubscribe();
+  }
+
+  get showGlobalUpdateBanner(): boolean {
+    const s = this.updaterUi;
+    if (!this.isReady || !s?.supported) return false;
+    if (this.updateBannerDismissed && (s.state === 'downloaded' || s.state === 'error')) return false;
+    return (
+      s.state === 'available' ||
+      s.state === 'downloading' ||
+      s.state === 'downloaded' ||
+      s.state === 'error'
+    );
+  }
+
+  get updateBannerMessage(): string {
+    const s = this.updaterUi;
+    if (!s) return '';
+    switch (s.state) {
+      case 'available':
+        return `Update ${s.info?.version ?? ''} is available. Downloading in the background…`;
+      case 'downloading': {
+        const p = s.info?.percent ?? 0;
+        return `Downloading update… ${p}%`;
+      }
+      case 'downloaded':
+        return `Update ${s.info?.version ?? ''} is ready. Restart to install.`;
+      case 'error':
+        return s.info?.message ? `Update failed: ${s.info.message}` : 'Update check failed.';
+      default:
+        return '';
+    }
+  }
+
+  installAppUpdate(): void {
+    this.updateService.installUpdate();
+  }
+
+  dismissUpdateBanner(): void {
+    this.updateBannerDismissed = true;
   }
 
   closeRunnerDialog = () => this.runnerDialogService.close();

@@ -1,4 +1,4 @@
-const { ipcMain, shell } = require('electron');
+const { ipcMain, shell, app } = require('electron');
 const { getMainWindow, showMainWindow } = require('../services/window.service');
 
 function isSafeHttpUrl(url) {
@@ -12,6 +12,11 @@ function isSafeHttpUrl(url) {
 }
 
 module.exports = function () {
+    /** Synchronous read for preload `isPackaged` (see preload.js). */
+    ipcMain.on('app:is-packaged', (event) => {
+        event.returnValue = app.isPackaged;
+    });
+
     /** Open a link in the OS default browser (not an in-app BrowserWindow). */
     ipcMain.handle('open-external-url', async (_event, url) => {
         if (!isSafeHttpUrl(url)) {

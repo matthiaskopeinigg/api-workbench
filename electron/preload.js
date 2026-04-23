@@ -1,8 +1,16 @@
-const { contextBridge, ipcRenderer, app } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
+
+function readIsPackaged() {
+  try {
+    return ipcRenderer.sendSync('app:is-packaged');
+  } catch {
+    return false;
+  }
+}
 
 const awElectron = {
   /** True when running from a built app (installer/portable), not `electron .` dev. */
-  isPackaged: app.isPackaged,
+  isPackaged: readIsPackaged(),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
