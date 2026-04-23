@@ -117,7 +117,9 @@ async function downloadUpdate() {
 function quitAndInstall() {
     if (!isSupported()) return;
     try {
-        setImmediate(() => autoUpdater.quitAndInstall(false, true));
+        // Windows NSIS: first arg = silent install (no setup wizard). Second = relaunch app when done.
+        // macOS ignores the silent flag; DMG flow unchanged.
+        setImmediate(() => autoUpdater.quitAndInstall(true, true));
     } catch (err) {
         logError('quitAndInstall failed', err);
         pushStatus(STATE.ERROR, { message: err?.message || String(err) });
