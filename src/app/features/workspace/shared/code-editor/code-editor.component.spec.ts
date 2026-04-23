@@ -95,4 +95,27 @@ describe('CodeEditorComponent', () => {
     component.onContentChange('free text');
     expect(spy).toHaveBeenCalledWith('free text');
   });
+
+  it('onContentChange should strip pasted highlighter span markup in JavaScript', () => {
+    component.language = 'javascript';
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    const dirty = 'pm.session.set(<span class="token-string">\'a\'</span>, 1);';
+    component.onContentChange(dirty);
+    expect(spy).toHaveBeenCalledWith("pm.session.set('a', 1);");
+    expect(component.innerContent).toBe("pm.session.set('a', 1);");
+  });
+
+  it('onContentChange should strip mangled fragments without literal <span', () => {
+    component.language = 'javascript';
+    const spy = jasmine.createSpy('contentChange');
+    component.contentChange.subscribe(spy);
+    const dirty = 'x);n-string">"", class="token-string">"")y';
+    component.onContentChange(dirty);
+    expect(component.innerContent).not.toMatch(/token-string|class="/);
+    expect(spy).toHaveBeenCalled();
+    expect(component.innerContent).toContain('x');
+    expect(component.innerContent).toContain('y');
+  });
+
 });

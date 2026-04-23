@@ -87,14 +87,14 @@
                 <h3>Pre-request Script</h3>
                 <p class="subtitle">This script runs before every request in this folder.</p>
                 <app-code-editor [content]="folder.script!.preRequest" (contentChange)="updatePreRequest($event)"
-                    [language]="'javascript'" [activeVariables]="activeVariables" [scriptAutocomplete]="true"></app-code-editor>
+                    [language]="'javascript'" [activeVariables]="activeVariables"></app-code-editor>
             </div>
 
             <div class="script-editor-container">
                 <h3>Post-request Script</h3>
                 <p class="subtitle">This script runs after every response in this folder.</p>
                 <app-code-editor [content]="folder.script!.postRequest" (contentChange)="updatePostRequest($event)"
-                    [language]="'javascript'" [activeVariables]="activeVariables" [scriptAutocomplete]="true"></app-code-editor>
+                    [language]="'javascript'" [activeVariables]="activeVariables"></app-code-editor>
             </div>
         </div>
 

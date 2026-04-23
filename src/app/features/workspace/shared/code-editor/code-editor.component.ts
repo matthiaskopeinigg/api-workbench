@@ -5,7 +5,6 @@ import {
   Component,
   ElementRef,
   EventEmitter,
-  HostListener,
   Input,
   OnChanges,
   OnDestroy,
@@ -25,72 +24,6 @@ export type EditorLanguage =
   | 'html'
   | 'graphql'
   | 'python';
-
-/** Suggestions for pre/post request scripts (Ctrl+Space). */
-export interface ScriptCompletionItem {
-  label: string;
-  insert: string;
-  detail?: string;
-}
-
-const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
-  { label: 'console.log()', insert: 'console.log()', detail: 'Log to the script console' },
-  { label: 'console.info()', insert: 'console.info()', detail: 'Info log' },
-  { label: 'console.warn()', insert: 'console.warn()', detail: 'Warning log' },
-  { label: 'console.error()', insert: 'console.error()', detail: 'Error log' },
-  { label: 'pm.environment.get()', insert: 'pm.environment.get("")', detail: 'Read environment variable' },
-  { label: 'pm.environment.set()', insert: 'pm.environment.set("", "")', detail: 'Set environment variable' },
-  { label: 'pm.environment.unset()', insert: 'pm.environment.unset("")', detail: 'Remove environment variable' },
-  { label: 'pm.environment.has()', insert: 'pm.environment.has("")', detail: 'True if key exists' },
-  { label: 'pm.environment.toObject()', insert: 'pm.environment.toObject()', detail: 'Copy of environment' },
-  { label: 'pm.globals.get()', insert: 'pm.globals.get("")', detail: 'Read global variable' },
-  { label: 'pm.globals.set()', insert: 'pm.globals.set("", "")', detail: 'Set global variable' },
-  { label: 'pm.globals.unset()', insert: 'pm.globals.unset("")', detail: 'Remove global variable' },
-  { label: 'pm.globals.has()', insert: 'pm.globals.has("")', detail: 'True if key exists' },
-  { label: 'pm.globals.toObject()', insert: 'pm.globals.toObject()', detail: 'Copy of globals' },
-  { label: 'pm.variables.get()', insert: 'pm.variables.get("")', detail: 'Collection variable' },
-  { label: 'pm.variables.set()', insert: 'pm.variables.set("", "")', detail: 'Set collection variable' },
-  { label: 'pm.variables.unset()', insert: 'pm.variables.unset("")', detail: 'Unset collection variable' },
-  { label: 'pm.variables.has()', insert: 'pm.variables.has("")', detail: 'True if key exists' },
-  { label: 'pm.variables.toObject()', insert: 'pm.variables.toObject()', detail: 'Copy of collection vars' },
-  { label: 'pm.collectionVariables.get()', insert: 'pm.collectionVariables.get("")', detail: 'Alias of pm.variables' },
-  { label: 'pm.collectionVariables.set()', insert: 'pm.collectionVariables.set("", "")', detail: 'Alias of pm.variables' },
-  { label: 'pm.session.get()', insert: 'pm.session.get("")', detail: 'App session / login token store' },
-  { label: 'pm.session.set()', insert: 'pm.session.set("", "")', detail: 'Set session value' },
-  { label: 'pm.session.unset()', insert: 'pm.session.unset("")', detail: 'Remove session key' },
-  { label: 'pm.session.has()', insert: 'pm.session.has("")', detail: 'True if key exists' },
-  { label: 'pm.session.toObject()', insert: 'pm.session.toObject()', detail: 'Copy of session' },
-  { label: 'pm.request.method', insert: 'pm.request.method', detail: 'HTTP method' },
-  { label: 'pm.request.url', insert: 'pm.request.url', detail: 'Request URL object' },
-  { label: 'pm.request.url.raw', insert: 'pm.request.url.raw', detail: 'URL string' },
-  { label: 'pm.request.url.toString()', insert: 'pm.request.url.toString()', detail: 'URL string' },
-  { label: 'pm.request.headers.get()', insert: 'pm.request.headers.get("")', detail: 'Request header value' },
-  { label: 'pm.request.headers.all()', insert: 'pm.request.headers.all()', detail: 'All request headers' },
-  { label: 'pm.request.body', insert: 'pm.request.body', detail: 'Request body' },
-  { label: 'pm.response', insert: 'pm.response', detail: 'Response (post-request only)' },
-  { label: 'pm.response.code', insert: 'pm.response.code', detail: 'HTTP status code' },
-  { label: 'pm.response.status', insert: 'pm.response.status', detail: 'Status text' },
-  { label: 'pm.response.responseTime', insert: 'pm.response.responseTime', detail: 'Elapsed ms' },
-  { label: 'pm.response.responseSize', insert: 'pm.response.responseSize', detail: 'Body size' },
-  { label: 'pm.response.text()', insert: 'pm.response.text()', detail: 'Body as string' },
-  { label: 'pm.response.json()', insert: 'pm.response.json()', detail: 'Parse body as JSON' },
-  { label: 'pm.response.headers.get()', insert: 'pm.response.headers.get("")', detail: 'Response header' },
-  { label: 'pm.response.headers.has()', insert: 'pm.response.headers.has("")', detail: 'True if header present' },
-  { label: 'pm.response.headers.all()', insert: 'pm.response.headers.all()', detail: 'All response headers' },
-  { label: 'pm.response.to.have.status()', insert: 'pm.response.to.have.status(200)', detail: 'Assert status code' },
-  { label: 'pm.response.to.have.header()', insert: 'pm.response.to.have.header("")', detail: 'Assert header exists' },
-  { label: 'pm.response.to.have.body()', insert: 'pm.response.to.have.body("")', detail: 'Assert body contains' },
-  { label: 'pm.response.to.be.ok()', insert: 'pm.response.to.be.ok()', detail: 'Assert 2xx status' },
-  { label: 'pm.test()', insert: "pm.test('name', () => {\n  \n});", detail: 'Named test block' },
-  { label: 'pm.expect()', insert: 'pm.expect()', detail: 'Assertion chain' },
-  { label: 'expect()', insert: 'expect()', detail: 'Top-level assertion (same as pm.expect)' },
-  { label: 'pm.sendRequest()', insert: "pm.sendRequest('', (err, res) => {\n  \n});", detail: 'Fire nested HTTP request' },
-  { label: 'JSON.parse()', insert: 'JSON.parse()', detail: 'Parse JSON string' },
-  { label: 'JSON.stringify()', insert: 'JSON.stringify(, null, 2)', detail: 'Serialize to JSON' },
-  { label: 'url.parse()', insert: 'url.parse()', detail: 'Node url module' },
-  { label: 'crypto.randomUUID()', insert: 'crypto.randomUUID()', detail: 'Random UUID' },
-  { label: 'Buffer.from()', insert: 'Buffer.from("")', detail: 'Create buffer' },
-];
 
 @Component({
   selector: 'app-code-editor',
@@ -139,29 +72,6 @@ const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
             class="code-input"
           ></textarea>
           <pre #preBlock class="code-output" aria-hidden="true"><code [innerHTML]="highlightedContent"></code></pre>
-        </div>
-      </div>
-      <div
-        class="completion-panel"
-        *ngIf="scriptAutocomplete && completionVisible"
-        role="listbox"
-        aria-label="Script suggestions"
-      >
-        <div class="completion-hint">Ctrl+Space — ↑↓ move, Enter or Tab insert, Esc close</div>
-        <div class="completion-scroll">
-          <button
-            type="button"
-            class="completion-item"
-            *ngFor="let item of completionFiltered; let i = index"
-            role="option"
-            [class.active]="i === completionActiveIndex"
-            (mousedown)="$event.preventDefault(); applyCompletion(item)"
-            (mouseenter)="completionActiveIndex = i"
-          >
-            <span class="completion-label">{{ item.label }}</span>
-            <span class="completion-detail" *ngIf="item.detail">{{ item.detail }}</span>
-          </button>
-          <div class="completion-empty" *ngIf="completionFiltered.length === 0">No matches</div>
         </div>
       </div>
     </div>
@@ -307,11 +217,18 @@ const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
       border: none;
       font-family: inherit;
       font-size: inherit;
+      font-style: normal;
+      font-weight: 400;
       line-height: inherit;
       white-space: pre;
       overflow: auto;
       box-sizing: border-box;
       tab-size: 2;
+      letter-spacing: normal;
+      word-spacing: normal;
+      font-feature-settings: 'liga' 0, 'calt' 0;
+      font-variant-ligatures: none;
+      scrollbar-gutter: stable;
     }
 
     textarea.code-input {
@@ -323,6 +240,11 @@ const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
       outline: none;
     }
 
+    textarea::selection,
+    textarea.code-input::selection {
+      background: color-mix(in srgb, var(--primary-color, #0078d4), transparent 65%);
+    }
+
     textarea.code-input:focus-visible {
       box-shadow: inset 0 0 0 1px var(--aw-focus, color-mix(in srgb, var(--primary-color), transparent 40%));
     }
@@ -331,101 +253,42 @@ const PM_SCRIPT_COMPLETIONS: ScriptCompletionItem[] = [
       z-index: 1;
       color: var(--aw-text, var(--text-color));
       pointer-events: none;
-
-      code {
-        font-family: inherit;
-      }
     }
 
-    ::ng-deep .token-string { color: #ce9178; }
-    ::ng-deep .token-number { color: #b5cea8; }
-    ::ng-deep .token-boolean { color: #569cd6; }
-    ::ng-deep .token-null { color: #569cd6; }
-    ::ng-deep .token-key { color: #9cdcfe; }
-    ::ng-deep .token-punctuation { color: #d4d4d4; }
-    ::ng-deep .token-keyword { color: #c586c0; }
-    ::ng-deep .token-function { color: #dcdcaa; }
-    ::ng-deep .token-comment { color: #6a9955; }
-    ::ng-deep .token-attribute { color: #9cdcfe; }
+    /* UAs set <code> to smaller / different metrics than a bare textarea; that desyncs selection from the overlay. */
+    pre.code-output code {
+      display: block;
+      width: 100%;
+      font: inherit;
+      font-size: 100%;
+      line-height: inherit;
+      font-weight: 400;
+    }
+
+    /* Must match the textarea: same font metrics on every token (no bold — it shifts glyph widths in overlays). */
+    ::ng-deep pre.code-output code .token-string { color: #ce9178; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-number { color: #b5cea8; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-boolean { color: #569cd6; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-null { color: #569cd6; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-key { color: #9cdcfe; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-punctuation { color: #d4d4d4; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-keyword { color: #c586c0; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-function { color: #dcdcaa; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-comment { color: #6a9955; font-weight: 400; }
+    ::ng-deep pre.code-output code .token-attribute { color: #9cdcfe; font-weight: 400; }
 
     ::ng-deep .variable-highlight {
       color: var(--secondary-color) !important;
-      background-color: color-mix(in srgb, var(--secondary-color), transparent 88%);
+      background-color: color-mix(in srgb, var(--secondary-color), transparent 85%);
       border-radius: 3px;
-      font-weight: 600;
+      font-weight: 400;
     }
 
     ::ng-deep .variable-highlight-error {
       color: #f85149 !important;
       background-color: color-mix(in srgb, #f85149, transparent 88%);
       border-radius: 3px;
-    }
-
-    .completion-panel {
-      flex-shrink: 0;
-      border-top: 1px solid var(--aw-border, var(--border-color));
-      background: var(--aw-bg, var(--bg-color));
-      max-height: 200px;
-      display: flex;
-      flex-direction: column;
-      z-index: 5;
-    }
-
-    .completion-hint {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--secondary-color);
-      opacity: 0.75;
-      padding: 4px 10px 2px;
-      user-select: none;
-    }
-
-    .completion-scroll {
-      overflow-y: auto;
-      max-height: 168px;
-      padding: 0 4px 6px;
-    }
-
-    .completion-item {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      width: 100%;
-      text-align: left;
-      gap: 2px;
-      padding: 6px 8px;
-      margin: 2px 0;
-      border: none;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--aw-text, var(--text-color));
-      cursor: pointer;
-      font-family: var(--aw-font-mono, 'Cascadia Code', 'Fira Code', Consolas, monospace);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .completion-item:hover,
-    .completion-item.active {
-      background: var(--aw-surface-muted, var(--surface-alt));
-      color: var(--secondary-color);
-    }
-
-    .completion-label {
-      font-weight: 600;
-    }
-
-    .completion-detail {
-      font-size: 10px;
-      font-weight: 500;
-      opacity: 0.75;
-      white-space: normal;
-    }
-
-    .completion-empty {
-      padding: 10px 12px;
-      font-size: 12px;
-      opacity: 0.6;
+      font-weight: 400;
     }
     `,
   ],
@@ -443,8 +306,6 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   @Input() hideToolbar = false;
   /** When true (default), JSON/XML bodies are pretty-printed after a short pause while typing. Set false for bulk plain fields. */
   @Input() autoFormat = true;
-  /** When true, Ctrl+Space opens `pm.*` / sandbox completions for JavaScript scripts. */
-  @Input() scriptAutocomplete = false;
 
   @Output() contentChange = new EventEmitter<string>();
 
@@ -452,29 +313,10 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   highlightedContent = '';
   lines: number[] = [1];
 
-  completionVisible = false;
-  completionFiltered: ScriptCompletionItem[] = [];
-  completionActiveIndex = 0;
-
   private readonly autoFormatDebounceMs = 420;
   private autoFormatTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(
-    private cdr: ChangeDetectorRef,
-    private hostRef: ElementRef<HTMLElement>,
-  ) {}
-
-  @HostListener('document:mousedown', ['$event'])
-  onDocumentMouseDown(ev: MouseEvent): void {
-    if (!this.completionVisible || !this.scriptAutocomplete) {
-      return;
-    }
-    const t = ev.target as Node | null;
-    if (t && this.hostRef.nativeElement.contains(t)) {
-      return;
-    }
-    this.closeCompletion();
-  }
+  constructor(private cdr: ChangeDetectorRef) {}
 
   ngOnDestroy(): void {
     this.clearAutoFormatTimer();
@@ -498,13 +340,80 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   }
 
   onContentChange(value: string): void {
-    this.innerContent = value;
-    this.contentChange.emit(value);
+    let v = value;
+    if (this.language === 'javascript') {
+      const cleaned = this.stripPastedSyntaxHighlightMarkup(v);
+      if (cleaned !== v) {
+        v = cleaned;
+        this.innerContent = v;
+        this.contentChange.emit(v);
+        this.updateHighlighting();
+        this.scheduleAutoFormat();
+        this.reconcileCaretAfterLengthChange(v.length);
+        return;
+      }
+    }
+    this.innerContent = v;
+    this.contentChange.emit(v);
     this.updateHighlighting();
     this.scheduleAutoFormat();
-    if (this.completionVisible && this.scriptAutocomplete) {
-      this.refreshCompletionFilter();
+  }
+
+  /**
+   * When someone copies the highlighted `pre>code` layer (e.g. from DevTools) and pastes into the
+   * textarea, our span wrappers can end up in the saved script and break the script.
+   * Partial tags (e.g. `n-string">`) must be removed too — they do not contain `<span`.
+   */
+  private jsContentLikelyContainsHighlighterLeak(text: string): boolean {
+    return (
+      /<span/i.test(text) ||
+      /<\/span/i.test(text) ||
+      /class="token-/i.test(text) ||
+      /-string">/i.test(text) ||
+      /-keyword">/i.test(text) ||
+      /-number">/i.test(text) ||
+      /-function">/i.test(text) ||
+      /-comment">/i.test(text) ||
+      /-key">/i.test(text) ||
+      /variable-highlight/i.test(text)
+    );
+  }
+
+  private stripPastedSyntaxHighlightMarkup(text: string): string {
+    if (!text || !this.jsContentLikelyContainsHighlighterLeak(text)) {
+      return text;
     }
+    const tokenTail = '(?:string|keyword|number|boolean|null|function|comment|key|punctuation|attribute)';
+    const mangledClose = new RegExp(
+      `(?:^|([^A-Za-z0-9_.-]))([\\w-]{0,20}-${tokenTail})">`,
+      'gi',
+    );
+    let s = text;
+    let prev = '';
+    let guard = 0;
+    while (s !== prev && guard++ < 48) {
+      prev = s;
+      s = s
+        .replace(/<span[^>]*>/gi, '')
+        .replace(/<\/span>/gi, '')
+        .replace(/class="token-[a-z-]+"/gi, '')
+        .replace(/class="variable-highlight(-error)?"/gi, '')
+        // Half-pasted fragments like `)n-string">` (broken `token-string">`)
+        .replace(mangledClose, (_, delim: string | undefined) => (delim ?? ''));
+    }
+    return s;
+  }
+
+  private reconcileCaretAfterLengthChange(newLength: number): void {
+    const ta = this.textarea?.nativeElement;
+    if (!ta) {
+      return;
+    }
+    const start = Math.min(ta.selectionStart, newLength);
+    const end = Math.min(ta.selectionEnd, newLength);
+    requestAnimationFrame(() => {
+      ta.setSelectionRange(start, end);
+    });
   }
 
   private clearAutoFormatTimer(): void {
@@ -854,17 +763,6 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     const end = ta.selectionEnd;
     const value = this.innerContent;
 
-    if (this.scriptAutocomplete && this.language === 'javascript') {
-      if (this.completionVisible && this.handleCompletionKeydown(event, ta)) {
-        return;
-      }
-      if (event.ctrlKey && event.code === 'Space') {
-        event.preventDefault();
-        this.openCompletion(ta);
-        return;
-      }
-    }
-
     if (event.key === 'Tab') {
       event.preventDefault();
       this.insertAtCaret(ta, start, end, '  ');
@@ -1131,124 +1029,5 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       ta.selectionStart = start;
       ta.selectionEnd = end;
     }, 0);
-  }
-
-  private openCompletion(ta: HTMLTextAreaElement): void {
-    this.completionVisible = true;
-    this.completionActiveIndex = 0;
-    this.refreshCompletionFilter(ta);
-    this.cdr.markForCheck();
-    requestAnimationFrame(() => ta.focus());
-  }
-
-  private closeCompletion(): void {
-    this.completionVisible = false;
-    this.completionFiltered = [];
-    this.completionActiveIndex = 0;
-    this.cdr.markForCheck();
-  }
-
-  /** Identifier / dotted path immediately left of the caret (replaced on insert). */
-  private getScriptPrefixBeforeCaret(value: string, caret: number): { start: number; prefix: string } {
-    const c = Math.max(0, Math.min(caret, value.length));
-    let i = c - 1;
-    while (i >= 0 && /[\w.]/.test(value[i])) {
-      i--;
-    }
-    const start = i + 1;
-    return { start, prefix: value.substring(start, c) };
-  }
-
-  private refreshCompletionFilter(ta?: HTMLTextAreaElement): void {
-    const el = ta ?? this.textarea?.nativeElement;
-    const value = this.innerContent ?? '';
-    const caret = el ? Math.min(el.selectionStart, value.length) : value.length;
-    const { prefix } = this.getScriptPrefixBeforeCaret(value, caret);
-    const pl = prefix.toLowerCase();
-    const matches = PM_SCRIPT_COMPLETIONS.filter(
-      (item) =>
-        !pl ||
-        item.label.toLowerCase().includes(pl) ||
-        item.insert.toLowerCase().includes(pl) ||
-        (item.detail && item.detail.toLowerCase().includes(pl)),
-    );
-    const ranked = this.rankCompletions(pl, matches);
-    this.completionFiltered = ranked.slice(0, 50);
-    this.completionActiveIndex = Math.min(this.completionActiveIndex, Math.max(0, this.completionFiltered.length - 1));
-    this.cdr.markForCheck();
-  }
-
-  private rankCompletions(prefixLower: string, items: ScriptCompletionItem[]): ScriptCompletionItem[] {
-    if (!prefixLower) {
-      return [...items].sort((a, b) => a.label.localeCompare(b.label));
-    }
-    return [...items].sort((a, b) => {
-      const al = a.label.toLowerCase();
-      const bl = b.label.toLowerCase();
-      const aStarts = al.startsWith(prefixLower) ? 0 : 1;
-      const bStarts = bl.startsWith(prefixLower) ? 0 : 1;
-      if (aStarts !== bStarts) {
-        return aStarts - bStarts;
-      }
-      return al.localeCompare(bl);
-    });
-  }
-
-  private handleCompletionKeydown(event: KeyboardEvent, ta: HTMLTextAreaElement): boolean {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.closeCompletion();
-      return true;
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      if (this.completionFiltered.length) {
-        this.completionActiveIndex = (this.completionActiveIndex + 1) % this.completionFiltered.length;
-        this.cdr.markForCheck();
-      }
-      return true;
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (this.completionFiltered.length) {
-        this.completionActiveIndex =
-          (this.completionActiveIndex - 1 + this.completionFiltered.length) % this.completionFiltered.length;
-        this.cdr.markForCheck();
-      }
-      return true;
-    }
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      if (this.completionFiltered.length) {
-        event.preventDefault();
-        this.applyCompletion(this.completionFiltered[this.completionActiveIndex], ta);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  applyCompletion(item: ScriptCompletionItem, ta?: HTMLTextAreaElement): void {
-    const textarea = ta ?? this.textarea?.nativeElement;
-    if (!textarea) {
-      return;
-    }
-    const value = this.innerContent ?? '';
-    const caret = Math.min(textarea.selectionStart, value.length);
-    const selEnd = Math.max(caret, textarea.selectionEnd);
-    const { start } = this.getScriptPrefixBeforeCaret(value, caret);
-    const before = value.substring(0, start);
-    const after = value.substring(selEnd);
-    const insert = item.insert;
-    this.innerContent = before + insert + after;
-    this.closeCompletion();
-    const newPos = start + insert.length;
-    this.contentChange.emit(this.innerContent);
-    this.updateHighlighting();
-    this.queueCaret(textarea, newPos);
-    this.cdr.markForCheck();
-    requestAnimationFrame(() => {
-      textarea.focus();
-      this.syncScroll();
-    });
   }
 }
