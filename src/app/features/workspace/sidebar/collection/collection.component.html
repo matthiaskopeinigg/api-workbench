@@ -236,6 +236,7 @@
           [class.expanded]="isExpanded(folder.id, 'folder')" [class.drag-over]="dragOverId === folder.id"
           [class.drag-over-denied]="dragOverDeniedId === folder.id"
           [class.just-dropped]="recentlyDroppedId === folder.id" [class.just-denied]="deniedTargetId === folder.id"
+          title="Drop to move into this folder. Alt+drop on a sibling folder to reorder only."
           draggable="true" (dragstart)="onDragStart($event, folder.id, 'folder', parent.id)"
           (dragend)="onDragEnd($event)" (dragover)="onDragOver($event, folder.id, 'folder')"
           (dragleave)="onDragLeave($event)" (drop)="onDrop($event, folder.id, 'folder')" (click)="onFolderClick(folder)"

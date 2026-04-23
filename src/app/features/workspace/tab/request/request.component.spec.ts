@@ -15,6 +15,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { CodeEditorComponent } from '../../shared/code-editor/code-editor.component';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
 import { ScriptService } from '@core/http/script.service';
+import { SessionService } from '@core/session/session.service';
 
 describe('RequestComponent', () => {
   let component: RequestComponent;
@@ -26,6 +27,7 @@ describe('RequestComponent', () => {
   let collectionServiceSpy: jasmine.SpyObj<CollectionService>;
   let environmentsServiceSpy: jasmine.SpyObj<EnvironmentsService>;
   let scriptServiceSpy: jasmine.SpyObj<ScriptService>;
+  let sessionServiceSpy: jasmine.SpyObj<SessionService>;
 
   const mockTab: TabItem = {
     id: 'req-1',
@@ -67,10 +69,20 @@ describe('RequestComponent', () => {
     settingsServiceSpy.effectiveIgnoreInvalidSsl.and.returnValue(true);
     collectionServiceSpy = jasmine.createSpyObj('CollectionService', ['findRequestById', 'updateRequest', 'getParentFolders', 'flushPendingSaves']);
     collectionServiceSpy.flushPendingSaves.and.returnValue(Promise.resolve());
-    environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', ['getEnvironmentsObservable', 'getActiveContextAsObservable', 'getActiveContext']);
+    environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', [
+      'getEnvironmentsObservable',
+      'getActiveContextAsObservable',
+      'getActiveContext',
+      'getEnvironmentById',
+    ]);
     scriptServiceSpy = jasmine.createSpyObj('ScriptService', ['runScript']);
+    sessionServiceSpy = jasmine.createSpyObj('SessionService', ['load', 'get', 'save']);
+    sessionServiceSpy.load.and.returnValue(Promise.resolve());
+    sessionServiceSpy.get.and.returnValue(null);
+    sessionServiceSpy.save.and.returnValue(Promise.resolve());
     scriptServiceSpy.runScript.and.callFake(async (code: string, _ctx: unknown) => {
       const envChanges: Array<{ op: 'set' | 'unset'; key: string; value?: string }> = [];
+      const sessionChanges: Array<{ op: 'set' | 'unset'; key: string; value?: string }> = [];
       const testResults: Array<{ name: string; passed: boolean; message?: string }> = [];
       if (code.includes('test_var')) {
         envChanges.push({ op: 'set', key: 'test_var', value: 'hello' });
@@ -78,16 +90,20 @@ describe('RequestComponent', () => {
       if (code.includes('auth_token')) {
         envChanges.push({ op: 'set', key: 'auth_token', value: 'abc-123' });
       }
+      if (code.includes('session_token')) {
+        sessionChanges.push({ op: 'set', key: 'access_token', value: 'tok-from-session' });
+      }
       if (code.includes('pm.test')) {
         testResults.push({ name: 'Stubbed test', passed: true });
       }
-      return { envChanges, testResults, consoleLogs: [], errors: [] };
+      return { envChanges, sessionChanges, testResults, consoleLogs: [], errors: [] };
     });
 
     collectionServiceSpy.findRequestById.and.returnValue(mockRequest as any);
     settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
     environmentsServiceSpy.getEnvironmentsObservable.and.returnValue(of([]));
     environmentsServiceSpy.getActiveContextAsObservable.and.returnValue(of(null));
+    environmentsServiceSpy.getEnvironmentById.and.returnValue(null);
     requestHistoryServiceSpy.getHistory.and.returnValue({ entries: [] });
     collectionServiceSpy.getParentFolders.and.returnValue([]);
 
@@ -106,6 +122,7 @@ describe('RequestComponent', () => {
         { provide: CollectionService, useValue: collectionServiceSpy },
         { provide: EnvironmentsService, useValue: environmentsServiceSpy },
         { provide: ScriptService, useValue: scriptServiceSpy },
+        { provide: SessionService, useValue: sessionServiceSpy },
         {
           provide: DomSanitizer,
           useValue: {
@@ -190,8 +207,15 @@ describe('RequestComponent', () => {
 
   describe('Integration: Variable Substitution', () => {
     it('should substitute environment variables in the URL before sending', async () => {
+      const activeEnv = {
+        id: 'env-1',
+        name: 'Dev',
+        variables: [{ key: 'base_url', value: 'example.org' }],
+      } as any;
+      environmentsServiceSpy.getEnvironmentById.and.returnValue(activeEnv);
       component.request.url = 'https://{{base_url}}/api';
-      component.activeVariables = { 'base_url': 'example.org' };
+      component.selectedEnvironmentId = 'env-1';
+      (component as any).updateActiveVariables();
 
       const mockResponse = {
         status: 200, statusText: 'OK', headers: {},
@@ -257,6 +281,27 @@ describe('RequestComponent', () => {
       await component.sendRequest();
 
       expect(component.activeVariables['auth_token']).toBe('abc-123');
+    });
+
+    it('should persist post-request pm.session changes via SessionService', async () => {
+      const mockResponse = {
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        body: JSON.stringify({ ok: true }),
+        timeMs: 10,
+        size: 10,
+      };
+      requestServiceSpy.sendRequest.and.returnValue(Promise.resolve(mockResponse as any));
+      sessionServiceSpy.get.and.returnValue({ existing: 'x' });
+
+      component.request.script.postRequest = '// session_token path';
+      await component.sendRequest();
+
+      expect(sessionServiceSpy.save).toHaveBeenCalledWith(
+        'awScriptRuntimeVariables',
+        jasmine.objectContaining({ existing: 'x', access_token: 'tok-from-session' }),
+      );
     });
   });
 });

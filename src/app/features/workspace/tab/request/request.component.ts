@@ -18,6 +18,7 @@ interface ScriptRunResult {
   testResults?: TestResult[];
   envChanges?: Array<{ op: 'set' | 'unset'; key: string; value?: string }>;
   varChanges?: Array<{ op: 'set' | 'unset'; key: string; value?: string }>;
+  sessionChanges?: Array<{ op: 'set' | 'unset'; key: string; value?: string }>;
   globalChanges?: Array<{ op: 'set' | 'unset'; key: string; value?: string }>;
   consoleLogs?: Array<{ level: string; args: string[] }>;
   errors?: Array<{ message: string; stack?: string }>;
@@ -44,6 +45,10 @@ import { ResponseHistoryService } from '@core/http/response-history.service';
 import { ResponseDiffComponent } from './response-diff/response-diff.component';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import type { MockServerStatus } from '@models/electron';
+import { SessionService } from '@core/session/session.service';
+
+/** Electron session key for `pm.session` script variables (survives tab switches; not in collection JSON). */
+const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
 
 @Component({
   selector: 'app-request',
@@ -170,6 +175,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     private responseHistory: ResponseHistoryService,
     private mockServer: MockServerService,
     private tabService: TabService,
+    private sessionService: SessionService,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer) {
   }
@@ -231,6 +237,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   async ngOnInit() {
+    await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
     this.environmentsService.getEnvironmentsObservable()
       .pipe(takeUntil(this.destroy$))
       .subscribe(envs => {
@@ -340,6 +347,11 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     if (cached) {
       this.response = cached;
     }
+
+    void this.sessionService.load(SESSION_SCRIPT_VARS_KEY).then(() => {
+      this.updateActiveVariables();
+      this.cdr.markForCheck();
+    });
   }
 
   /** URL/query segment params only (httpParameters). API key in query is a separate template row; do not push synthetic objects here. */
@@ -1267,6 +1279,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     if (Array.isArray(result.envChanges)) {
       this.applyEnvChanges(result.envChanges);
     }
+    if (Array.isArray(result.sessionChanges) && result.sessionChanges.length) {
+      await this.applySessionChanges(result.sessionChanges);
+    }
     if (Array.isArray(result.consoleLogs)) {
       for (const log of result.consoleLogs) {
         const level = log.level === 'error' ? 'error' : log.level === 'warn' ? 'warn' : 'log';
@@ -1295,6 +1310,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       environment: { ...this.activeVariables },
       globals: {},
       variables: {},
+      session: { ...this.getSessionScriptVariables() },
       request: {
         method: request.httpMethod,
         url: request.url,
@@ -1303,6 +1319,32 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       },
       response,
     };
+  }
+
+  private getSessionScriptVariables(): Record<string, string> {
+    const raw = this.sessionService.get(SESSION_SCRIPT_VARS_KEY) as Record<string, unknown> | null;
+    if (!raw || typeof raw !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      out[String(k)] = v == null ? '' : String(v);
+    }
+    return out;
+  }
+
+  private async applySessionChanges(changes: Array<{ op: 'set' | 'unset'; key: string; value?: string }>) {
+    await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
+    const next = { ...this.getSessionScriptVariables() };
+    for (const change of changes) {
+      const trimmed = (change.key ?? '').trim();
+      if (!trimmed) continue;
+      if (change.op === 'set') {
+        next[trimmed] = String(change.value ?? '');
+      } else if (change.op === 'unset') {
+        delete next[trimmed];
+      }
+    }
+    await this.sessionService.save(SESSION_SCRIPT_VARS_KEY, next);
+    this.updateActiveVariables();
   }
 
   private applyEnvChanges(changes: Array<{ op: 'set' | 'unset'; key: string; value?: string }>) {
@@ -1335,6 +1377,8 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     if (this.isLoading || !this.request) return;
 
     await this.settingsService.loadSettings();
+    await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
+    this.updateActiveVariables();
 
     this.isLoading = true;
     this.saveRequest();
@@ -1671,6 +1715,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       cleanKv(env?.variables).forEach(v => {
         this.activeVariables[v.key as string] = (v.value ?? '') as string;
       });
+    }
+    for (const [k, v] of Object.entries(this.getSessionScriptVariables())) {
+      this.activeVariables[k] = v;
     }
     this.cdr.markForCheck();
   }

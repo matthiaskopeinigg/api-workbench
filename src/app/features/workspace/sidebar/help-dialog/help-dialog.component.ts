@@ -9,7 +9,7 @@ import { CommonModule } from '@angular/common';
 import { WindowService } from '@core/platform/window.service';
 
 /**
- * In-app help: environments, variable syntax, and dynamic placeholders.
+ * In-app help: environments, variable syntax, dynamic placeholders, and mock server.
  * Opened from the activity bar via {@link SidebarComponent}.
  */
 @Component({
@@ -97,6 +97,51 @@ import { WindowService } from '@core/platform/window.service';
         </section>
 
         <section>
+          <h3>Mock server</h3>
+          <p>
+            Use <strong>Mock Server</strong> in the activity bar: it opens the Mock Server tab and an
+            <strong>Endpoints</strong> side panel (collection routes with mock variants, plus standalone
+            routes you define there). Start the server from the tab to see the local <strong>base URL</strong>.
+          </p>
+          <p>
+            <strong>Collection mocks</strong> — add one or more variants on a saved request, choose which is
+            <em>active</em>, then call <code>/mock/&lt;requestId&gt;</code> on the mock origin (optional
+            <code>/mock/&lt;requestId&gt;/&lt;variantId&gt;</code> to pin a variant). Copy URL actions appear
+            in the editor when the server is running.
+          </p>
+          <p>
+            <strong>Standalone mocks</strong> — method + path on the same origin. Paths may end with
+            <code>/*</code> (one extra path segment) or <code>/**</code> (that path and everything under it).
+          </p>
+          <p>
+            In each variant, <strong>response body</strong> and <strong>response header values</strong> are
+            evaluated per incoming request. These tokens are <em>not</em> the same as environment
+            <code>{{variableName}}</code> on outbound requests; they are expanded by the mock process:
+          </p>
+          <ul>
+            <li><code>{{header.Authorization}}</code> — raw header value (name matched case-insensitively)</li>
+            <li><code>{{headerJson.Authorization}}</code> — same value as a JSON string literal (safe inside JSON)</li>
+            <li><code>{{body}}</code> — raw captured request body text</li>
+            <li><code>{{bodyJson}}</code> — whole body as a JSON string literal (for embedding)</li>
+            <li>
+              <code>{{bodyJson.accessToken}}</code>, <code>{{bodyJson.user.id}}</code> — dot path into the
+              <em>parsed JSON</em> request body; replaced with <code>JSON.stringify</code> of that value,
+              or <code>null</code> if missing / invalid JSON
+            </li>
+          </ul>
+          <p class="tip">
+            <span class="tip-label">Tip</span>
+            Turn on <strong>Capture request &amp; response bodies</strong> (Mock Server → Advanced) so
+            <code>{{body}}</code> / <code>{{bodyJson…}}</code> receive the client request body. Dynamic
+            snippets in mock bodies (e.g. echoing a token) are documented in the variant editor hint as well.
+          </p>
+          <p>
+            The tab also has an <strong>activity</strong> log of hits, filters, optional request/response body
+            capture in the log, CORS and default delay options, and <strong>auto-start</strong> in Advanced.
+          </p>
+        </section>
+
+        <section>
           <h3>Path segments in the URL</h3>
           <p>
             In the <strong>request URL</strong> only, segments like <code>:id</code> are highlighted
@@ -109,7 +154,6 @@ import { WindowService } from '@core/platform/window.service';
           <h3>Other tips</h3>
           <ul>
             <li>Collections, folders, and requests are stored locally; use your backup workflow (e.g. file sync or VCS) for sharing.</li>
-            <li><strong>Mock Server</strong> in the activity bar runs a local server for stub responses — useful with variables that point to <code>127.0.0.1</code> and a port.</li>
             <li><strong>History</strong> records sent requests; open a past entry to resend or compare.</li>
             <li>
               Application preferences (default headers, SSL, theme, and more) live under the

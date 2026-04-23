@@ -17,9 +17,10 @@ export abstract class SidebarItem {
   abstract component: Type<any> | null;
 
   /**
-   * Optional click handler. When provided, the sidebar runs the action
-   * instead of toggling a secondary panel — used for entries that open a
-   * full workspace tab (e.g. Mock Server) rather than a side-panel.
+   * Optional click handler. When `component` is null, the sidebar runs the
+   * action instead of toggling a secondary panel (e.g. Help). When both
+   * `component` and `action` are set, the action runs (e.g. open a tab) and
+   * the secondary panel shows that component (e.g. Mock Server + endpoints).
    */
   action?: () => void;
 }

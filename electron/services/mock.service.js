@@ -8,6 +8,12 @@ const { logInfo, logError } = require('./logger.service');
  * be registered by `${method}:${path}` for mocks that aren't bound to a saved
  * request (e.g. quick `/healthz`).
  *
+ * Response bodies and response header values may include templates evaluated
+ * per hit: `{{header.Name}}`, `{{headerJson.Name}}` (JSON-safe string),
+ * `{{body}}`, `{{bodyJson}}` (full incoming body as a JSON string literal),
+ * `{{bodyJson.accessToken}}` / `{{bodyJson.user.id}}` (dot path on parsed JSON;
+ * request body must be valid JSON; value is JSON.stringify’d for safe embed).
+ *
  * A single server instance is shared across the app; starting again reuses
  * the running instance unless options have changed (in which case the caller
  * should restart).
@@ -193,6 +199,64 @@ function pickVariant(entry, preferredVariantId) {
   return entry.variants[0];
 }
 
+function getHeaderInsensitive(headers, rawName) {
+  const want = String(rawName || '').trim().toLowerCase();
+  if (!want) return '';
+  for (const [k, v] of Object.entries(headers || {})) {
+    if (String(k).toLowerCase() === want) {
+      return Array.isArray(v) ? v.join(', ') : String(v ?? '');
+    }
+  }
+  return '';
+}
+
+function parseRequestBodyJson(bodyStr) {
+  const s = bodyStr == null ? '' : String(bodyStr).trim();
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+/** Dot-separated path on a parsed JSON object/array (e.g. `user.token`, `items.0`). */
+function getJsonPath(obj, rawPath) {
+  const path = String(rawPath || '').trim();
+  if (!path || obj == null || typeof obj !== 'object') return undefined;
+  const parts = path.split('.').filter(Boolean);
+  if (parts.length === 0) return undefined;
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+/**
+ * Replace `{{header.Name}}`, `{{headerJson.Name}}`, `{{body}}`, `{{bodyJson}}`,
+ * `{{bodyJson.path.to.field}}` using the incoming request. `headerJson` /
+ * dotted `bodyJson` use JSON.stringify so you can embed them inside JSON
+ * bodies without manual escaping.
+ * Order matters: `{{bodyJson.x}}` before `{{bodyJson}}`, then `{{body}}`, etc.
+ */
+function expandMockResponseTemplates(str, req, capturedReqBody) {
+  if (typeof str !== 'string' || str.indexOf('{{') === -1) return str;
+  const bodyStr = capturedReqBody == null ? '' : String(capturedReqBody);
+  let out = str;
+  out = out.replace(/\{\{bodyJson\.([^}]+)\}\}/g, (_, rawPath) => {
+    const json = parseRequestBodyJson(bodyStr);
+    const v = getJsonPath(json, rawPath);
+    return v === undefined ? 'null' : JSON.stringify(v);
+  });
+  out = out.replace(/\{\{bodyJson\}\}/g, () => JSON.stringify(bodyStr));
+  out = out.replace(/\{\{body\}\}/g, () => bodyStr);
+  out = out.replace(/\{\{headerJson\.([^}]+)\}\}/g, (_, rawName) => JSON.stringify(getHeaderInsensitive(req.headers, rawName)));
+  out = out.replace(/\{\{header\.([^}]+)\}\}/g, (_, rawName) => getHeaderInsensitive(req.headers, rawName));
+  return out;
+}
+
 function applyCorsHeaders(req, headers) {
   if (options.corsMode === 'off') return;
   const reqOrigin = req.headers.origin || '*';
@@ -207,12 +271,13 @@ function applyCorsHeaders(req, headers) {
   }
 }
 
-function buildResponseHeaders(req, variant) {
+function buildResponseHeaders(req, variant, capturedReqBody) {
   const headers = {};
   if (Array.isArray(variant && variant.headers)) {
     for (const h of variant.headers) {
       if (!h || !h.key) continue;
-      headers[String(h.key)] = String(h.value ?? '');
+      const rawVal = String(h.value ?? '');
+      headers[String(h.key)] = expandMockResponseTemplates(rawVal, req, capturedReqBody);
     }
   }
   if (!Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
@@ -225,8 +290,10 @@ function buildResponseHeaders(req, variant) {
 function writeResponse(req, res, variant, ctx) {
   const status = Number(variant && variant.statusCode) || 200;
   const statusText = variant && variant.statusText ? String(variant.statusText) : undefined;
-  const headers = buildResponseHeaders(req, variant);
-  const body = typeof (variant && variant.body) === 'string' ? variant.body : '';
+  const capturedReqBody = ctx && ctx.capturedReqBody != null ? ctx.capturedReqBody : '';
+  const headers = buildResponseHeaders(req, variant, capturedReqBody);
+  const rawBody = typeof (variant && variant.body) === 'string' ? variant.body : '';
+  const body = expandMockResponseTemplates(rawBody, req, capturedReqBody);
   if (statusText) res.statusMessage = statusText;
   res.writeHead(status, headers);
   res.end(body);
@@ -390,11 +457,27 @@ function start(portOverride) {
       const desiredPort = Number(portOverride ?? options.port) || 0;
       const bind = options.bindAddress || '127.0.0.1';
       server = http.createServer(handleRequest);
-      server.on('error', (err) => {
-        state = { ...state, status: 'error', error: String(err && err.message || err) };
-        logError('Mock server error', err);
-      });
+
+      const onListenError = (err) => {
+        const msg = String(err && err.message ? err.message : err);
+        state = { ...state, status: 'error', error: msg };
+        logError('Mock server listen error', err);
+        try {
+          server.close();
+        } catch {
+          /* ignore */
+        }
+        server = null;
+        reject(err);
+      };
+
+      server.once('error', onListenError);
       server.listen(desiredPort, bind, () => {
+        server.removeListener('error', onListenError);
+        server.on('error', (err) => {
+          state = { ...state, status: 'error', error: String(err && err.message ? err.message : err) };
+          logError('Mock server error', err);
+        });
         const addr = server.address();
         state = {
           host: bind,

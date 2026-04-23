@@ -1079,6 +1079,28 @@ label:has(input[type="checkbox"]) {
     }
   }
 
+  .header-variable-slot {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .header-variable-input {
+    display: block;
+    width: 100%;
+  }
+
+  :host ::ng-deep .headers-panel .header-variable-slot .variable-input-container {
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--border-color), transparent 30%);
+    border-radius: 8px;
+    height: 36px;
+  }
+
+  :host ::ng-deep .headers-panel .header-variable-slot .variable-input-container:focus-within {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary-color), transparent 85%);
+  }
+
   .header-delete-btn {
     width: 30px;
     height: 30px;

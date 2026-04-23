@@ -3,6 +3,7 @@ import { BehaviorSubject } from 'rxjs';
 import { MockServerComponent } from './mock-server.component';
 import { CollectionService } from '@core/collection/collection.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
+import { MockServerUiStateService } from '@core/mock-server/mock-server-ui-state.service';
 import { TabType, MOCK_SERVER_TAB_ID } from '@core/tabs/tab.service';
 import type { MockServerStatus, MockServerOptions, StandaloneMockEndpoint, MockHit } from '@models/electron';
 
@@ -28,6 +29,11 @@ describe('MockServerComponent', () => {
   };
 
   beforeEach(async () => {
+    try {
+      sessionStorage.removeItem('aw.mockServer.sessionUi');
+    } catch {
+      // ignore
+    }
     collections$ = new BehaviorSubject<any[]>([]);
     status$ = new BehaviorSubject(baseStatus);
     options$ = new BehaviorSubject(baseOptions);
@@ -119,6 +125,11 @@ describe('MockServerComponent', () => {
     expect((component as any).parsedPort()).toBeNull();
     component.portInput = '3001';
     expect((component as any).parsedPort()).toBe(3001);
+  });
+
+  it('parsedPort accepts numeric port from type=number ngModel binding', () => {
+    (component as any).portInput = 9781;
+    expect((component as any).parsedPort()).toBe(9781);
   });
 
   it('startServer forwards the parsed port and calls start()', async () => {
@@ -274,10 +285,19 @@ describe('MockServerComponent', () => {
     expect(component.showAdvanced).toBeTrue();
   });
 
-  it('totalRegistered sums registry + standalone counts', () => {
-    (component as any).groups = [{ collectionId: 'c', collectionTitle: 'c', entries: [{}, {}] }];
-    component.standalones = [{ id: 'sa-1' } as any];
-    expect(component.totalRegistered()).toBe(3);
+  it('defaults to activity hidden when session is empty', () => {
+    expect(component.activityPaneVisible).toBeFalse();
+  });
+
+  it('persists selection to sessionStorage when selecting a request', () => {
+    const req = { id: 'r1', title: 'T' } as any;
+    component.selectRequest(req);
+    const raw = sessionStorage.getItem('aw.mockServer.sessionUi');
+    expect(raw).toBeTruthy();
+    const snap = JSON.parse(raw!);
+    expect(snap.v).toBe(1);
+    expect(snap.selectionKind).toBe('request');
+    expect(snap.selectedRequestId).toBe('r1');
   });
 
   it('standaloneUrl returns "" when the server is offline', () => {

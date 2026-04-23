@@ -9,6 +9,8 @@ import { ImportService } from '@core/import-pipeline/import.service';
 import { BatchImportDialogService } from '@core/import-pipeline/batch-import-dialog.service';
 import type { BatchImportResult } from '@core/import-pipeline/import-batch.service';
 import { UpdateService } from '@core/platform/update.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { SessionService } from '@core/session/session.service';
 import { Theme } from '@models/settings';
 import { of, Subject } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -26,6 +28,8 @@ describe('SettingsComponent', () => {
     finished$: Subject<BatchImportResult | null>;
   };
   let updateServiceSpy: jasmine.SpyObj<UpdateService> & { statusStream: unknown };
+  let environmentsServiceSpy: jasmine.SpyObj<EnvironmentsService>;
+  let sessionServiceSpy: jasmine.SpyObj<SessionService>;
 
   const mockSettings = {
     ui: { theme: Theme.DARK },
@@ -69,6 +73,19 @@ describe('SettingsComponent', () => {
       info: null,
     } as any);
 
+    environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', [
+      'loadEnvironments',
+      'getActiveContext',
+      'getActiveContextAsObservable',
+    ]);
+    environmentsServiceSpy.loadEnvironments.and.resolveTo();
+    environmentsServiceSpy.getActiveContext.and.returnValue(null);
+    environmentsServiceSpy.getActiveContextAsObservable.and.returnValue(of(null));
+
+    sessionServiceSpy = jasmine.createSpyObj('SessionService', ['load', 'get']);
+    sessionServiceSpy.load.and.resolveTo();
+    sessionServiceSpy.get.and.returnValue(null);
+
     settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
     collectionServiceSpy.getCollections.and.returnValue([]);
 
@@ -83,6 +100,8 @@ describe('SettingsComponent', () => {
         { provide: ImportService, useValue: importServiceSpy },
         { provide: BatchImportDialogService, useValue: batchImportDialogSpy },
         { provide: UpdateService, useValue: updateServiceSpy },
+        { provide: EnvironmentsService, useValue: environmentsServiceSpy },
+        { provide: SessionService, useValue: sessionServiceSpy },
       ]
     }).compileComponents();
 

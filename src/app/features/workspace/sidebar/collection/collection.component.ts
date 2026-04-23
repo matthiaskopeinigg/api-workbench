@@ -877,7 +877,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     if (!this.draggedItem) return;
 
-    if (this.isValidDrop(targetId, targetType)) {
+    if (this.isValidDrop(targetId, targetType, event)) {
       this.dragOverId = targetId;
       this.dragOverDeniedId = null;
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
@@ -888,7 +888,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     }
   }
 
-  private isValidDrop(targetId: string, targetType: 'collection' | 'folder'): boolean {
+  private isValidDrop(targetId: string, targetType: 'collection' | 'folder', event?: DragEvent): boolean {
     if (!this.draggedItem) return false;
 
     const { id, type, parentId } = this.draggedItem;
@@ -896,7 +896,8 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (id === targetId) return false;
 
     if (type === 'folder') {
-      if (targetType === 'folder' && this.areSameFolderSiblings(id, targetId)) {
+      // Alt+drop on a sibling reorders only; a normal drop nests into the target (even if siblings).
+      if (targetType === 'folder' && this.areSameFolderSiblings(id, targetId) && !!event?.altKey) {
         return true;
       }
 
@@ -1020,7 +1021,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     if (!this.draggedItem) return;
 
-    if (!this.isValidDrop(targetId, targetType)) {
+    if (!this.isValidDrop(targetId, targetType, event)) {
       this.triggerDeniedAnimation(targetId);
       this.draggedItem = null;
       return;
@@ -1030,7 +1031,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     const { id, type, parentId } = this.draggedItem;
 
-    if (type === 'folder' && targetType === 'folder') {
+    if (type === 'folder' && targetType === 'folder' && event.altKey) {
       const srcCtx = this.findFolderListContext(id);
       const dstCtx = this.findFolderListContext(targetId);
       if (srcCtx && dstCtx && srcCtx.siblings === dstCtx.siblings) {

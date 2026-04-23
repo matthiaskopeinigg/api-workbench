@@ -23,6 +23,7 @@ import { SettingsService } from '@core/settings/settings.service';
 import { TabService } from '@core/tabs/tab.service';
 import { FormsModule } from '@angular/forms';
 import { HelpDialogComponent } from './help-dialog/help-dialog.component';
+import { MockServerEndpointsSidebarComponent } from './mock-server-endpoints-sidebar/mock-server-endpoints-sidebar.component';
 
 @Component({
   selector: 'app-sidebar',
@@ -61,7 +62,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
     {
       label: 'Mock Server',
       icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
-      component: null,
+      component: MockServerEndpointsSidebarComponent,
       action: () => this.tabService.openMockServerTab(),
     },
     {
@@ -197,6 +198,27 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.setActiveItem(null);
       item.active = true;
       setTimeout(() => { item.active = false; this.cdr.markForCheck(); }, 250);
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (item.action && item.component) {
+      try {
+        item.action();
+      } catch {
+        // ignore
+      }
+      if (this.selectedItem === item) {
+        this.closeSecondarySidebar();
+      } else {
+        this.selectedItem = item;
+        this.setActiveItem(item);
+        if (this.collapsed) {
+          this.collapsed = false;
+          this.secondaryToggled.next(true);
+        }
+        void this.persistView();
+      }
       this.cdr.markForCheck();
       return;
     }

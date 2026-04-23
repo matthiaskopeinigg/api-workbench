@@ -44,6 +44,7 @@ describe('CollectionComponent', () => {
       'findCollectionByCollectionId',
       'findFolderById',
       'getFolderDepth',
+      'moveFolder',
       'updateRequest',
       'triggerFolderDeleted',
       'triggerRequestDeleted'
@@ -56,6 +57,7 @@ describe('CollectionComponent', () => {
 
     collectionServiceSpy.getCollectionsObservable.and.returnValue(of(mockCollections));
     collectionServiceSpy.getCollections.and.returnValue(mockCollections);
+    collectionServiceSpy.moveFolder.and.returnValue(Promise.resolve());
     collectionServiceSpy.getSelectedFolderAsObservable.and.returnValue(of(null as any));
     collectionServiceSpy.getCreateNewCollectionObservable.and.returnValue(of() as any);
     collectionServiceSpy.isCreationPending.and.returnValue(false);
@@ -177,11 +179,41 @@ describe('CollectionComponent', () => {
       collectionServiceSpy.getCollections.and.returnValue([col]);
 
       component.draggedItem = { id: 'fol-c', type: 'folder', parentId: col.id };
-      await component.onDrop({ preventDefault: () => {}, stopPropagation: () => {} } as any, 'fol-a', 'folder');
+      await component.onDrop(
+        { preventDefault: () => {}, stopPropagation: () => {}, altKey: true } as DragEvent,
+        'fol-a',
+        'folder',
+      );
 
       expect(col.folders.map(f => f.id)).toEqual(['fol-c', 'fol-a', 'fol-b']);
       expect(col.folders.map(f => f.order)).toEqual([0, 1, 2]);
       expect(collectionServiceSpy.saveCollections).toHaveBeenCalled();
+    });
+
+    it('should nest a folder into a sibling when dropping without Alt (not reorder)', async () => {
+      const inner = { id: 'fol-inner', title: 'Inner', folders: [], requests: [], order: 0 };
+      const col: Collection = {
+        id: 'col-1',
+        title: 'Test Collection',
+        order: 0,
+        folders: [
+          { id: 'fol-a', title: 'A', folders: [], requests: [], order: 0 },
+          { id: 'fol-b', title: 'B', folders: [inner], requests: [], order: 1 },
+        ],
+        requests: [],
+      };
+      component.collections = [col];
+      collectionServiceSpy.getCollections.and.returnValue([col]);
+      collectionServiceSpy.findFolderById.and.callFake((id: string) => component.findFolderById(id));
+
+      component.draggedItem = { id: 'fol-a', type: 'folder', parentId: col.id };
+      await component.onDrop(
+        { preventDefault: () => {}, stopPropagation: () => {}, altKey: false } as DragEvent,
+        'fol-b',
+        'folder',
+      );
+
+      expect(collectionServiceSpy.moveFolder).toHaveBeenCalledWith('fol-a', 'fol-b', false);
     });
   });
 });

@@ -148,7 +148,12 @@
 
       <div *ngIf="selectedTab==='headers'" formGroupName="headers" class="tab-pane">
         <h2 class="tab-title">Default Headers</h2>
-        <p class="tab-description">Headers added to every request, unless overridden in the request itself.</p>
+        <p class="tab-description">
+          Headers added to every request, unless overridden in the request itself.
+          Keys and values support the same placeholders as elsewhere: double-brace environment names
+          (active environment + session variables from scripts) and <span ngNonBindable>$</span>-style dynamic tokens;
+          matching text is highlighted and suggestions appear while you type.
+        </p>
 
         <div class="toggle-card">
           <label class="toggle-card-label">
@@ -176,8 +181,22 @@
                 <input type="checkbox" formControlName="enabled">
               </label>
 
-              <input class="header-input header-key" placeholder="Content-Type" formControlName="key">
-              <input class="header-input header-value" placeholder="application/json" formControlName="value">
+              <div class="header-variable-slot header-key-slot">
+                <app-variable-input
+                  class="header-variable-input"
+                  formControlName="key"
+                  [activeVariables]="headerFieldVariables"
+                  placeholder="Content-Type"
+                ></app-variable-input>
+              </div>
+              <div class="header-variable-slot header-value-slot">
+                <app-variable-input
+                  class="header-variable-input"
+                  formControlName="value"
+                  [activeVariables]="headerFieldVariables"
+                  placeholder="application/json"
+                ></app-variable-input>
+              </div>
 
               <button type="button" class="header-delete-btn" (click)="removeHeader(i)" aria-label="Remove header">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"

@@ -8,11 +8,15 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, combineLatest, takeUntil } from 'rxjs';
 
 import { TabItem } from '@core/tabs/tab.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
+import {
+  MockServerUiStateService,
+  type MockSelectionKind,
+} from '@core/mock-server/mock-server-ui-state.service';
 import { Collection, Folder } from '@models/collection';
 import { HttpMethod, MockVariant, Request as RequestModel } from '@models/request';
 import type {
@@ -26,21 +30,20 @@ import { v4 as uuidv4 } from 'uuid';
 import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
 import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
 
-interface EndpointGroup {
-  collectionId: string;
-  collectionTitle: string;
-  entries: EndpointEntry[];
+/** Persisted in sessionStorage for the Mock Server tab (same browser session). */
+interface MockServerSessionSnapshot {
+  v: 1;
+  activityVisible: boolean;
+  showAdvanced: boolean;
+  expandedHitId: string | null;
+  headersOpen: string[];
+  selectionKind: MockSelectionKind;
+  selectedRequestId: string | null;
+  selectedStandaloneId: string | null;
+  hitFilter: string;
+  methodFilter: string;
+  statusFilter: '' | '2xx' | '3xx' | '4xx' | '5xx';
 }
-
-interface EndpointEntry {
-  request: RequestModel;
-  parentLabel: string;
-  variantCount: number;
-  activeVariantId: string | null;
-  isRegistered: boolean;
-}
-
-type SelectionKind = 'request' | 'standalone' | null;
 
 const STANDALONE_METHODS: ReadonlyArray<string> = [
   'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD',
@@ -108,15 +111,16 @@ export class MockServerComponent implements OnInit, OnDestroy {
     captureBodies: true,
   };
 
-  /** Form-bound port string (lets the user clear the field for "auto"). */
-  portInput = '';
+  /** Form-bound port (`type="number"` may sync a number from the template). */
+  portInput: string | number = '';
   showAdvanced = false;
-  /** When false, the activity log is hidden so the editor uses the full main column. */
-  activityPaneVisible = true;
-  private readonly activityPanePrefKey = 'aw.mockServer.showActivity';
+  /** When true, the activity log is shown below the editor (hidden by default). */
+  activityPaneVisible = false;
+  private readonly sessionUiKey = 'aw.mockServer.sessionUi';
+  /** @deprecated Read once when no session snapshot; not written anymore. */
+  private readonly legacyActivityPrefKey = 'aw.mockServer.showActivity';
   copied: 'baseUrl' | string | null = null;
 
-  groups: EndpointGroup[] = [];
   selectedRequestId: string | null = null;
   selectedRequest: RequestModel | null = null;
   selectedRequestParentPath = '';
@@ -129,7 +133,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
   standalones: StandaloneMockEndpoint[] = [];
   selectedStandaloneId: string | null = null;
   selectedStandalone: StandaloneMockEndpoint | null = null;
-  selectionKind: SelectionKind = null;
+  selectionKind: MockSelectionKind = null;
   /** Standalone route HTTP method (app-dropdown, same list as STANDALONE_METHODS). */
   readonly standaloneMethodOptions: DropdownOption[] = STANDALONE_METHODS.map((m) => ({
     label: m,
@@ -178,18 +182,45 @@ export class MockServerComponent implements OnInit, OnDestroy {
   constructor(
     private collectionService: CollectionService,
     private mockServer: MockServerService,
+    private mockUi: MockServerUiStateService,
     private cdr: ChangeDetectorRef,
   ) {}
 
   async ngOnInit(): Promise<void> {
-    this.loadActivityPanePreference();
+    this.restoreMockServerSession();
     this.collectionService
       .getCollectionsObservable()
       .pipe(takeUntil(this.destroy$))
       .subscribe((collections: Collection[]) => {
         this.collections = collections || [];
-        this.rebuildGroups();
+        this.mockUi.setCollections(collections || []);
         this.refreshSelection();
+        this.cdr.markForCheck();
+      });
+
+    combineLatest([
+      this.mockUi.selectionKind$,
+      this.mockUi.selectedRequestId$,
+      this.mockUi.selectedStandaloneId$,
+    ])
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(([kind, reqId, stId]) => {
+        this.selectionKind = kind;
+        this.selectedRequestId = reqId;
+        this.selectedStandaloneId = stId;
+        this.refreshSelection();
+        this.syncSelectedStandaloneFromList();
+        this.persistMockServerSession();
+        this.cdr.markForCheck();
+      });
+
+    this.mockUi.standalones$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((list) => {
+        this.standalones = list;
+        if (this.selectionKind === 'standalone') {
+          this.syncSelectedStandaloneFromList();
+        }
         this.cdr.markForCheck();
       });
 
@@ -198,8 +229,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((status) => {
         this.status = status;
-        this.rebuildGroups();
-        void this.refreshStandalones();
+        this.mockUi.setStatus(status);
+        void this.mockUi.refreshStandalonesList();
         this.cdr.markForCheck();
       });
 
@@ -224,25 +255,20 @@ export class MockServerComponent implements OnInit, OnDestroy {
       this.mockServer.refreshStatus(),
       this.mockServer.refreshOptions(),
       this.mockServer.refreshHits(),
-      this.refreshStandalones(),
+      this.mockUi.refreshStandalonesList(),
     ]);
+    this.refreshSelection();
+    this.syncSelectedStandaloneFromList();
+    this.persistMockServerSession();
   }
 
-  private async refreshStandalones(): Promise<void> {
-    const list = await this.mockServer.listStandalone();
-    this.standalones = list.map((e) => ({
-      ...e,
-      name: typeof e.name === 'string' ? e.name : '',
-    }));
-    if (this.selectedStandaloneId) {
+  private syncSelectedStandaloneFromList(): void {
+    if (this.selectionKind === 'standalone' && this.selectedStandaloneId) {
       this.selectedStandalone =
-        list.find((e) => e.id === this.selectedStandaloneId) || null;
-      if (!this.selectedStandalone) {
-        this.selectionKind = this.selectionKind === 'standalone' ? null : this.selectionKind;
-        this.selectedStandaloneId = null;
-      }
+        this.standalones.find((s) => s.id === this.selectedStandaloneId) ?? null;
+    } else {
+      this.selectedStandalone = null;
     }
-    this.cdr.markForCheck();
   }
 
   ngOnDestroy(): void {
@@ -250,63 +276,89 @@ export class MockServerComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private loadActivityPanePreference(): void {
-    if (typeof localStorage === 'undefined') {
+  private restoreMockServerSession(): void {
+    if (typeof sessionStorage === 'undefined') {
+      this.applyLegacyActivityPreferenceOnly();
       return;
     }
     try {
-      if (localStorage.getItem(this.activityPanePrefKey) === '0') {
-        this.activityPaneVisible = false;
+      const raw = sessionStorage.getItem(this.sessionUiKey);
+      if (!raw) {
+        this.applyLegacyActivityPreferenceOnly();
+        return;
+      }
+      const snap = JSON.parse(raw) as Partial<MockServerSessionSnapshot>;
+      if (snap.v !== 1) {
+        this.applyLegacyActivityPreferenceOnly();
+        return;
+      }
+      this.activityPaneVisible = !!snap.activityVisible;
+      this.showAdvanced = !!snap.showAdvanced;
+      this.expandedHitId = snap.expandedHitId ?? null;
+      this.headersOpen.clear();
+      if (Array.isArray(snap.headersOpen)) {
+        for (const id of snap.headersOpen) {
+          if (id) this.headersOpen.add(id);
+        }
+      }
+      let kind: MockSelectionKind = null;
+      if (snap.selectionKind === 'request' || snap.selectionKind === 'standalone' || snap.selectionKind === null) {
+        kind = snap.selectionKind;
+      }
+      this.mockUi.applySelectionFromSession(
+        kind,
+        snap.selectedRequestId ?? null,
+        snap.selectedStandaloneId ?? null,
+      );
+      if (typeof snap.hitFilter === 'string') this.hitFilter = snap.hitFilter;
+      if (typeof snap.methodFilter === 'string') this.methodFilter = snap.methodFilter;
+      if (snap.statusFilter === '' || snap.statusFilter === '2xx' || snap.statusFilter === '3xx' || snap.statusFilter === '4xx' || snap.statusFilter === '5xx') {
+        this.statusFilter = snap.statusFilter;
+      }
+    } catch {
+      this.applyLegacyActivityPreferenceOnly();
+    }
+  }
+
+  /** If no session snapshot yet, honor former localStorage activity flag once. */
+  private applyLegacyActivityPreferenceOnly(): void {
+    this.activityPaneVisible = false;
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (localStorage.getItem(this.legacyActivityPrefKey) === '1') {
+        this.activityPaneVisible = true;
       }
     } catch {
       // ignore
     }
   }
 
-  setActivityPaneVisible(visible: boolean): void {
-    this.activityPaneVisible = visible;
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(this.activityPanePrefKey, visible ? '1' : '0');
-      } catch {
-        // ignore
-      }
+  private persistMockServerSession(): void {
+    if (typeof sessionStorage === 'undefined') return;
+    try {
+      const snap: MockServerSessionSnapshot = {
+        v: 1,
+        activityVisible: this.activityPaneVisible,
+        showAdvanced: this.showAdvanced,
+        expandedHitId: this.expandedHitId,
+        headersOpen: Array.from(this.headersOpen),
+        selectionKind: this.selectionKind,
+        selectedRequestId: this.selectedRequestId,
+        selectedStandaloneId: this.selectedStandaloneId,
+        hitFilter: this.hitFilter,
+        methodFilter: this.methodFilter,
+        statusFilter: this.statusFilter,
+      };
+      sessionStorage.setItem(this.sessionUiKey, JSON.stringify(snap));
+    } catch {
+      // ignore quota errors
     }
-    this.cdr.markForCheck();
   }
 
-  private rebuildGroups(): void {
-    const registeredIds = new Set(this.status.registered.map((r) => r.requestId));
-    const groups: EndpointGroup[] = [];
-    for (const collection of this.collections) {
-      const entries: EndpointEntry[] = [];
-      const walk = (node: Collection | Folder, parentPath: string) => {
-        for (const req of node.requests || []) {
-          const variantCount = req.mockVariants?.length || 0;
-          if (variantCount === 0 && !registeredIds.has(req.id)) continue;
-          entries.push({
-            request: req,
-            parentLabel: parentPath || collection.title,
-            variantCount,
-            activeVariantId: req.activeMockVariantId || null,
-            isRegistered: registeredIds.has(req.id),
-          });
-        }
-        for (const folder of node.folders || []) {
-          const next = parentPath ? `${parentPath} / ${folder.title}` : folder.title;
-          walk(folder, next);
-        }
-      };
-      walk(collection, '');
-      if (entries.length > 0) {
-        groups.push({
-          collectionId: collection.id,
-          collectionTitle: collection.title,
-          entries,
-        });
-      }
-    }
-    this.groups = groups;
+  setActivityPaneVisible(visible: boolean): void {
+    this.activityPaneVisible = visible;
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   private refreshSelection(): void {
@@ -339,23 +391,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
   }
 
   selectRequest(request: RequestModel): void {
-    this.selectedRequestId = request.id;
-    this.selectionKind = 'request';
-    this.selectedStandaloneId = null;
-    this.selectedStandalone = null;
-    this.refreshSelection();
-    this.cdr.markForCheck();
-  }
-
-  trackByStandalone = (_i: number, e: StandaloneMockEndpoint) => e.id;
-
-  selectStandalone(endpoint: StandaloneMockEndpoint): void {
-    this.selectedStandaloneId = endpoint.id;
-    this.selectedStandalone = endpoint;
-    this.selectionKind = 'standalone';
-    this.selectedRequestId = null;
-    this.selectedRequest = null;
-    this.cdr.markForCheck();
+    this.mockUi.selectRequest(request);
   }
 
   /**
@@ -364,47 +400,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
    * picking unique paths up-front.
    */
   async addStandalone(): Promise<void> {
-    const used = new Set(this.standalones.map((s) => s.path));
-    let path = '/mock/new';
-    let n = 1;
-    while (used.has(path)) {
-      n += 1;
-      path = `/mock/new-${n}`;
-    }
-    const variantId = uuidv4();
-    const created = await this.mockServer.registerStandalone({
-      name: '',
-      method: 'GET',
-      path,
-      variants: [{
-        id: variantId,
-        name: 'Default',
-        statusCode: 200,
-        headers: [{ key: 'Content-Type', value: 'application/json' }],
-        body: '{\n  "ok": true\n}',
-        delayMs: 0,
-      }],
-      activeVariantId: variantId,
-    });
-    await this.refreshStandalones();
-    if (created) this.selectStandalone(created);
+    await this.mockUi.addStandalone();
   }
 
   async removeStandalone(endpoint: StandaloneMockEndpoint, evt?: MouseEvent): Promise<void> {
-    if (evt) {
-      evt.stopPropagation();
-      evt.preventDefault();
-    }
-    const label = endpoint.name?.trim() || `${endpoint.method} ${endpoint.path}`;
-    const ok = window.confirm(`Delete standalone mock “${label}”?`);
-    if (!ok) return;
-    await this.mockServer.unregisterStandalone(endpoint.id);
-    if (this.selectedStandaloneId === endpoint.id) {
-      this.selectedStandaloneId = null;
-      this.selectedStandalone = null;
-      if (this.selectionKind === 'standalone') this.selectionKind = null;
-    }
-    await this.refreshStandalones();
+    await this.mockUi.removeStandalone(endpoint);
   }
 
   /**
@@ -432,7 +432,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
       activeVariantId: s.activeVariantId,
     });
     if (updated) this.selectedStandalone = updated;
-    await this.refreshStandalones();
+    await this.mockUi.refreshStandalonesList();
   }
 
   onStandaloneMethodSelect(method: string): void {
@@ -514,8 +514,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
     return `${this.status.baseUrl}${endpoint.path}`;
   }
 
-  trackByEntry = (_i: number, e: EndpointEntry) => e.request.id;
-  trackByGroup = (_i: number, g: EndpointGroup) => g.collectionId;
   trackByVariant = (_i: number, v: MockVariant) => v.id;
   trackByHit = (_i: number, h: MockHit) => h.id;
 
@@ -591,7 +589,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
       mockVariants: this.selectedRequest.mockVariants,
       activeMockVariantId: this.selectedRequest.activeMockVariantId,
     });
-    this.rebuildGroups();
+    this.mockUi.setCollections(this.collections);
     this.cdr.markForCheck();
   }
 
@@ -668,6 +666,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
   toggleHeaders(variantId: string): void {
     if (this.headersOpen.has(variantId)) this.headersOpen.delete(variantId);
     else this.headersOpen.add(variantId);
+    this.persistMockServerSession();
     this.cdr.markForCheck();
   }
 
@@ -714,7 +713,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
   }
 
   private parsedPort(): number | null {
-    const trimmed = (this.portInput || '').trim();
+    const trimmed = String(this.portInput ?? '').trim();
     if (!trimmed) return null;
     const num = Number(trimmed);
     if (!Number.isFinite(num) || num < 1 || num > 65535) return null;
@@ -761,12 +760,18 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   onActivityMethodFilter(v: string | null | undefined): void {
     this.methodFilter = v ?? '';
+    this.persistMockServerSession();
     this.cdr.markForCheck();
   }
 
   onActivityStatusFilter(v: string | null | undefined): void {
     this.statusFilter = (v || '') as typeof this.statusFilter;
+    this.persistMockServerSession();
     this.cdr.markForCheck();
+  }
+
+  onHitFilterChange(): void {
+    this.persistMockServerSession();
   }
 
   onCorsModeChange(v: string | null | undefined): void {
@@ -807,6 +812,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   toggleHit(hit: MockHit): void {
     this.expandedHitId = this.expandedHitId === hit.id ? null : hit.id;
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   async clearHits(): Promise<void> {
@@ -852,12 +859,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   toggleAdvanced(): void {
     this.showAdvanced = !this.showAdvanced;
+    this.persistMockServerSession();
     this.cdr.markForCheck();
-  }
-
-  totalRegistered(): number {
-    const fromCollections = this.groups.reduce((sum, g) => sum + g.entries.length, 0);
-    return fromCollections + this.standalones.length;
   }
 
   /** HTTP method enum -> readable token (`GET`, `POST`, …). */

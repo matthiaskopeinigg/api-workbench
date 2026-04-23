@@ -40,6 +40,7 @@ function init({ httpRequest }) {
  *     testResults: [{ name, passed, message, durationMs }],
  *     envChanges:   [{ op: 'set'|'unset', key, value? }],
  *     varChanges:   [{ op, key, value? }],       // collectionVariables
+ *     sessionChanges:[{ op, key, value? }],      // pm.session (app session store)
  *     globalChanges:[{ op, key, value? }],
  *     consoleLogs:  [{ level, args: string[] }],
  *     errors:       [{ message, stack? }]        // uncaught errors (non-test)
@@ -49,9 +50,11 @@ async function executeScript(code, context = {}) {
   const env = { ...(context.environment || {}) };
   const globals = { ...(context.globals || {}) };
   const vars = { ...(context.variables || {}) };
+  const session = { ...(context.session || {}) };
 
   const envChanges = [];
   const varChanges = [];
+  const sessionChanges = [];
   const globalChanges = [];
   const testResults = [];
   const consoleLogs = [];
@@ -59,6 +62,7 @@ async function executeScript(code, context = {}) {
 
   const recordEnv = (op, key, value) => envChanges.push({ op, key, value });
   const recordVar = (op, key, value) => varChanges.push({ op, key, value });
+  const recordSession = (op, key, value) => sessionChanges.push({ op, key, value });
   const recordGlobal = (op, key, value) => globalChanges.push({ op, key, value });
 
   const makeScope = (store, record) => ({
@@ -92,9 +96,15 @@ async function executeScript(code, context = {}) {
   const pmResponse = buildPmResponse(context.response);
   const pmRequest = buildPmRequest(context.request);
 
+  const varScope = makeScope(vars, recordVar);
+  const sessionScope = makeScope(session, recordSession);
+
   const pm = {
     environment: makeScope(env, recordEnv),
-    variables:   makeScope(vars, recordVar),
+    variables: varScope,
+    /** Postman alias — same backing store as `pm.variables`. */
+    collectionVariables: varScope,
+    session: sessionScope,
     globals:     makeScope(globals, recordGlobal),
     response: pmResponse,
     request: pmRequest,
@@ -159,6 +169,7 @@ async function executeScript(code, context = {}) {
     testResults,
     envChanges,
     varChanges,
+    sessionChanges,
     globalChanges,
     consoleLogs,
     errors,

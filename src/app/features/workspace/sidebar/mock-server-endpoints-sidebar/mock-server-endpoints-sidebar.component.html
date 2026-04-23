@@ -1,0 +1,87 @@
+<div class="mock-endpoints-sidebar">
+  <div class="rail-header">
+    <span class="rail-title">Endpoints</span>
+    <span class="rail-count">{{ totalRegistered() }}</span>
+  </div>
+
+  <div class="rail-groups">
+    <div class="rail-group standalone-group">
+      <div class="rail-group-title rail-group-title-row">
+        <span>Standalone</span>
+        <button type="button" class="rail-add-btn" (click)="addStandalone()" title="Add standalone mock">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add</span>
+        </button>
+      </div>
+
+      <div class="rail-empty-inline" *ngIf="standalones.length === 0">
+        No standalone mocks yet
+      </div>
+
+      <button type="button"
+              class="rail-entry standalone-entry"
+              *ngFor="let endpoint of standalones; trackBy: trackByStandalone"
+              [class.selected]="selectionKind === 'standalone' && selectedStandaloneId === endpoint.id"
+              (click)="selectStandalone(endpoint)">
+        <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
+        <span class="entry-title" [title]="standaloneEntryTitle(endpoint)">
+          {{ standalonePrimaryLabel(endpoint) }}
+        </span>
+        <span class="entry-meta">
+          <span class="entry-badge" [class.has-active]="!!endpoint.activeVariantId">
+            {{ endpoint.variants.length }}
+          </span>
+          <button type="button" class="entry-remove" title="Delete"
+                  (click)="removeStandalone(endpoint, $event)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+              <line x1="6" y1="18" x2="18" y2="6"></line>
+            </svg>
+          </button>
+        </span>
+      </button>
+    </div>
+
+    <div class="rail-empty" *ngIf="groups.length === 0 && standalones.length === 0">
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 17l6-6 4 4 8-8"></path>
+          <polyline points="14 7 22 7 22 15"></polyline>
+        </svg>
+      </div>
+      <div class="empty-title">No mocks registered</div>
+      <div class="empty-subtitle">
+        Click <strong>+ Add</strong> above to create one here, or add a variant
+        to a saved request.
+      </div>
+    </div>
+
+    <div class="rail-group" *ngFor="let group of groups; trackBy: trackByGroup">
+      <div class="rail-group-title">{{ group.collectionTitle }}</div>
+      <button type="button"
+              class="rail-entry"
+              *ngFor="let entry of group.entries; trackBy: trackByEntry"
+              [class.selected]="selectionKind === 'request' && selectedRequestId === entry.request.id"
+              (click)="selectRequest(entry.request)">
+        <span class="entry-method method-{{ methodLabel(entry.request) }}">{{ methodLabel(entry.request) }}</span>
+        <span class="entry-title" [title]="entry.request.url">
+          {{ entry.request.title || entry.request.url || 'Untitled' }}
+        </span>
+        <span class="entry-meta">
+          <span class="entry-badge" [class.has-active]="!!entry.activeVariantId">
+            {{ entry.variantCount }}
+          </span>
+        </span>
+        <span class="entry-parent" *ngIf="entry.parentLabel && entry.parentLabel !== group.collectionTitle">
+          {{ entry.parentLabel }}
+        </span>
+      </button>
+    </div>
+  </div>
+</div>

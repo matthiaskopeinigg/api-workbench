@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormControl } from '@angular/forms';
-import { Subscription } from 'rxjs';
-import { debounceTime } from 'rxjs/operators';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, takeUntil } from 'rxjs/operators';
 import { Certificate, RequestEditorSection, Settings, Theme } from '@models/settings';
 import { HttpMethod } from '@models/request';
 import { SettingsService } from '@core/settings/settings.service';
@@ -17,10 +17,17 @@ import { UpdateService } from '@core/platform/update.service';
 import { Collection, Folder } from '@models/collection';
 import type { StorageInfo, UpdaterStatus } from '@models/electron';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { SessionService } from '@core/session/session.service';
+import { cleanKv } from '@core/utils/kv-utils';
+import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
+
+/** Same key as {@link RequestComponent} — values merged into default-header placeholder map. */
+const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
 
 @Component({
   selector: 'app-settings',
-  imports: [CommonModule, ReactiveFormsModule, DropdownComponent],
+  imports: [CommonModule, ReactiveFormsModule, DropdownComponent, VariableInputComponent],
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.scss'],
   standalone: true,
@@ -117,6 +124,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
   storageInfo: StorageInfo | null = null;
   dataMessage: string | null = null;
 
+  /** Active environment + session script vars — drives `{{name}}` completion and highlighting in default headers. */
+  headerFieldVariables: Record<string, string> = {};
+
+  private readonly destroy$ = new Subject<void>();
+
   get hasStorageApi(): boolean {
     return typeof window !== 'undefined' && typeof window.awElectron?.getStorageInfo === 'function';
   }
@@ -132,11 +144,23 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private importService: ImportService,
     private batchImportDialog: BatchImportDialogService,
     private updateService: UpdateService,
+    private environmentsService: EnvironmentsService,
+    private sessionService: SessionService,
     private cdr: ChangeDetectorRef
   ) { }
 
   async ngOnInit() {
     await this.loadSettings();
+    await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
+    await this.environmentsService.loadEnvironments();
+    this.rebuildHeaderFieldVariables();
+    this.environmentsService
+      .getActiveContextAsObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.rebuildHeaderFieldVariables();
+        this.cdr.markForCheck();
+      });
     void this.refreshStorageInfo();
     await this.subscribeToChanges();
     this.updaterSub = this.updateService.statusStream.subscribe((status) => {
@@ -154,8 +178,25 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
     this.updaterSub?.unsubscribe();
     this.batchImportSub?.unsubscribe();
+  }
+
+  private rebuildHeaderFieldVariables(): void {
+    const next: Record<string, string> = {};
+    const ctx = this.environmentsService.getActiveContext();
+    for (const v of cleanKv(ctx?.variables)) {
+      next[String(v.key)] = String(v.value ?? '');
+    }
+    const raw = this.sessionService.get(SESSION_SCRIPT_VARS_KEY) as Record<string, unknown> | null;
+    if (raw && typeof raw === 'object') {
+      for (const [k, v] of Object.entries(raw)) {
+        next[String(k)] = v == null ? '' : String(v);
+      }
+    }
+    this.headerFieldVariables = next;
   }
 
   checkForUpdates(): void {
