@@ -13,7 +13,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Lint & test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test -- --no-watch --browsers=ChromeHeadlessNoSandbox
+
   release:
+    name: Build ${{ matrix.os }}
+    needs: test
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -34,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '22'
           cache: npm
 
       - name: Install Linux packaging dependencies
