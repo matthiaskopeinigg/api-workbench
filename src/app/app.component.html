@@ -19,6 +19,7 @@
 
   <app-command-palette *ngIf="isReady"></app-command-palette>
   <app-shortcuts-panel *ngIf="isReady"></app-shortcuts-panel>
+  <app-confirm-dialog-host *ngIf="isReady"></app-confirm-dialog-host>
   <app-runner-dialog *ngIf="isReady && runnerRequest"
                      [source]="runnerRequest.source"
                      [sourceLabel]="runnerRequest.sourceLabel"

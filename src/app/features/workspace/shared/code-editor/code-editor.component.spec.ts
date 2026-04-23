@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 import { CodeEditorComponent } from './code-editor.component';
 
 describe('CodeEditorComponent', () => {
@@ -6,8 +7,15 @@ describe('CodeEditorComponent', () => {
   let fixture: ComponentFixture<CodeEditorComponent>;
 
   beforeEach(async () => {
+    const keyboardStub = jasmine.createSpyObj<KeyboardShortcutsService>('KeyboardShortcutsService', [
+      'matchesEditorAction',
+      'effectiveChord',
+    ]);
+    keyboardStub.matchesEditorAction.and.returnValue(false);
+
     await TestBed.configureTestingModule({
-      imports: [CodeEditorComponent]
+      imports: [CodeEditorComponent],
+      providers: [{ provide: KeyboardShortcutsService, useValue: keyboardStub }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(CodeEditorComponent);

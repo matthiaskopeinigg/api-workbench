@@ -33,6 +33,7 @@ import { EnvironmentsService } from '@core/environments/environments.service';
 import { RequestHistoryService } from '@core/http/request-history.service';
 import { RequestService } from '@core/http/request.service';
 import { CollectionService } from '@core/collection/collection.service';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 @Component({
   selector: 'app-tab',
@@ -79,6 +80,7 @@ export class TabComponent implements OnInit, OnDestroy {
    * "tab already open" replays or we recurse (distinctUntilChanged is not enough if emissions reorder).
    */
   private syncingGlobalSelectionDepth = 0;
+  private readonly keyboardShortcutUnreg: Array<() => void> = [];
 
   constructor(
     private environmentsService: EnvironmentsService,
@@ -90,6 +92,7 @@ export class TabComponent implements OnInit, OnDestroy {
     private viewState: ViewStateService,
     private cdr: ChangeDetectorRef,
     private hostRef: ElementRef<HTMLElement>,
+    private keyboardShortcuts: KeyboardShortcutsService,
   ) {}
 
   async ngOnInit() {
@@ -98,10 +101,15 @@ export class TabComponent implements OnInit, OnDestroy {
     this.viewState.retainOnly(this.allOpenTabIds());
     await this.syncGlobalSelection(this.getSelectedTabInPane(this.focusedPane));
     await this.startListeners();
+    this.registerWorkspaceKeyboardShortcuts();
     setTimeout(() => this.cdr.markForCheck(), 0);
   }
 
   ngOnDestroy() {
+    for (const u of this.keyboardShortcutUnreg) {
+      u();
+    }
+    this.keyboardShortcutUnreg.length = 0;
     this.teardownSplitResize();
     if (this.splitOpeningClearHandle) {
       clearTimeout(this.splitOpeningClearHandle);
@@ -983,27 +991,26 @@ export class TabComponent implements OnInit, OnDestroy {
     window.addEventListener('blur', this.splitUpHandler, true);
   }
 
-  @HostListener('document:keydown', ['$event'])
-  onDocumentKeydown(ev: KeyboardEvent) {
-    const el = ev.target as HTMLElement | null;
-    if (el?.closest?.('input, textarea, select, [contenteditable="true"]')) {
-      return;
-    }
-    if (ev.ctrlKey && ev.altKey && (ev.key === '1' || ev.key === 'Digit1')) {
-      if (!this.splitMode) return;
-      ev.preventDefault();
-      void this.focusWorkspacePane('primary');
-    } else if (ev.ctrlKey && ev.altKey && (ev.key === '2' || ev.key === 'Digit2')) {
-      if (!this.splitMode) return;
-      ev.preventDefault();
-      void this.focusWorkspacePane('secondary');
-    } else if (ev.ctrlKey && ev.altKey && ev.key.toLowerCase() === 'o') {
-      if (!this.splitMode) return;
-      ev.preventDefault();
-      this.toggleSplitOrientation();
-      void this.persistWorkspace();
-      this.cdr.markForCheck();
-    }
+  private registerWorkspaceKeyboardShortcuts(): void {
+    this.keyboardShortcutUnreg.push(
+      this.keyboardShortcuts.register('global.workspaceFocusPrimary', () => {
+        if (!this.splitMode) return false;
+        void this.focusWorkspacePane('primary');
+        return true;
+      }),
+      this.keyboardShortcuts.register('global.workspaceFocusSecondary', () => {
+        if (!this.splitMode) return false;
+        void this.focusWorkspacePane('secondary');
+        return true;
+      }),
+      this.keyboardShortcuts.register('global.workspaceToggleSplitOrientation', () => {
+        if (!this.splitMode) return false;
+        this.toggleSplitOrientation();
+        void this.persistWorkspace();
+        this.cdr.markForCheck();
+        return true;
+      }),
+    );
   }
 
   private async focusWorkspacePane(pane: WorkspacePaneId) {

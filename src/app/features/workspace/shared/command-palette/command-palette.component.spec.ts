@@ -1,15 +1,28 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { CommandRegistryService } from '@core/commands/command-registry.service';
 import { CommandPaletteComponent } from './command-palette.component';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 describe('CommandPaletteComponent', () => {
   let fixture: ComponentFixture<CommandPaletteComponent>;
   let component: CommandPaletteComponent;
   let registry: CommandRegistryService;
+  let paletteToggleHandler: (() => boolean | void) | undefined;
 
   beforeEach(async () => {
+    const kbSpy = jasmine.createSpyObj<Pick<KeyboardShortcutsService, 'register'>>('KeyboardShortcutsService', [
+      'register',
+    ]);
+    kbSpy.register.and.callFake((_id: string, fn: () => boolean | void) => {
+      paletteToggleHandler = fn;
+      return () => {
+        paletteToggleHandler = undefined;
+      };
+    });
+
     await TestBed.configureTestingModule({
       imports: [CommandPaletteComponent],
+      providers: [{ provide: KeyboardShortcutsService, useValue: kbSpy }],
     }).compileComponents();
     fixture = TestBed.createComponent(CommandPaletteComponent);
     component = fixture.componentInstance;
@@ -33,13 +46,11 @@ describe('CommandPaletteComponent', () => {
     expect(component.results.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('Ctrl+K toggles the palette open and closed', () => {
-    const open = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true });
-    component.onDocumentKeydown(open);
+  it('registered palette toggle handler opens and closes the palette', () => {
+    expect(paletteToggleHandler).toBeDefined();
+    paletteToggleHandler!();
     expect(component.isOpen).toBeTrue();
-
-    const close = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true });
-    component.onDocumentKeydown(close);
+    paletteToggleHandler!();
     expect(component.isOpen).toBeFalse();
   });
 

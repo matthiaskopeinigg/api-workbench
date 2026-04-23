@@ -12,7 +12,6 @@ import {
   OnDestroy,
   SecurityContext,
   SimpleChanges,
-  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -62,6 +61,7 @@ import { ResponseDiffComponent } from './response-diff/response-diff.component';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import type { MockServerStatus } from '@models/electron';
 import { SessionService } from '@core/session/session.service';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 /** Electron session key for `pm.session` script variables (survives tab switches; not in collection JSON). */
 const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
@@ -186,6 +186,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   private destroy$ = new Subject<void>();
   private globalEnvironmentId: string | null = null;
   private lastDirtyEmitted: boolean | undefined;
+  private unregisterResponseFind?: () => void;
 
   constructor(
     private requestService: RequestService,
@@ -201,8 +202,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     private tabService: TabService,
     private sessionService: SessionService,
     private cdr: ChangeDetectorRef,
-    private sanitizer: DomSanitizer) {
-  }
+    private sanitizer: DomSanitizer,
+    private keyboardShortcuts: KeyboardShortcutsService,
+  ) {}
 
   /** Open the singleton Mock Server tab from the inline mock variant section. */
   openMockServerTab(): void {
@@ -298,9 +300,17 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       });
     void this.mockServer.refreshStatus();
     void this.syncActiveMockVariants();
+
+    this.unregisterResponseFind = this.keyboardShortcuts.register('global.responseFind', () => {
+      if (!this.response || this.isResponseHidden) return false;
+      if (this.isResponseSearchOpen) return false;
+      this.openResponseSearch();
+      return true;
+    });
   }
 
   ngOnDestroy() {
+    this.unregisterResponseFind?.();
     this.endResponseResizeGesture();
     this.destroy$.next();
     this.destroy$.complete();
@@ -871,19 +881,6 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       if (el?.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, 0);
     this.cdr.markForCheck();
-  }
-
-  /** Keyboard shortcut: Ctrl/Cmd+F toggles the overlay while the response is visible. */
-  @HostListener('document:keydown', ['$event'])
-  onDocumentKeydown(event: KeyboardEvent) {
-    const isFind = (event.ctrlKey || event.metaKey) && (event.key === 'f' || event.key === 'F');
-    if (!isFind) return;
-    if (!this.response || this.isResponseHidden) return;
-    event.preventDefault();
-    if (this.isResponseSearchOpen) {
-      return;
-    }
-    this.openResponseSearch();
   }
 
   async saveResponseToFile() {

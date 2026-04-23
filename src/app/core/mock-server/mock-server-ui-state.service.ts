@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import { Collection, Folder } from '@models/collection';
 import { Request as RequestModel } from '@models/request';
@@ -47,7 +48,10 @@ export class MockServerUiStateService {
   readonly selectedRequestId$ = new BehaviorSubject<string | null>(null);
   readonly selectedStandaloneId$ = new BehaviorSubject<string | null>(null);
 
-  constructor(private mockServer: MockServerService) {}
+  constructor(
+    private mockServer: MockServerService,
+    private confirmDialog: ConfirmDialogService,
+  ) {}
 
   get groupsSnapshot(): MockEndpointGroup[] {
     return this.groups$.value;
@@ -157,7 +161,12 @@ export class MockServerUiStateService {
 
   async removeStandalone(endpoint: StandaloneMockEndpoint): Promise<void> {
     const label = endpoint.name?.trim() || `${endpoint.method} ${endpoint.path}`;
-    const ok = typeof window !== 'undefined' ? window.confirm(`Delete standalone mock “${label}”?`) : false;
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete mock',
+      message: `Delete standalone mock “${label}”?`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
     if (!ok) return;
     await this.mockServer.unregisterStandalone(endpoint.id);
     this.clearStandaloneSelectionIfDeleted(endpoint.id);

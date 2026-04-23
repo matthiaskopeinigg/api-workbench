@@ -9,6 +9,13 @@ export interface Settings {
   dns: DnsSettings;
   proxy: ProxySettings;
   logging: LoggingSettings;
+  /** Optional keyboard chord overrides (action id → chord, e.g. Mod+KeyK). */
+  keyboard?: KeyboardSettings;
+}
+
+/** Per-action chord overrides; omitted keys use built-in defaults from the shortcut catalog. */
+export interface KeyboardSettings {
+  bindings?: Record<string, string>;
 }
 
 export interface UiSettings {

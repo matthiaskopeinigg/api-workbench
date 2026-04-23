@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { v4 as uuidv4 } from 'uuid';
 import { CollectionService } from '@core/collection/collection.service';
 import { CommandRegistryService } from './command-registry.service';
@@ -46,6 +47,7 @@ export class CommandSeedsService {
     private environmentsService: EnvironmentsService,
     private testArtifacts: TestArtifactService,
     private suiteRunner: TestSuiteRunnerService,
+    private confirmDialog: ConfirmDialogService,
   ) {}
 
   /** Idempotent; safe to call on every boot path. */
@@ -378,7 +380,7 @@ export class CommandSeedsService {
     if (!env) {
       const all = this.environmentsService.getEnvironments?.() || [];
       if (all.length === 0) {
-        alert('No environment available to export.');
+        await this.confirmDialog.alert('No environment available to export.', 'Export');
         return;
       }
       await this.downloadEnvTemplate(all[0]);

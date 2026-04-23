@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabItem } from '@core/tabs/tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { LoadTestService } from '@core/testing/load-test.service';
@@ -151,6 +152,7 @@ export class LoadTestComponent implements OnInit, OnDestroy {
     private loadTest: LoadTestService,
     private collections: CollectionService,
     private session: SessionService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -466,7 +468,10 @@ export class LoadTestComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     if (!this.artifact || this.running) return;
     if (this.artifact.config.targets.length === 0) {
-      alert('Choose a target (saved request or inline URL) before starting.');
+      await this.confirmDialog.alert(
+        'Choose a target (saved request or inline URL) before starting.',
+        'Cannot start run',
+      );
       return;
     }
     this.result = null;
@@ -486,7 +491,10 @@ export class LoadTestComponent implements OnInit, OnDestroy {
       this.runEnvironmentId != null ? { environmentId: this.runEnvironmentId } : undefined,
     );
     if (!runId) {
-      alert('Failed to start load run. Check the console for details.');
+      await this.confirmDialog.alert(
+        'Failed to start load run. Check the console for details.',
+        'Load test',
+      );
       return;
     }
     this.runId = runId;

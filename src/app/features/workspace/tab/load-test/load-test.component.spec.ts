@@ -4,6 +4,7 @@ import { LoadTestComponent } from './load-test.component';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { LoadTestService } from '@core/testing/load-test.service';
 import { CollectionService } from '@core/collection/collection.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { SessionService } from '@core/session/session.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
 import type { TabItem } from '@core/tabs/tab.service';
@@ -24,6 +25,7 @@ describe('LoadTestComponent', () => {
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
   let sessionSpy: jasmine.SpyObj<SessionService>;
   let envSpy: jasmine.SpyObj<EnvironmentsService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const id = 'lt-1';
   const tab: TabItem = { id: `lt:${id}`, title: 'Load', type: TabType.LOAD_TEST };
@@ -61,6 +63,10 @@ describe('LoadTestComponent', () => {
     envSpy.loadEnvironments.and.resolveTo();
     envSpy.getEnvironmentsObservable.and.returnValue(of([]));
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     await TestBed.configureTestingModule({
       imports: [LoadTestComponent],
       providers: [
@@ -69,6 +75,7 @@ describe('LoadTestComponent', () => {
         { provide: CollectionService,   useValue: collectionsSpy },
         { provide: SessionService,      useValue: sessionSpy },
         { provide: EnvironmentsService, useValue: envSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
       ],
     }).compileComponents();
 
@@ -240,9 +247,8 @@ describe('LoadTestComponent', () => {
   });
 
   it('start() aborts when there are no targets (and alerts)', async () => {
-    const alertSpy = spyOn(window, 'alert');
     await component.start();
-    expect(alertSpy).toHaveBeenCalled();
+    expect(confirmDialogSpy.alert).toHaveBeenCalled();
     expect(loadSpy.start).not.toHaveBeenCalled();
   });
 

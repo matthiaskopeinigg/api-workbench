@@ -1,22 +1,34 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { ShortcutsPanelComponent } from './shortcuts-panel.component';
-import { APP_SHORTCUTS, ShortcutsPanelService } from '@core/commands/shortcuts-panel.service';
+import { ShortcutsPanelService } from '@core/commands/shortcuts-panel.service';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
+import { KEYBOARD_SHORTCUT_CATALOG } from '@core/keyboard/keyboard-shortcut-catalog';
 
 describe('ShortcutsPanelComponent', () => {
   let fixture: ComponentFixture<ShortcutsPanelComponent>;
   let component: ShortcutsPanelComponent;
   let panelOpen$: BehaviorSubject<boolean>;
   let panelSpy: jasmine.SpyObj<ShortcutsPanelService>;
+  let kbSpy: jasmine.SpyObj<Pick<KeyboardShortcutsService, 'register' | 'effectiveChord'>>;
 
   beforeEach(async () => {
     panelOpen$ = new BehaviorSubject<boolean>(false);
     panelSpy = jasmine.createSpyObj('ShortcutsPanelService', ['isOpen', 'toggle', 'close']);
     panelSpy.isOpen.and.returnValue(panelOpen$.asObservable());
+    kbSpy = jasmine.createSpyObj('KeyboardShortcutsService', ['register', 'effectiveChord']);
+    kbSpy.register.and.returnValue(() => {});
+    kbSpy.effectiveChord.and.callFake((id: string) => {
+      const d = KEYBOARD_SHORTCUT_CATALOG.find((c) => c.id === id);
+      return d?.defaultChord ?? '';
+    });
 
     await TestBed.configureTestingModule({
       imports: [ShortcutsPanelComponent],
-      providers: [{ provide: ShortcutsPanelService, useValue: panelSpy }],
+      providers: [
+        { provide: ShortcutsPanelService, useValue: panelSpy },
+        { provide: KeyboardShortcutsService, useValue: kbSpy },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ShortcutsPanelComponent);
@@ -24,10 +36,10 @@ describe('ShortcutsPanelComponent', () => {
     fixture.detectChanges();
   });
 
-  it('groups APP_SHORTCUTS by category on init', () => {
+  it('groups catalog shortcuts (plus extras) by category on init', () => {
     expect(component.groups.length).toBeGreaterThan(0);
     const flattened = component.groups.flatMap((g) => g.entries);
-    expect(flattened.length).toBe(APP_SHORTCUTS.length);
+    expect(flattened.length).toBe(KEYBOARD_SHORTCUT_CATALOG.length + 3);
     const cats = component.groups.map((g) => g.category);
     expect(new Set(cats).size).toBe(cats.length);
   });
@@ -39,17 +51,8 @@ describe('ShortcutsPanelComponent', () => {
     expect(component.isOpen).toBeTrue();
   });
 
-  it('Ctrl+/ toggles the panel via the service', () => {
-    const event = new KeyboardEvent('keydown', { key: '/', ctrlKey: true, cancelable: true });
-    component.onKeydown(event);
-    expect(panelSpy.toggle).toHaveBeenCalled();
-    expect(event.defaultPrevented).toBeTrue();
-  });
-
-  it('Cmd+/ also toggles (macOS variant)', () => {
-    const event = new KeyboardEvent('keydown', { key: '/', metaKey: true, cancelable: true });
-    component.onKeydown(event);
-    expect(panelSpy.toggle).toHaveBeenCalled();
+  it('registers shortcuts panel toggle with keyboard service', () => {
+    expect(kbSpy.register).toHaveBeenCalledWith('global.shortcutsPanelToggle', jasmine.any(Function));
   });
 
   it('Escape closes only when the panel is open', () => {

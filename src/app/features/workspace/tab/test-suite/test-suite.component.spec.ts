@@ -3,6 +3,7 @@ import { BehaviorSubject, Subject, of } from 'rxjs';
 import { TestSuiteComponent } from './test-suite.component';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { TestSuiteRunnerService } from '@core/testing/test-suite-runner.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
 import type { TabItem } from '@core/tabs/tab.service';
@@ -24,6 +25,7 @@ describe('TestSuiteComponent', () => {
   let runnerSpy: jasmine.SpyObj<TestSuiteRunnerService>;
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
   let envSpy: jasmine.SpyObj<EnvironmentsService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const suiteId = 'suite-1';
   const mockTab: TabItem = { id: `ts:${suiteId}`, title: 'Suite', type: TabType.TEST_SUITE };
@@ -66,6 +68,10 @@ describe('TestSuiteComponent', () => {
     envSpy.loadEnvironments.and.resolveTo();
     envSpy.getEnvironmentsObservable.and.returnValue(of([]));
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     await TestBed.configureTestingModule({
       imports: [TestSuiteComponent],
       providers: [
@@ -73,6 +79,7 @@ describe('TestSuiteComponent', () => {
         { provide: TestSuiteRunnerService,  useValue: runnerSpy },
         { provide: CollectionService,       useValue: collectionsSpy },
         { provide: EnvironmentsService,     useValue: envSpy },
+        { provide: ConfirmDialogService,    useValue: confirmDialogSpy },
       ],
     }).compileComponents();
 
@@ -94,7 +101,7 @@ describe('TestSuiteComponent', () => {
     expect(artifactsSpy.update).toHaveBeenCalledWith('testSuites', jasmine.any(Object));
   });
 
-  it('addFromFolderList (entire collection) adds root and nested folder requests', () => {
+  it('addFromFolderList (entire collection) adds root and nested folder requests', async () => {
     const col: any = {
       id: 'root',
       order: 0,
@@ -110,11 +117,11 @@ describe('TestSuiteComponent', () => {
       if (id === 'r1') return { id: 'r1', title: 'a1', httpMethod: 0, url: 'u' } as any;
       return null;
     });
-    component.addFromFolderList('col:root');
+    await component.addFromFolderList('col:root');
     expect(component.artifact!.cases.length).toBe(2);
   });
 
-  it('addCasesFromFolder adds a case for each request in the folder tree', () => {
+  it('addCasesFromFolder adds a case for each request in the folder tree', async () => {
     const folder: Folder = {
       id: 'f1',
       order: 0,
@@ -134,25 +141,24 @@ describe('TestSuiteComponent', () => {
       if (id === 'r3') return { id: 'r3', title: 'C', url: 'https://c', httpMethod: 0 } as any;
       return null;
     });
-    component.addCasesFromFolder('f1');
+    await component.addCasesFromFolder('f1');
     expect(component.artifact!.cases.length).toBe(3);
     expect(component.selectedCaseId).toBe(component.artifact!.cases[2].id);
   });
 
-  it('addCasesFromFolder alerts when the folder is empty and when all requests are already in the suite', () => {
-    spyOn(window, 'alert');
+  it('addCasesFromFolder alerts when the folder is empty and when all requests are already in the suite', async () => {
     const empty: Folder = { id: 'fe', order: 0, title: 'Empty', requests: [], folders: [] };
     collectionsSpy.findFolderById.and.returnValue(empty);
-    component.addCasesFromFolder('fe');
-    expect(window.alert).toHaveBeenCalledWith('No requests in that folder (including subfolders).');
+    await component.addCasesFromFolder('fe');
+    expect(confirmDialogSpy.alert).toHaveBeenCalledWith('No requests in that folder (including subfolders).');
 
     collectionsSpy.findFolderById.and.returnValue({
       id: 'f1', order: 0, title: 'API', requests: [{ id: 'req-1', title: 'Sample', httpMethod: 0, url: 'https://x' } as any], folders: [],
     });
-    (window.alert as jasmine.Spy).calls.reset();
+    confirmDialogSpy.alert.calls.reset();
     component.addSavedCase('req-1');
-    component.addCasesFromFolder('f1');
-    expect(window.alert).toHaveBeenCalledWith('All requests in that folder are already in the suite.');
+    await component.addCasesFromFolder('f1');
+    expect(confirmDialogSpy.alert).toHaveBeenCalledWith('All requests in that folder are already in the suite.');
   });
 
   it('adds an inline case when the draft has a URL, and resets the draft afterwards', () => {
@@ -171,22 +177,22 @@ describe('TestSuiteComponent', () => {
     expect(component.artifact!.cases.length).toBe(0);
   });
 
-  it('removeCase deletes the matching case and shifts selection', () => {
-    spyOn(window, 'confirm').and.returnValue(true);
+  it('removeCase deletes the matching case and shifts selection', async () => {
+    confirmDialogSpy.confirm.and.resolveTo(true);
     component.addSavedCase('req-1');
     component.addSavedCase('req-1');
     const doomed = component.artifact!.cases[0].id;
     component.selectedCaseId = doomed;
-    component.removeCase(doomed);
+    await component.removeCase(doomed);
     expect(component.artifact!.cases.length).toBe(1);
     expect(component.selectedCaseId).toBe(component.artifact!.cases[0].id);
   });
 
-  it('removeCase is cancelled when the user rejects the confirm', () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+  it('removeCase is cancelled when the user rejects the confirm', async () => {
+    confirmDialogSpy.confirm.and.resolveTo(false);
     component.addSavedCase('req-1');
     const id = component.artifact!.cases[0].id;
-    component.removeCase(id);
+    await component.removeCase(id);
     expect(component.artifact!.cases.length).toBe(1);
   });
 

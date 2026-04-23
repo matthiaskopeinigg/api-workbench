@@ -4,7 +4,13 @@ import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, For
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
 import { Certificate, RequestEditorSection, Settings, Theme } from '@models/settings';
+import {
+  KEYBOARD_SHORTCUT_CATALOG,
+  type KeyboardShortcutDefinition,
+} from '@core/keyboard/keyboard-shortcut-catalog';
+import { validateBindingMap, serializeChordFromEvent } from '@core/keyboard/chord-matcher';
 import { HttpMethod } from '@models/request';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { SettingsService } from '@core/settings/settings.service';
 
 import { ThemeService } from '@core/settings/theme.service';
@@ -85,6 +91,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
       title: 'General',
       items: [
         { id: 'ui', label: 'User Interface', icon: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5l1 3h2v2H7v-2h2l1-3H5a2 2 0 0 1-2-2z' },
+        {
+          id: 'keyboard',
+          label: 'Keyboard',
+          icon: 'M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z',
+        },
         { id: 'requests', label: 'Requests', icon: 'M2 21l21-9L2 3v7l15 2-15 2z' },
         { id: 'retries', label: 'Retries', icon: 'M17.65 6.35A8 8 0 1 0 19.73 14h-2.07A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z' },
       ],
@@ -116,6 +127,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   collectionsExist = false;
 
+  /** User overrides for keyboard shortcuts (merged on save). */
+  keyboardBindings: Record<string, string> = {};
+  bindCaptureActionId: string | null = null;
+  bindingError: string | null = null;
+  readonly keyboardCatalog: readonly KeyboardShortcutDefinition[] = KEYBOARD_SHORTCUT_CATALOG;
+  private captureKeydownUnlisten?: () => void;
+
   importMessage: string | null = null;
   showPopup = false;
   importFailed = false;
@@ -146,6 +164,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private updateService: UpdateService,
     private environmentsService: EnvironmentsService,
     private sessionService: SessionService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef
   ) { }
 
@@ -178,6 +197,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.endBindingCapture();
     this.destroy$.next();
     this.destroy$.complete();
     this.updaterSub?.unsubscribe();
@@ -337,7 +357,99 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.collectionsExist = collections.length > 0;
 
     await this.themeService.setTheme(this.settingsForm.get('ui.theme')?.value, false);
+    this.keyboardBindings = { ...(settings.keyboard?.bindings ?? {}) };
     this.cdr.markForCheck();
+  }
+
+  defaultChordFor(def: KeyboardShortcutDefinition): string {
+    return def.defaultChord;
+  }
+
+  /** Effective chord shown in the table (override or default). */
+  displayChordFor(def: KeyboardShortcutDefinition): string {
+    const o = this.keyboardBindings[def.id];
+    return (o && o.trim()) || def.defaultChord;
+  }
+
+  formatChordForDisplay(chord: string): string {
+    if (typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.platform)) {
+      return chord.replace(/Mod\+/g, '⌘').replace(/Alt\+/g, '⌥').replace(/Shift\+/g, '⇧');
+    }
+    return chord.replace(/Mod\+/g, 'Ctrl+');
+  }
+
+  startBindingCapture(actionId: string): void {
+    this.endBindingCapture();
+    this.bindCaptureActionId = actionId;
+    this.bindingError = null;
+    const handler = (ev: KeyboardEvent) => this.onBindingCaptureKeydown(ev);
+    window.addEventListener('keydown', handler, true);
+    this.captureKeydownUnlisten = () => window.removeEventListener('keydown', handler, true);
+    this.cdr.markForCheck();
+  }
+
+  private onBindingCaptureKeydown(ev: KeyboardEvent): void {
+    if (!this.bindCaptureActionId) return;
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      this.endBindingCapture();
+      this.cdr.markForCheck();
+      return;
+    }
+    if (ev.repeat) return;
+    const chord = serializeChordFromEvent(ev);
+    if (!chord.includes('+') && !/^F\d+$/.test(chord)) {
+      return;
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+    const id = this.bindCaptureActionId;
+    const tentative: Record<string, string> = { ...this.keyboardBindings, [id]: chord };
+    const check = validateBindingMap(tentative, KEYBOARD_SHORTCUT_CATALOG.map((d) => d.id));
+    if (!check.ok) {
+      this.bindingError = check.message;
+      this.endBindingCapture();
+      this.cdr.markForCheck();
+      return;
+    }
+    this.keyboardBindings = this.pruneEmptyBindings(tentative);
+    this.bindingError = null;
+    this.endBindingCapture();
+    void this.persistKeyboardBindings();
+    this.cdr.markForCheck();
+  }
+
+  endBindingCapture(): void {
+    this.bindCaptureActionId = null;
+    this.captureKeydownUnlisten?.();
+    this.captureKeydownUnlisten = undefined;
+  }
+
+  resetBinding(actionId: string): void {
+    delete this.keyboardBindings[actionId];
+    void this.persistKeyboardBindings();
+    this.cdr.markForCheck();
+  }
+
+  resetAllKeyboardBindings(): void {
+    this.keyboardBindings = {};
+    void this.persistKeyboardBindings();
+    this.cdr.markForCheck();
+  }
+
+  private pruneEmptyBindings(b: Record<string, string>): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(b)) {
+      if (v?.trim()) out[k] = v.trim();
+    }
+    return out;
+  }
+
+  private async persistKeyboardBindings(): Promise<void> {
+    const formValue = JSON.parse(JSON.stringify(this.settingsForm.value));
+    const next: Settings = { ...this.config.getSettings(), ...formValue };
+    next.keyboard = { bindings: this.pruneEmptyBindings({ ...this.keyboardBindings }) };
+    await this.config.saveSettings(next);
   }
 
   private async subscribeToChanges() {
@@ -348,13 +460,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.settingsForm.valueChanges
       .pipe(debounceTime(300))
       .subscribe(value => {
-        const settings = JSON.parse(JSON.stringify(value));
+        const settings = JSON.parse(JSON.stringify(value)) as Settings;
 
         if (settings.headers?.defaultHeaders) {
           settings.headers.defaultHeaders = settings.headers.defaultHeaders.filter((h: any) => h.key?.trim());
         }
 
-        this.config.saveSettings(settings as Settings);
+        settings.keyboard = { bindings: this.pruneEmptyBindings({ ...this.keyboardBindings }) };
+        this.config.saveSettings(settings);
       });
   }
 
@@ -615,9 +728,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   async deleteAllCollections() {
-    if (!confirm('Are you sure you want to delete all folders and requests? This cannot be undone.')) {
-      return;
-    }
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete all collections',
+      message: 'Are you sure you want to delete all folders and requests? This cannot be undone.',
+      destructive: true,
+      confirmLabel: 'Delete all',
+    });
+    if (!ok) return;
 
     this.isLoading = true;
     try {

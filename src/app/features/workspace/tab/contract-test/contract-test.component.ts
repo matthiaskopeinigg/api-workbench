@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
 import type { TabItem } from '@core/tabs/tab.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { ContractValidatorService } from '@core/testing/contract-validator.service';
@@ -68,6 +69,7 @@ export class ContractTestComponent implements OnInit, OnDestroy {
     private artifacts: TestArtifactService,
     private validator: ContractValidatorService,
     private collectionService: CollectionService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
     private settings: SettingsService,
   ) {}
@@ -219,7 +221,7 @@ export class ContractTestComponent implements OnInit, OnDestroy {
   private async startRun(staticOnly: boolean): Promise<void> {
     if (!this.artifact || this.running) return;
     if (!this.artifact.scope.collectionId) {
-      alert('Pick a collection to validate.');
+      await this.confirmDialog.alert('Pick a collection to validate.', 'Contract test');
       return;
     }
     this.findings = [];

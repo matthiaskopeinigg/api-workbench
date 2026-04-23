@@ -86,6 +86,49 @@
         </div>
       </div>
 
+      <div *ngIf="selectedTab==='keyboard'" class="tab-pane keyboard-settings-pane">
+        <h2 class="tab-title">Keyboard</h2>
+        <p class="form-hint">
+          Chords use key codes (e.g. <code>Mod+KeyK</code>).
+          <strong>Mod</strong> is Ctrl on Windows/Linux and ⌘ on macOS.
+          Click <strong>Change</strong>, press the new keys, or <strong>Esc</strong> to cancel.
+          The shortcuts reference panel and in-app behavior use the same catalog.
+        </p>
+        <p class="form-hint binding-error" *ngIf="bindingError">{{ bindingError }}</p>
+        <p class="form-hint" *ngIf="bindCaptureActionId">
+          Recording for <strong>{{ bindCaptureActionId }}</strong> — press a chord or Esc to cancel.
+        </p>
+        <div class="keyboard-actions-row">
+          <button type="button" class="fancy-button cancel keyboard-reset-all-btn" (click)="resetAllKeyboardBindings()"
+            [disabled]="bindCaptureActionId !== null">Reset all to defaults</button>
+        </div>
+        <table class="keyboard-bindings-table">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Category</th>
+              <th>Binding</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let def of keyboardCatalog">
+              <td>{{ def.label }}</td>
+              <td>{{ def.category }}</td>
+              <td><code class="kbd-cell">{{ formatChordForDisplay(displayChordFor(def)) }}</code></td>
+              <td class="keyboard-row-actions">
+                <div class="keyboard-row-actions-inner">
+                  <button type="button" class="fancy-button btn-sm keyboard-binding-change" (click)="startBindingCapture(def.id)"
+                    [disabled]="bindCaptureActionId !== null">Change</button>
+                  <button type="button" class="fancy-button cancel btn-sm keyboard-binding-reset" (click)="resetBinding(def.id)"
+                    [disabled]="bindCaptureActionId !== null">Reset</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div *ngIf="selectedTab==='requests'" formGroupName="requests" class="tab-pane">
         <h2 class="tab-title">Request Settings</h2>
 

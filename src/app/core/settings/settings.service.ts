@@ -57,7 +57,10 @@ const DEFAULT_SETTINGS: Settings = {
     logToFile: false,
     logFilePath: '',
     maxLogFileSizeKb: 1024
-  }
+  },
+  keyboard: {
+    bindings: {},
+  },
 };
 
 @Injectable({

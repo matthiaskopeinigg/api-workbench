@@ -10,6 +10,7 @@ import { BatchImportDialogService } from '@core/import-pipeline/batch-import-dia
 import type { BatchImportResult } from '@core/import-pipeline/import-batch.service';
 import { UpdateService } from '@core/platform/update.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { SessionService } from '@core/session/session.service';
 import { Theme } from '@models/settings';
 import { of, Subject } from 'rxjs';
@@ -30,6 +31,7 @@ describe('SettingsComponent', () => {
   let updateServiceSpy: jasmine.SpyObj<UpdateService> & { statusStream: unknown };
   let environmentsServiceSpy: jasmine.SpyObj<EnvironmentsService>;
   let sessionServiceSpy: jasmine.SpyObj<SessionService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const mockSettings = {
     ui: { theme: Theme.DARK },
@@ -86,6 +88,10 @@ describe('SettingsComponent', () => {
     sessionServiceSpy.load.and.resolveTo();
     sessionServiceSpy.get.and.returnValue(null);
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
     collectionServiceSpy.getCollections.and.returnValue([]);
 
@@ -102,6 +108,7 @@ describe('SettingsComponent', () => {
         { provide: UpdateService, useValue: updateServiceSpy },
         { provide: EnvironmentsService, useValue: environmentsServiceSpy },
         { provide: SessionService, useValue: sessionServiceSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
       ]
     }).compileComponents();
 

@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabService } from '@core/tabs/tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import type { LoadTestArtifact } from '@models/testing/load-test';
@@ -73,6 +74,7 @@ export class TestsComponent implements OnInit, OnDestroy {
   constructor(
     private artifacts: TestArtifactService,
     private tabService: TabService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
   ) {
     this.sections = [
@@ -215,7 +217,13 @@ export class TestsComponent implements OnInit, OnDestroy {
 
   async deleteItem(section: Section<ArtifactBase>, item: ArtifactBase): Promise<void> {
     this.closeContextMenu();
-    if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete',
+      message: `Delete "${item.title}"? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     await this.artifacts.remove(section.key, item.id);
   }
 

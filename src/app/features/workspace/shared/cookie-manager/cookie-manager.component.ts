@@ -2,6 +2,7 @@ import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CookieService } from '@core/http/cookie.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 
 @Component({
   selector: 'app-cookie-manager',
@@ -17,7 +18,10 @@ export class CookieManagerComponent implements OnInit {
   cookies: any[] = [];
   searchTerm = '';
 
-  constructor(private cookieService: CookieService) { }
+  constructor(
+    private cookieService: CookieService,
+    private confirmDialog: ConfirmDialogService,
+  ) {}
 
   async ngOnInit() {
     await this.loadCookies();
@@ -51,9 +55,14 @@ export class CookieManagerComponent implements OnInit {
   }
 
   async clearAll() {
-    if (confirm('Are you sure you want to clear all cookies?')) {
-      await this.cookieService.clearAllCookies();
-      await this.loadCookies();
-    }
+    const ok = await this.confirmDialog.confirm({
+      title: 'Clear cookies',
+      message: 'Are you sure you want to clear all cookies?',
+      destructive: true,
+      confirmLabel: 'Clear all',
+    });
+    if (!ok) return;
+    await this.cookieService.clearAllCookies();
+    await this.loadCookies();
   }
 }

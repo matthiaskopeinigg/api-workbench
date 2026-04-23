@@ -5,6 +5,7 @@ import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { ContractValidatorService } from '@core/testing/contract-validator.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { SettingsService } from '@core/settings/settings.service';
 import type { TabItem } from '@core/tabs/tab.service';
 import { TabType } from '@core/tabs/tab.service';
@@ -24,6 +25,7 @@ describe('ContractTestComponent', () => {
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
   let settingsSpy: jasmine.SpyObj<SettingsService>;
   let envSpy: jasmine.SpyObj<EnvironmentsService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const contractId = 'ct-1';
   const tab: TabItem = { id: `ct:${contractId}`, title: 'Contract', type: TabType.CONTRACT_TEST };
@@ -66,6 +68,10 @@ describe('ContractTestComponent', () => {
     envSpy.loadEnvironments.and.resolveTo();
     envSpy.getEnvironmentsObservable.and.returnValue(of([]));
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     await TestBed.configureTestingModule({
       imports: [ContractTestComponent],
       providers: [
@@ -74,6 +80,7 @@ describe('ContractTestComponent', () => {
         { provide: CollectionService,        useValue: collectionsSpy },
         { provide: SettingsService,          useValue: settingsSpy },
         { provide: EnvironmentsService,      useValue: envSpy },
+        { provide: ConfirmDialogService,     useValue: confirmDialogSpy },
       ],
     }).compileComponents();
 
@@ -139,9 +146,8 @@ describe('ContractTestComponent', () => {
   });
 
   it('runAll is blocked when no collection is scoped (alerts the user)', async () => {
-    const alertSpy = spyOn(window, 'alert');
     await component.runAll();
-    expect(alertSpy).toHaveBeenCalled();
+    expect(confirmDialogSpy.alert).toHaveBeenCalled();
     expect(validatorSpy.run).not.toHaveBeenCalled();
   });
 

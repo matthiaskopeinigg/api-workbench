@@ -18,6 +18,7 @@ import { CommandPaletteComponent } from './features/workspace/shared/command-pal
 import { BatchImportDialogComponent } from './features/workspace/shared/batch-import-dialog/batch-import-dialog.component';
 import { RunnerDialogComponent } from './features/workspace/shared/runner-dialog/runner-dialog.component';
 import { ShortcutsPanelComponent } from './features/workspace/shared/shortcuts-panel/shortcuts-panel.component';
+import { ConfirmDialogHostComponent } from '@core/ui/confirm-dialog-host.component';
 import { RunnerDialogService, RunnerDialogRequest } from '@core/testing/runner-dialog.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { SampleWorkspaceSeeder } from '@core/seeding/sample-workspace.seeder';
@@ -35,6 +36,7 @@ import { Subscription } from 'rxjs';
     BatchImportDialogComponent,
     RunnerDialogComponent,
     ShortcutsPanelComponent,
+    ConfirmDialogHostComponent,
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'

@@ -3,7 +3,7 @@ import { BehaviorSubject } from 'rxjs';
 import { MockServerComponent } from './mock-server.component';
 import { CollectionService } from '@core/collection/collection.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
-import { MockServerUiStateService } from '@core/mock-server/mock-server-ui-state.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabType, MOCK_SERVER_TAB_ID } from '@core/tabs/tab.service';
 import type { MockServerStatus, MockServerOptions, StandaloneMockEndpoint, MockHit } from '@models/electron';
 
@@ -18,6 +18,7 @@ describe('MockServerComponent', () => {
 
   let collectionsSpy: jasmine.SpyObj<CollectionService>;
   let mockSpy: jasmine.SpyObj<MockServerService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const baseStatus: MockServerStatus = {
     host: '127.0.0.1', port: 0, status: 'stopped', error: null, baseUrl: '', registered: [], standalone: [],
@@ -68,11 +69,16 @@ describe('MockServerComponent', () => {
     mockSpy.syncRequest.and.resolveTo();
     mockSpy.mockUrl.and.returnValue('http://mock/x');
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     await TestBed.configureTestingModule({
       imports: [MockServerComponent],
       providers: [
         { provide: CollectionService,  useValue: collectionsSpy },
         { provide: MockServerService,  useValue: mockSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
       ],
     }).compileComponents();
 
@@ -152,19 +158,19 @@ describe('MockServerComponent', () => {
   });
 
   it('setBindAddress to 0.0.0.0 requires a confirmation', async () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+    confirmDialogSpy.confirm.and.resolveTo(false);
     await component.setBindAddress('0.0.0.0');
     expect(mockSpy.setOptions).not.toHaveBeenCalled();
 
-    (window.confirm as jasmine.Spy).and.returnValue(true);
+    confirmDialogSpy.confirm.and.resolveTo(true);
     await component.setBindAddress('0.0.0.0');
     expect(mockSpy.setOptions).toHaveBeenCalledWith({ bindAddress: '0.0.0.0' });
   });
 
   it('setBindAddress to loopback needs no confirm', async () => {
-    const confirmSpy = spyOn(window, 'confirm');
+    confirmDialogSpy.confirm.calls.reset();
     await component.setBindAddress('127.0.0.1');
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(confirmDialogSpy.confirm).not.toHaveBeenCalled();
     expect(mockSpy.setOptions).toHaveBeenCalledWith({ bindAddress: '127.0.0.1' });
   });
 
@@ -195,11 +201,11 @@ describe('MockServerComponent', () => {
   });
 
   it('removeStandalone only calls through when the user confirms', async () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+    confirmDialogSpy.confirm.and.resolveTo(false);
     await component.removeStandalone({ id: 'sa-9', method: 'GET', path: '/x' } as any);
     expect(mockSpy.unregisterStandalone).not.toHaveBeenCalled();
 
-    (window.confirm as jasmine.Spy).and.returnValue(true);
+    confirmDialogSpy.confirm.and.resolveTo(true);
     await component.removeStandalone({ id: 'sa-9', method: 'GET', path: '/x' } as any);
     expect(mockSpy.unregisterStandalone).toHaveBeenCalledWith('sa-9');
   });
@@ -270,11 +276,11 @@ describe('MockServerComponent', () => {
   });
 
   it('resetAllVariants prompts, then calls clearAll() only on confirm', async () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+    confirmDialogSpy.confirm.and.resolveTo(false);
     await component.resetAllVariants();
     expect(mockSpy.clearAll).not.toHaveBeenCalled();
 
-    (window.confirm as jasmine.Spy).and.returnValue(true);
+    confirmDialogSpy.confirm.and.resolveTo(true);
     await component.resetAllVariants();
     expect(mockSpy.clearAll).toHaveBeenCalled();
   });

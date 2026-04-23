@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 import { SimpleEditorComponent } from './simple-editor.component';
 
 describe('SimpleEditorComponent', () => {
@@ -6,8 +7,15 @@ describe('SimpleEditorComponent', () => {
   let fixture: ComponentFixture<SimpleEditorComponent>;
 
   beforeEach(async () => {
+    const keyboardStub = jasmine.createSpyObj<KeyboardShortcutsService>('KeyboardShortcutsService', [
+      'matchesEditorAction',
+      'effectiveChord',
+    ]);
+    keyboardStub.matchesEditorAction.and.returnValue(false);
+
     await TestBed.configureTestingModule({
-      imports: [SimpleEditorComponent]
+      imports: [SimpleEditorComponent],
+      providers: [{ provide: KeyboardShortcutsService, useValue: keyboardStub }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SimpleEditorComponent);

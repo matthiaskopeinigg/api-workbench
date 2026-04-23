@@ -1,6 +1,18 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, OnChanges, Output, ViewChild, AfterViewInit, OnInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  ViewChild,
+  AfterViewInit,
+  OnInit,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 export type EditorLanguage = 'json' | 'xml' | 'javascript' | 'plain' | 'form';
 
@@ -14,6 +26,7 @@ export type EditorLanguage = 'json' | 'xml' | 'javascript' | 'plain' | 'form';
   styleUrl: './simple-editor.component.scss',
 })
 export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
+  constructor(private readonly keyboardShortcuts: KeyboardShortcutsService) {}
 
   @Input() language: EditorLanguage = 'json';
   @Input() title?: string;
@@ -56,7 +69,7 @@ export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
       return;
     }
 
-    const lineCount = this.content.split('\\n').length;
+    const lineCount = this.content.split('\n').length;
     if (this.lines.length !== lineCount) {
       this.lines = Array(lineCount).fill(0);
     }
@@ -200,7 +213,35 @@ export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
     const end = this.textarea.nativeElement.selectionEnd;
     const value = this.content;
 
-    if (event.key === 'Tab') {
+    if (this.passthroughNativeModTextareaShortcut(event)) {
+      return;
+    }
+
+    if (this.keyboardShortcuts.matchesEditorAction('editor.duplicateLine', event)) {
+      event.preventDefault();
+      this.duplicateLineBlock(start, end);
+      return;
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.toggleLineComment', event)) {
+      if (this.toggleLineCommentBlock(start, end)) {
+        event.preventDefault();
+        return;
+      }
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.moveLineUp', event)) {
+      if (this.moveLineBlock(start, end, 'up')) {
+        event.preventDefault();
+        return;
+      }
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.moveLineDown', event)) {
+      if (this.moveLineBlock(start, end, 'down')) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
 
       this.content = value.substring(0, start) + '  ' + value.substring(end);
@@ -209,7 +250,7 @@ export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
         this.textarea.nativeElement.selectionStart = this.textarea.nativeElement.selectionEnd = start + 2;
         this.onContentChange(this.content);
       }, 0);
-    } else if (event.key === 'Enter') {
+    } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
       this.handleEnter(event);
     } else if (event.key === 'Backspace') {
 
@@ -226,7 +267,12 @@ export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
           }, 0);
         }
       }
-    } else if (['{', '[', '(', '"', "'", '`'].includes(event.key)) {
+    } else if (
+      ['{', '[', '(', '"', "'", '`'].includes(event.key) &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
 
       event.preventDefault();
       const char = event.key;
@@ -250,6 +296,154 @@ export class SimpleEditorComponent implements OnInit, OnChanges, AfterViewInit {
         this.onContentChange(this.content);
       }, 0);
     }
+  }
+
+  private passthroughNativeModTextareaShortcut(ev: KeyboardEvent): boolean {
+    const mod = ev.ctrlKey || ev.metaKey;
+    if (!mod || ev.altKey) {
+      return false;
+    }
+    switch (ev.code) {
+      case 'KeyC':
+      case 'KeyV':
+      case 'KeyX':
+      case 'KeyA':
+      case 'KeyZ':
+      case 'KeyY':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private lineBlockBounds(
+    value: string,
+    start: number,
+    end: number,
+  ): { lineStart: number; lineEndExclusive: number } {
+    const a = Math.min(start, end);
+    const b = Math.max(start, end);
+    const lineStart = value.lastIndexOf('\n', a - 1) + 1;
+    const nl = value.indexOf('\n', b);
+    const lineEndExclusive = nl === -1 ? value.length : nl + 1;
+    return { lineStart, lineEndExclusive };
+  }
+
+  private duplicateLineBlock(start: number, end: number): void {
+    const value = this.content;
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const segment = value.substring(lineStart, lineEndExclusive);
+    this.content = value.substring(0, lineEndExclusive) + segment + value.substring(lineEndExclusive);
+    const newPos = lineEndExclusive + (start - lineStart);
+    setTimeout(() => {
+      this.textarea.nativeElement.selectionStart = this.textarea.nativeElement.selectionEnd = newPos;
+      this.onContentChange(this.content);
+    }, 0);
+  }
+
+  private editorLineCommentToken(): string | null {
+    if (this.language === 'json' || this.language === 'xml') {
+      return null;
+    }
+    return '// ';
+  }
+
+  private toggleLineCommentBlock(start: number, end: number): boolean {
+    const token = this.editorLineCommentToken();
+    if (!token) {
+      return false;
+    }
+    const value = this.content;
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const block = value.substring(lineStart, lineEndExclusive);
+    const lines = block.split('\n');
+    const isHash = token.startsWith('#');
+    const outLines = lines.map((line) => {
+      const m = line.match(/^(\s*)(.*)$/);
+      const ind = m?.[1] ?? '';
+      const rest = m?.[2] ?? '';
+      if (isHash) {
+        if (/^#\s?/.test(rest)) {
+          return ind + rest.replace(/^#\s?/, '');
+        }
+        return ind + '# ' + rest;
+      }
+      if (/^\/\/\s?/.test(rest)) {
+        return ind + rest.replace(/^\/\/\s?/, '');
+      }
+      return ind + '// ' + rest;
+    });
+    const nextBlock = outLines.join('\n');
+    const delta = nextBlock.length - block.length;
+    this.content = value.substring(0, lineStart) + nextBlock + value.substring(lineEndExclusive);
+    const na = Math.min(start, end);
+    const nb = Math.max(start, end);
+    setTimeout(() => {
+      this.textarea.nativeElement.selectionStart = na;
+      this.textarea.nativeElement.selectionEnd = nb + delta;
+      this.onContentChange(this.content);
+    }, 0);
+    return true;
+  }
+
+  private moveLineBlock(start: number, end: number, dir: 'up' | 'down'): boolean {
+    const value = this.content;
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const currLen = lineEndExclusive - lineStart;
+    let next = '';
+    let map: (p: number) => number;
+    if (dir === 'up') {
+      if (lineStart === 0) {
+        return false;
+      }
+      const prevNl = value.lastIndexOf('\n', lineStart - 2);
+      const prevLineStart = prevNl + 1;
+      const prevBlock = value.substring(prevLineStart, lineStart);
+      const currBlock = value.substring(lineStart, lineEndExclusive);
+      next = value.substring(0, prevLineStart) + currBlock + prevBlock + value.substring(lineEndExclusive);
+      map = (p: number): number => {
+        if (p >= lineStart && p < lineEndExclusive) {
+          return prevLineStart + (p - lineStart);
+        }
+        if (p >= prevLineStart && p < lineStart) {
+          return prevLineStart + currLen + (p - prevLineStart);
+        }
+        return p;
+      };
+    } else {
+      if (lineEndExclusive >= value.length) {
+        return false;
+      }
+      const nextLineStart = lineEndExclusive;
+      let nextLineEnd = value.indexOf('\n', nextLineStart);
+      if (nextLineEnd === -1) {
+        nextLineEnd = value.length;
+      } else {
+        nextLineEnd += 1;
+      }
+      const afterBlock = value.substring(nextLineStart, nextLineEnd);
+      const currBlock = value.substring(lineStart, lineEndExclusive);
+      const join = afterBlock.length > 0 && !afterBlock.endsWith('\n') ? '\n' : '';
+      const middle = afterBlock + join + currBlock;
+      next = value.substring(0, lineStart) + middle + value.substring(nextLineEnd);
+      const gap = afterBlock.length + join.length;
+      map = (p: number): number => {
+        if (p >= lineStart && p < lineEndExclusive) {
+          return lineStart + gap + (p - lineStart);
+        }
+        if (p >= nextLineStart && p < nextLineEnd) {
+          return lineStart + (p - nextLineStart);
+        }
+        return p;
+      };
+    }
+    this.content = next;
+    setTimeout(() => {
+      this.textarea.nativeElement.selectionStart = map(start);
+      this.textarea.nativeElement.selectionEnd = map(end);
+      this.onContentChange(this.content);
+    }, 0);
+    return true;
   }
 
   private handleEnter(event: KeyboardEvent) {

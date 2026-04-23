@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { TabItem } from '@core/tabs/tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { TestSuiteRunnerService } from '@core/testing/test-suite-runner.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { CollectionService } from '@core/collection/collection.service';
 import type {
   Assertion,
@@ -106,6 +107,7 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
     private artifacts: TestArtifactService,
     private runner: TestSuiteRunnerService,
     private collections: CollectionService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -243,17 +245,17 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
 
   onPickedFolder(v: string | null): void {
     if (v == null || v === '') return;
-    this.addFromFolderList(v);
+    void this.addFromFolderList(v);
     this.addFolderValue = null;
     this.cdr.markForCheck();
   }
 
-  addFromFolderList(raw: string): void {
+  async addFromFolderList(raw: string): Promise<void> {
     if (!this.artifact || !raw) return;
     if (raw.startsWith('col:')) {
-      this.addCasesFromCollection(raw.slice(4));
+      await this.addCasesFromCollection(raw.slice(4));
     } else {
-      this.addCasesFromFolder(raw);
+      await this.addCasesFromFolder(raw);
     }
   }
 
@@ -261,11 +263,11 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
    * Adds one test case per saved request in the folder and nested subfolders.
    * Skips request IDs that already have a “saved” case in this suite.
    */
-  addCasesFromFolder(folderId: string): void {
+  async addCasesFromFolder(folderId: string): Promise<void> {
     if (!this.artifact || !folderId) return;
     const folder = this.collections.findFolderById(folderId);
     if (!folder) return;
-    this.addSavedCasesForRequestIds(
+    await this.addSavedCasesForRequestIds(
       collectRequestIdsInFolderTree(folder),
       'No requests in that folder (including subfolders).',
       'All requests in that folder are already in the suite.',
@@ -275,25 +277,25 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
   /**
    * Collection root + every request in nested folders, same as “flat” add from a collection.
    */
-  addCasesFromCollection(collectionId: string): void {
+  async addCasesFromCollection(collectionId: string): Promise<void> {
     if (!this.artifact || !collectionId) return;
     const col = this.collections.findCollectionByCollectionId(collectionId);
     if (!col) return;
-    this.addSavedCasesForRequestIds(
+    await this.addSavedCasesForRequestIds(
       collectRequestIdsInCollection(col),
       'No requests in that collection.',
       'All requests in that collection are already in the suite.',
     );
   }
 
-  private addSavedCasesForRequestIds(
+  private async addSavedCasesForRequestIds(
     requestIds: string[],
     emptyMessage: string,
     allDuplicatedMessage: string,
-  ): void {
+  ): Promise<void> {
     if (!this.artifact) return;
     if (!requestIds.length) {
-      window.alert(emptyMessage);
+      await this.confirmDialog.alert(emptyMessage);
       return;
     }
     const existing = new Set(
@@ -317,7 +319,7 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
       });
     }
     if (!added.length) {
-      window.alert(allDuplicatedMessage);
+      await this.confirmDialog.alert(allDuplicatedMessage);
       return;
     }
     this.artifact.cases = [...this.artifact.cases, ...added];
@@ -342,9 +344,15 @@ export class TestSuiteComponent implements OnInit, OnDestroy {
     this.persist();
   }
 
-  removeCase(caseId: string): void {
+  async removeCase(caseId: string): Promise<void> {
     if (!this.artifact) return;
-    if (!confirm('Delete this case?')) return;
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete case',
+      message: 'Delete this case?',
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     this.artifact.cases = this.artifact.cases.filter((c) => c.id !== caseId);
     if (this.selectedCaseId === caseId) {
       this.selectedCaseId = this.artifact.cases[0]?.id ?? null;

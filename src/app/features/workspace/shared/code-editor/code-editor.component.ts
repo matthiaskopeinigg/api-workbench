@@ -15,6 +15,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 import { DYNAMIC_BARE_RE, DYNAMIC_BRACED_RE, DYNAMIC_PLACEHOLDER_TOOLTIPS } from '@core/placeholders/dynamic-placeholders';
 import { CodeJsHighlightMirrorComponent } from './code-js-highlight-mirror.component';
 import { SafeHtmlPipe } from '@shared-app/pipes/safe-html.pipe';
@@ -135,6 +136,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   constructor(
     private cdr: ChangeDetectorRef,
     private hostRef: ElementRef<HTMLElement>,
+    private keyboardShortcuts: KeyboardShortcutsService,
   ) {}
 
   @HostListener('document:mousedown', ['$event'])
@@ -699,6 +701,156 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     this.lineNumbers.nativeElement.scrollTop = top;
   }
 
+  /** Copy/cut/paste/select-all and undo/redo stay native on the textarea. */
+  private passthroughNativeModTextareaShortcut(ev: KeyboardEvent): boolean {
+    const mod = ev.ctrlKey || ev.metaKey;
+    if (!mod || ev.altKey) {
+      return false;
+    }
+    switch (ev.code) {
+      case 'KeyC':
+      case 'KeyV':
+      case 'KeyX':
+      case 'KeyA':
+      case 'KeyZ':
+      case 'KeyY':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private lineBlockBounds(
+    value: string,
+    start: number,
+    end: number,
+  ): { lineStart: number; lineEndExclusive: number } {
+    const a = Math.min(start, end);
+    const b = Math.max(start, end);
+    const lineStart = value.lastIndexOf('\n', a - 1) + 1;
+    const nl = value.indexOf('\n', b);
+    const lineEndExclusive = nl === -1 ? value.length : nl + 1;
+    return { lineStart, lineEndExclusive };
+  }
+
+  private duplicateLineBlock(ta: HTMLTextAreaElement, value: string, start: number, end: number): void {
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const segment = value.substring(lineStart, lineEndExclusive);
+    this.innerContent = value.substring(0, lineEndExclusive) + segment + value.substring(lineEndExclusive);
+    const newPos = lineEndExclusive + (start - lineStart);
+    this.onContentChange(this.innerContent);
+    this.queueCaret(ta, newPos);
+  }
+
+  /** `//` for JS-like languages, `#` for Python; no-op for JSON/XML. */
+  private editorLineCommentToken(): string | null {
+    if (this.language === 'json' || this.language === 'xml') {
+      return null;
+    }
+    if (this.language === 'python') {
+      return '# ';
+    }
+    return '// ';
+  }
+
+  private toggleLineCommentBlock(ta: HTMLTextAreaElement, value: string, start: number, end: number): boolean {
+    const token = this.editorLineCommentToken();
+    if (!token) {
+      return false;
+    }
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const block = value.substring(lineStart, lineEndExclusive);
+    const lines = block.split('\n');
+    const isHash = token.startsWith('#');
+    const outLines = lines.map((line) => {
+      const m = line.match(/^(\s*)(.*)$/);
+      const ind = m?.[1] ?? '';
+      const rest = m?.[2] ?? '';
+      if (isHash) {
+        if (/^#\s?/.test(rest)) {
+          return ind + rest.replace(/^#\s?/, '');
+        }
+        return ind + '# ' + rest;
+      }
+      if (/^\/\/\s?/.test(rest)) {
+        return ind + rest.replace(/^\/\/\s?/, '');
+      }
+      return ind + '// ' + rest;
+    });
+    const nextBlock = outLines.join('\n');
+    const delta = nextBlock.length - block.length;
+    this.innerContent = value.substring(0, lineStart) + nextBlock + value.substring(lineEndExclusive);
+    this.onContentChange(this.innerContent);
+    const na = Math.min(start, end);
+    const nb = Math.max(start, end);
+    this.queueSelection(ta, na, nb + delta);
+    return true;
+  }
+
+  private moveLineBlock(
+    ta: HTMLTextAreaElement,
+    value: string,
+    start: number,
+    end: number,
+    dir: 'up' | 'down',
+  ): boolean {
+    const { lineStart, lineEndExclusive } = this.lineBlockBounds(value, start, end);
+    const currLen = lineEndExclusive - lineStart;
+    if (dir === 'up') {
+      if (lineStart === 0) {
+        return false;
+      }
+      const prevNl = value.lastIndexOf('\n', lineStart - 2);
+      const prevLineStart = prevNl + 1;
+      const prevBlock = value.substring(prevLineStart, lineStart);
+      const currBlock = value.substring(lineStart, lineEndExclusive);
+      const next =
+        value.substring(0, prevLineStart) + currBlock + prevBlock + value.substring(lineEndExclusive);
+      const map = (p: number): number => {
+        if (p >= lineStart && p < lineEndExclusive) {
+          return prevLineStart + (p - lineStart);
+        }
+        if (p >= prevLineStart && p < lineStart) {
+          return prevLineStart + currLen + (p - prevLineStart);
+        }
+        return p;
+      };
+      this.innerContent = next;
+      this.onContentChange(this.innerContent);
+      this.queueSelection(ta, map(start), map(end));
+      return true;
+    }
+    if (lineEndExclusive >= value.length) {
+      return false;
+    }
+    const nextLineStart = lineEndExclusive;
+    let nextLineEnd = value.indexOf('\n', nextLineStart);
+    if (nextLineEnd === -1) {
+      nextLineEnd = value.length;
+    } else {
+      nextLineEnd += 1;
+    }
+    const afterBlock = value.substring(nextLineStart, nextLineEnd);
+    const currBlock = value.substring(lineStart, lineEndExclusive);
+    const join = afterBlock.length > 0 && !afterBlock.endsWith('\n') ? '\n' : '';
+    const middle = afterBlock + join + currBlock;
+    const next = value.substring(0, lineStart) + middle + value.substring(nextLineEnd);
+    const gap = afterBlock.length + join.length;
+    const map = (p: number): number => {
+      if (p >= lineStart && p < lineEndExclusive) {
+        return lineStart + gap + (p - lineStart);
+      }
+      if (p >= nextLineStart && p < nextLineEnd) {
+        return lineStart + (p - nextLineStart);
+      }
+      return p;
+    };
+    this.innerContent = next;
+    this.onContentChange(this.innerContent);
+    this.queueSelection(ta, map(start), map(end));
+    return true;
+  }
+
   handleKeydown(event: KeyboardEvent): void {
     if (this.readonly) {
       return;
@@ -708,6 +860,10 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     const start = Math.min(ta.selectionStart, (this.innerContent ?? '').length);
     const end = Math.min(Math.max(ta.selectionEnd, start), (this.innerContent ?? '').length);
     const value = this.innerContent;
+
+    if (this.passthroughNativeModTextareaShortcut(event)) {
+      return;
+    }
 
     if (this.scriptAutocomplete && this.language === 'javascript') {
       if (this.completionVisible && this.handleCompletionKeydown(event, ta)) {
@@ -720,13 +876,43 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       }
     }
 
-    if (event.key === 'Tab') {
+    if (this.keyboardShortcuts.matchesEditorAction('editor.duplicateLine', event)) {
+      event.preventDefault();
+      this.duplicateLineBlock(ta, value, start, end);
+      return;
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.toggleLineComment', event)) {
+      if (this.toggleLineCommentBlock(ta, value, start, end)) {
+        event.preventDefault();
+        return;
+      }
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.moveLineUp', event)) {
+      if (this.moveLineBlock(ta, value, start, end, 'up')) {
+        event.preventDefault();
+        return;
+      }
+    }
+    if (this.keyboardShortcuts.matchesEditorAction('editor.moveLineDown', event)) {
+      if (this.moveLineBlock(ta, value, start, end, 'down')) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       this.insertAtCaret(ta, start, end, '  ');
       return;
     }
 
-    if (event.key === 'Enter' && start === end) {
+    if (
+      event.key === 'Enter' &&
+      start === end &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
       if (this.handleEnter(event, ta, start, end, value)) return;
     }
 
@@ -1125,6 +1311,9 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       event.preventDefault();
       this.closeCompletion();
       return true;
+    }
+    if (event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      return false;
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault();

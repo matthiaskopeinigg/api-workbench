@@ -17,6 +17,7 @@ import {
   searchCommands,
   CommandSearchResult,
 } from '@core/commands/command-registry.service';
+import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 /**
  * Global command palette. Opens with Ctrl/Cmd+K, closes with Escape. All
@@ -39,15 +40,21 @@ export class CommandPaletteComponent implements OnInit, OnDestroy {
 
   private commands: Command[] = [];
   private sub?: Subscription;
+  private unregisterPaletteShortcut?: () => void;
 
   @ViewChild('paletteInput') paletteInput?: ElementRef<HTMLInputElement>;
 
   constructor(
     private registry: CommandRegistryService,
     private cdr: ChangeDetectorRef,
+    private keyboard: KeyboardShortcutsService,
   ) {}
 
   ngOnInit(): void {
+    this.unregisterPaletteShortcut = this.keyboard.register('global.commandPaletteToggle', () => {
+      this.isOpen ? this.close() : this.open();
+      return true;
+    });
     this.sub = this.registry.commands$.subscribe(cmds => {
       this.commands = cmds;
       if (this.isOpen) {
@@ -58,6 +65,7 @@ export class CommandPaletteComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.unregisterPaletteShortcut?.();
   }
 
   open() {
@@ -100,15 +108,8 @@ export class CommandPaletteComponent implements OnInit, OnDestroy {
     await this.runActive();
   }
 
-  /** Global Ctrl/Cmd+K handler mounted on document. */
   @HostListener('document:keydown', ['$event'])
   onDocumentKeydown(event: KeyboardEvent) {
-    const isToggle = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
-    if (isToggle) {
-      event.preventDefault();
-      this.isOpen ? this.close() : this.open();
-      return;
-    }
     if (!this.isOpen) return;
     if (event.key === 'Escape') {
       event.preventDefault();

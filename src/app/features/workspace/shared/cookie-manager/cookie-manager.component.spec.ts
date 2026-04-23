@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { CookieManagerComponent } from './cookie-manager.component';
 import { CookieService } from '@core/http/cookie.service';
 
@@ -6,6 +7,7 @@ describe('CookieManagerComponent', () => {
   let component: CookieManagerComponent;
   let fixture: ComponentFixture<CookieManagerComponent>;
   let cookieServiceSpy: jasmine.SpyObj<CookieService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   const mockCookies = [
     { key: 'session', value: 'abc', domain: 'example.com', path: '/' },
@@ -23,9 +25,15 @@ describe('CookieManagerComponent', () => {
     cookieServiceSpy.deleteCookie.and.returnValue(Promise.resolve());
     cookieServiceSpy.clearAllCookies.and.returnValue(Promise.resolve());
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+
     await TestBed.configureTestingModule({
       imports: [CookieManagerComponent],
-      providers: [{ provide: CookieService, useValue: cookieServiceSpy }]
+      providers: [
+        { provide: CookieService, useValue: cookieServiceSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(CookieManagerComponent);
@@ -61,11 +69,11 @@ describe('CookieManagerComponent', () => {
   });
 
   it('clearAll should confirm before clearing', async () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+    confirmDialogSpy.confirm.and.resolveTo(false);
     await component.clearAll();
     expect(cookieServiceSpy.clearAllCookies).not.toHaveBeenCalled();
 
-    (window.confirm as jasmine.Spy).and.returnValue(true);
+    confirmDialogSpy.confirm.and.resolveTo(true);
     await component.clearAll();
     expect(cookieServiceSpy.clearAllCookies).toHaveBeenCalled();
   });

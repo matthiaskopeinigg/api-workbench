@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { TestsComponent } from './tests.component';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabService } from '@core/tabs/tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { DEFAULT_LOAD_CONFIG, ensureLoadTestProfiles, LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX } from '@models/testing/load-test';
@@ -17,6 +18,7 @@ describe('TestsComponent (sidebar)', () => {
 
   let artifactsSpy: jasmine.SpyObj<TestArtifactService>;
   let tabSpy: jasmine.SpyObj<TabService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
   beforeEach(async () => {
     loadTests$     = new BehaviorSubject<any[]>([]);
@@ -42,11 +44,16 @@ describe('TestsComponent (sidebar)', () => {
       'openLoadTestTab', 'openTestSuiteTab', 'openContractTestTab', 'openFlowTab',
     ]);
 
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm', 'alert']);
+    confirmDialogSpy.confirm.and.resolveTo(true);
+    confirmDialogSpy.alert.and.resolveTo();
+
     await TestBed.configureTestingModule({
       imports: [TestsComponent],
       providers: [
         { provide: TestArtifactService, useValue: artifactsSpy },
         { provide: TabService,          useValue: tabSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
       ],
     }).compileComponents();
 
@@ -149,11 +156,11 @@ describe('TestsComponent (sidebar)', () => {
   });
 
   it('deleteItem prompts and removes only on confirmation', async () => {
-    spyOn(window, 'confirm').and.returnValue(false);
+    confirmDialogSpy.confirm.and.resolveTo(false);
     await component.deleteItem(component.sections[0], { id: 'lt-1', title: 't', updatedAt: 0 });
     expect(artifactsSpy.remove).not.toHaveBeenCalled();
 
-    (window.confirm as jasmine.Spy).and.returnValue(true);
+    confirmDialogSpy.confirm.and.resolveTo(true);
     await component.deleteItem(component.sections[0], { id: 'lt-1', title: 't', updatedAt: 0 });
     expect(artifactsSpy.remove).toHaveBeenCalledWith('loadTests', 'lt-1');
   });

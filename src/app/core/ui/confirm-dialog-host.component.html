@@ -1,0 +1,42 @@
+@if (payload(); as p) {
+  <div class="confirm-overlay" role="presentation" (click)="onBackdrop($event)">
+    <div
+      class="confirm-panel"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="confirm-header">
+        <div class="confirm-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            @if (p.destructive) {
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            } @else {
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            }
+          </svg>
+        </div>
+        <h2 id="confirm-dialog-title" class="confirm-title">{{ p.title }}</h2>
+      </header>
+      <p class="confirm-message">{{ p.message }}</p>
+      <footer class="confirm-actions">
+        @if (p.cancelLabel !== null) {
+          <button type="button" class="fancy-button cancel" (click)="onCancel()">{{ p.cancelLabel }}</button>
+        }
+        <button
+          type="button"
+          class="fancy-button"
+          [class.confirm-destructive]="p.destructive"
+          (click)="onConfirm()"
+        >
+          {{ p.confirmLabel }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

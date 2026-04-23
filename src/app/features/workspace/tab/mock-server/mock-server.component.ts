@@ -12,6 +12,7 @@ import { Subject, combineLatest, takeUntil } from 'rxjs';
 
 import { TabItem } from '@core/tabs/tab.service';
 import { CollectionService } from '@core/collection/collection.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import {
   MockServerUiStateService,
@@ -183,6 +184,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
     private collectionService: CollectionService,
     private mockServer: MockServerService,
     private mockUi: MockServerUiStateService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -722,9 +724,12 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   async setBindAddress(address: '127.0.0.1' | '0.0.0.0'): Promise<void> {
     if (address === '0.0.0.0' && this.options.bindAddress !== '0.0.0.0') {
-      const ok = window.confirm(
-        'Binding to 0.0.0.0 makes the mock server reachable from other devices on your network. Continue?',
-      );
+      const ok = await this.confirmDialog.confirm({
+        title: 'Network exposure',
+        message:
+          'Binding to 0.0.0.0 makes the mock server reachable from other devices on your network. Continue?',
+        confirmLabel: 'Continue',
+      });
       if (!ok) return;
     }
     await this.mockServer.setOptions({ bindAddress: address });
@@ -738,7 +743,13 @@ export class MockServerComponent implements OnInit, OnDestroy {
   }
 
   async resetAllVariants(): Promise<void> {
-    const ok = window.confirm('Unregister every mock variant from the server? Your saved variants on requests are not deleted.');
+    const ok = await this.confirmDialog.confirm({
+      title: 'Unregister variants',
+      message:
+        'Unregister every mock variant from the server? Your saved variants on requests are not deleted.',
+      destructive: true,
+      confirmLabel: 'Unregister all',
+    });
     if (!ok) return;
     await this.mockServer.clearAll();
   }
