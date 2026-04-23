@@ -127,6 +127,7 @@ describe('RequestComponent', () => {
           provide: DomSanitizer,
           useValue: {
             sanitize: (_ctx: SecurityContext, value: string | null) => value ?? '',
+            bypassSecurityTrustHtml: (value: string) => value as any,
           } as DomSanitizer,
         },
       ]
