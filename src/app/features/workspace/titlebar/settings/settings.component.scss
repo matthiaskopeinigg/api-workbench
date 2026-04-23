@@ -1258,6 +1258,16 @@ label:has(input[type="checkbox"]) {
     box-shadow: 0 0 0 4px color-mix(in srgb, #e74c3c, transparent 80%);
   }
 
+  .update-state[data-state='error'] {
+    align-items: flex-start;
+
+    .update-state-text {
+      font-weight: 400;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+  }
+
   .update-progress {
     height: 6px;
     border-radius: 999px;

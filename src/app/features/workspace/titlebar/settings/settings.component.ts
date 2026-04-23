@@ -186,7 +186,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
         return `Downloading update\u2026 ${p}%`;
       }
       case 'downloaded': return `Version ${s.info?.version ?? ''} is ready to install.`;
-      case 'error': return `Couldn\u2019t check for updates. Please try again later.`;
+      case 'error': {
+        const m = s.info?.message ?? '';
+        // GitHub Atom lists the newest tag first; a tag-only or failed CI release has no latest.yml/beta.yml.
+        if (/CHANNEL_FILE_NOT_FOUND|Cannot find .*\.yml|latest\.yml|beta\.yml/i.test(m)) {
+          return (
+            'The newest GitHub release has no update metadata yet (missing latest.yml). ' +
+            'That usually means the Build/Release workflow is still running, failed, or the tag was published without CI artifacts. ' +
+            'Check GitHub Actions for this repository, or try again later.'
+          );
+        }
+        return m ? `Couldn\u2019t check for updates: ${m}` : `Couldn\u2019t check for updates. Please try again later.`;
+      }
       case 'disabled': return s.info?.reason ?? 'Auto-update is disabled.';
       default: return '';
     }
