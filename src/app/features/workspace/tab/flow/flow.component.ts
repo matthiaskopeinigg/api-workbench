@@ -3,9 +3,13 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  HostBinding,
+  HostListener,
   Input,
+  OnChanges,
   OnDestroy,
   OnInit,
+  SimpleChanges,
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -71,10 +75,19 @@ const HTTP_METHOD_LABELS: Record<number, string> = {
 const NODE_W = 180;
 const NODE_H = 60;
 
+/** Keep canvas labels left of the output port (≈x 174); 12px text ≈6px/char at this size. */
+const NODE_LABEL_MAX_CHARS = 18;
+/** Monospace subtitle; same horizontal budget. */
+const NODE_SUB_MAX_CHARS = 20;
+
 const VIEW_MIN = 400;
 const VIEW_MAX = 6000;
 const VIEW_DEFAULT_W = 2000;
 const VIEW_DEFAULT_H = 1500;
+
+const FLOW_CLIPBOARD_KIND = 'api-workbench-flow-fragment' as const;
+const PASTE_OFFSET_X = 32;
+const PASTE_OFFSET_Y = 32;
 
 @Component({
   selector: 'app-flow',
@@ -84,7 +97,10 @@ const VIEW_DEFAULT_H = 1500;
   styleUrls: ['./flow.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlowComponent implements OnInit, OnDestroy {
+export class FlowComponent implements OnInit, OnChanges, OnDestroy {
+  /** Lets Ctrl/Cmd+C / V work after clicking the flow without focus jumping to the URL bar. */
+  @HostBinding('attr.tabindex') readonly flowHostTabindex = -1;
+
   @Input() tab!: TabItem;
 
   @ViewChild('canvas', { static: false }) canvasEl?: ElementRef<SVGSVGElement>;
@@ -122,15 +138,80 @@ export class FlowComponent implements OnInit, OnDestroy {
     private executor: FlowExecutorService,
     private collections: CollectionService,
     private cdr: ChangeDetectorRef,
+    private hostRef: ElementRef<HTMLElement>,
   ) {}
 
-  ngOnInit(): void {
-    const id = stripPrefix(this.tab.id);
-    this.artifacts.flows$().pipe(takeUntil(this.destroy$)).subscribe((all) => {
-      const found = all.find((a) => a.id === id);
-      if (!found) return;
-      this.artifact = JSON.parse(JSON.stringify(found));
+  /**
+   * Load the flow matching the **current** tab from the artifact store.
+   * The tab host reuses one `app-flow` instance when switching between open flow tabs.
+   */
+  private applyFlowFromStore(): void {
+    if (this.dragNodeId || this.edgeDraft) {
+      return;
+    }
+    const flowId = stripPrefix(this.tab.id);
+    const found = this.artifacts.flows().find((a) => a.id === flowId);
+    const prevArtifactId = this.artifact?.id ?? null;
+    const prevSelectedNodeId = this.selectedNodeId;
+    const prevRunResult = this.runResult;
+    const prevRunId = this.runId;
+    const prevRunning = this.running;
+    if (!found) {
+      this.artifact = null;
+      this.selectedNodeId = null;
+      this.runResult = null;
+      this.runId = null;
+      this.running = false;
+      this.nodeStatus.clear();
+      this.nodeMessages.clear();
       this.cdr.markForCheck();
+      return;
+    }
+    this.artifact = JSON.parse(JSON.stringify(found)) as FlowArtifact;
+    normalizeFlowArtifactCoords(this.artifact);
+    // Same document re-synced from store (e.g. after persist on mouseup). Do not wipe
+    // selection — otherwise a click-drag-release clears the node we just selected.
+    const sameDocument =
+      prevArtifactId !== null && prevArtifactId === this.artifact.id;
+    const keepSelection =
+      sameDocument &&
+      !!prevSelectedNodeId &&
+      this.artifact.nodes.some((n) => n.id === prevSelectedNodeId);
+    this.selectedNodeId = keepSelection ? prevSelectedNodeId : null;
+
+    const keepRunUi =
+      sameDocument &&
+      prevRunResult &&
+      prevRunResult.flowId === this.artifact.id;
+    if (keepRunUi) {
+      this.runResult = prevRunResult;
+      this.runId = prevRunId ?? prevRunResult.runId;
+      this.running = prevRunning;
+      this.nodeStatus.clear();
+      this.nodeMessages.clear();
+      for (const st of prevRunResult.steps) {
+        this.nodeStatus.set(st.nodeId, st.status);
+        if (st.message) this.nodeMessages.set(st.nodeId, st.message);
+      }
+    } else {
+      this.runResult = null;
+      this.runId = null;
+      this.running = false;
+      this.nodeStatus.clear();
+      this.nodeMessages.clear();
+    }
+
+    if (!sameDocument) {
+      this.resetView();
+    }
+    this.cdr.markForCheck();
+  }
+
+  ngOnInit(): void {
+    // One <app-flow> is reused for whichever flow tab is active; always read `this.tab.id`
+    // when the store emits. `ngOnChanges` handles tab switches when flows$ does not emit.
+    this.artifacts.flows$().pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.applyFlowFromStore();
     });
 
     this.collections.getCollectionsObservable().pipe(takeUntil(this.destroy$)).subscribe((cols) => {
@@ -154,9 +235,48 @@ export class FlowComponent implements OnInit, OnDestroy {
     });
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['tab']?.currentValue) return;
+    const cur = changes['tab'].currentValue as TabItem;
+    const prev = changes['tab'].previousValue as TabItem | undefined;
+    if (prev && cur.id === prev.id) return;
+    this.applyFlowFromStore();
+  }
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  /** Picked up on document so drags/edge drafts work when the pointer leaves the canvas SVG. */
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent): void {
+    if (!this.panStart && !this.dragNodeId && !this.edgeDraft) return;
+    this.onCanvasMouseMove(event);
+  }
+
+  @HostListener('document:mouseup', ['$event'])
+  onDocumentMouseUp(event: MouseEvent): void {
+    if (!this.panStart && !this.dragNodeId && !this.edgeDraft) return;
+    this.onCanvasMouseUp(event);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (!this.artifact) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const k = event.key.toLowerCase();
+    if (k !== 'c' && k !== 'v') return;
+    if (this.isEditableKeyTarget(event.target)) return;
+    if (!this.isFlowHotkeyContext()) return;
+    if (k === 'c') {
+      event.preventDefault();
+      this.copySelectionToClipboard();
+    } else {
+      if (this.running) return;
+      event.preventDefault();
+      void this.pasteFromClipboard();
+    }
   }
 
   addNode(kind: FlowNodeKind): void {
@@ -180,14 +300,18 @@ export class FlowComponent implements OnInit, OnDestroy {
 
   onNodeMouseDown(event: MouseEvent, nodeId: string): void {
     event.stopPropagation();
-    event.preventDefault();
+    // Do not call preventDefault(): it suppresses the synthetic click on some engines,
+    // so (click) never runs on the node and the bubble hits canvas-wrap → selection clears.
     if (!this.artifact) return;
     const node = this.artifact.nodes.find((n) => n.id === nodeId);
     if (!node) return;
     this.selectedNodeId = nodeId;
     this.dragNodeId = nodeId;
     const pt = this.toSvgPoint(event);
-    this.dragOffset = { x: pt.x - node.x, y: pt.y - node.y };
+    const px = toNodeCoord(node.x);
+    const py = toNodeCoord(node.y);
+    this.dragOffset = { x: pt.x - px, y: pt.y - py };
+    this.cdr.markForCheck();
   }
 
   onCanvasMouseMove(event: MouseEvent): void {
@@ -304,10 +428,12 @@ export class FlowComponent implements OnInit, OnDestroy {
     }
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of this.artifact.nodes) {
-      if (n.x < minX) minX = n.x;
-      if (n.y < minY) minY = n.y;
-      if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
-      if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
+      const nx = toNodeCoord(n.x);
+      const ny = toNodeCoord(n.y);
+      if (nx < minX) minX = nx;
+      if (ny < minY) minY = ny;
+      if (nx + NODE_W > maxX) maxX = nx + NODE_W;
+      if (ny + NODE_H > maxY) maxY = ny + NODE_H;
     }
     const pad = 120;
     const w = Math.max(VIEW_MIN, maxX - minX + pad * 2);
@@ -325,12 +451,30 @@ export class FlowComponent implements OnInit, OnDestroy {
     return Math.round((VIEW_DEFAULT_W / this.viewport.w) * 100);
   }
 
-  onCanvasClick(): void {
+  get copyPasteHint(): string {
+    if (typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      return '⌘C / ⌘V copy & paste';
+    }
+    return 'Ctrl+C / Ctrl+V copy & paste';
+  }
+
+  onCanvasClick(event: MouseEvent): void {
+    const t = event.target as Element | null;
+    if (t?.closest?.('.node')) {
+      return;
+    }
+    this.focusFlowHost();
     this.selectedNodeId = null;
+  }
+
+  onFlowShellMouseDown(event: MouseEvent): void {
+    if (this.isEditableKeyTarget(event.target)) return;
+    this.focusFlowHost();
   }
 
   onPortMouseDown(event: MouseEvent, nodeId: string, port: FlowEdge['fromPort']): void {
     event.stopPropagation();
+    this.focusFlowHost();
     const pt = this.toSvgPoint(event);
     this.edgeDraft = { fromNodeId: nodeId, fromPort: port, x: pt.x, y: pt.y };
   }
@@ -410,16 +554,46 @@ export class FlowComponent implements OnInit, OnDestroy {
     const p = svg.createSVGPoint();
     p.x = event.clientX;
     p.y = event.clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return { x: event.clientX, y: event.clientY };
-    const t = p.matrixTransform(ctm.inverse());
-    return { x: t.x, y: t.y };
+    try {
+      const ctm = svg.getScreenCTM();
+      if (ctm) {
+        const t = p.matrixTransform(ctm.inverse());
+        if (Number.isFinite(t.x) && Number.isFinite(t.y)) {
+          return { x: t.x, y: t.y };
+        }
+      }
+    } catch {
+      /* singular matrix or unsupported */
+    }
+    return this.clientPointToSvgUser(svg, event.clientX, event.clientY);
+  }
+
+  /** Map screen coordinates into the same user space as `[attr.viewBox]` / `edgePath`. */
+  private clientPointToSvgUser(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox?.baseVal;
+    if (!vb || rect.width <= 0 || rect.height <= 0) {
+      return { x: 0, y: 0 };
+    }
+    const relX = (clientX - rect.left) / rect.width;
+    const relY = (clientY - rect.top) / rect.height;
+    return {
+      x: vb.x + relX * vb.width,
+      y: vb.y + relY * vb.height,
+    };
+  }
+
+  /** Keep `translate` in the same numeric space as `edgePath` / `draftPath`. */
+  nodeTransform(n: FlowNode): string {
+    return `translate(${toNodeCoord(n.x)},${toNodeCoord(n.y)})`;
   }
 
   private hitTestNode(pt: { x: number; y: number }): FlowNode | null {
     if (!this.artifact) return null;
     for (const n of this.artifact.nodes) {
-      if (pt.x >= n.x && pt.x <= n.x + NODE_W && pt.y >= n.y && pt.y <= n.y + NODE_H) return n;
+      const nx = toNodeCoord(n.x);
+      const ny = toNodeCoord(n.y);
+      if (pt.x >= nx && pt.x <= nx + NODE_W && pt.y >= ny && pt.y <= ny + NODE_H) return n;
     }
     return null;
   }
@@ -430,11 +604,14 @@ export class FlowComponent implements OnInit, OnDestroy {
     const to = this.artifact.nodes.find((n) => n.id === edge.toNodeId);
     if (!from || !to) return '';
     const offset = portOffset(from, edge.fromPort);
-    const x1 = from.x + NODE_W;
-    const y1 = from.y + offset;
-    const x2 = to.x;
-    const y2 = to.y + NODE_H / 2;
+    const x1 = toNodeCoord(from.x) + NODE_W;
+    const y1 = toNodeCoord(from.y) + offset;
+    const x2 = toNodeCoord(to.x);
+    const y2 = toNodeCoord(to.y) + NODE_H / 2;
     const midX = (x1 + x2) / 2;
+    if (![x1, y1, x2, y2, midX].every(Number.isFinite)) {
+      return '';
+    }
     return `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
   }
 
@@ -443,11 +620,14 @@ export class FlowComponent implements OnInit, OnDestroy {
     const from = this.artifact.nodes.find((n) => n.id === this.edgeDraft!.fromNodeId);
     if (!from) return '';
     const offset = portOffset(from, this.edgeDraft.fromPort);
-    const x1 = from.x + NODE_W;
-    const y1 = from.y + offset;
+    const x1 = toNodeCoord(from.x) + NODE_W;
+    const y1 = toNodeCoord(from.y) + offset;
     const x2 = this.edgeDraft.x;
     const y2 = this.edgeDraft.y;
     const midX = (x1 + x2) / 2;
+    if (![x1, y1, x2, y2, midX].every(Number.isFinite)) {
+      return '';
+    }
     return `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
   }
 
@@ -462,30 +642,163 @@ export class FlowComponent implements OnInit, OnDestroy {
     return s ? `status-${s}` : '';
   }
 
+  /**
+   * Animate the wire *into* the step that is working (or from Start on the first step).
+   * Outgoing-only highlighting hid the “power cord” to the request node.
+   */
+  isEdgeRunAnimated(e: FlowEdge): boolean {
+    if (!this.running) return false;
+    if (this.nodeStatus.get(e.toNodeId) === 'running') return true;
+    if (e.fromNodeId === 'start' && this.nodeStatus.get('start') === 'running') return true;
+    return false;
+  }
+
+  /** Built in TS so the template can use a dynamic `port-*` class (parser disallows computed keys in literals). */
+  edgePathNgClass(e: FlowEdge): Record<string, boolean> {
+    return {
+      edge: true,
+      [`port-${e.fromPort}`]: true,
+      'edge-flowing': this.isEdgeRunAnimated(e),
+    };
+  }
+
   nodeLabel(node: FlowNode): string {
-    if (node.label) return node.label;
-    return PALETTE.find((p) => p.kind === node.kind)?.label || node.kind;
+    const raw = node.label
+      ? node.label
+      : PALETTE.find((p) => p.kind === node.kind)?.label || node.kind;
+    return truncate(raw, NODE_LABEL_MAX_CHARS);
   }
 
   nodeSubtitle(node: FlowNode): string {
     switch (node.kind) {
       case 'request':
-        if (node.target.kind === 'inline') return `${node.target.method} ${truncate(node.target.url, 26)}`;
+        if (node.target.kind === 'inline') {
+          return truncate(`${node.target.method} ${node.target.url}`, NODE_SUB_MAX_CHARS);
+        }
         {
           const req = this.collections.findRequestById(node.target.requestId);
-          return req ? `${HTTP_METHOD_LABELS[req.httpMethod] || 'GET'} ${truncate(req.title || req.url, 26)}` : '(no request)';
+          return req
+            ? truncate(`${HTTP_METHOD_LABELS[req.httpMethod] || 'GET'} ${req.title || req.url}`, NODE_SUB_MAX_CHARS)
+            : '(no request)';
         }
-      case 'branch': return truncate(node.expression || 'true', 26);
-      case 'assert': return truncate(node.expression || '', 26);
-      case 'set-var': return `${node.varName || 'var'} = …`;
-      case 'delay': return `${node.ms} ms`;
-      case 'terminate': return node.outcome;
-      case 'transform': return 'return output';
-      case 'start': return '';
+      case 'branch':
+        return truncate(node.expression || 'true', NODE_SUB_MAX_CHARS);
+      case 'assert':
+        return truncate(node.expression || '', NODE_SUB_MAX_CHARS);
+      case 'set-var':
+        return truncate(`${node.varName || 'var'} = …`, NODE_SUB_MAX_CHARS);
+      case 'delay':
+        return truncate(`${node.ms} ms`, NODE_SUB_MAX_CHARS);
+      case 'terminate':
+        return truncate(node.outcome, NODE_SUB_MAX_CHARS);
+      case 'transform':
+        return 'return output';
+      case 'start':
+        return '';
     }
   }
 
   onTitleChange(): void { this.persist(); }
+
+  private focusFlowHost(): void {
+    this.hostRef.nativeElement?.focus({ preventScroll: true });
+  }
+
+  private isEditableKeyTarget(target: EventTarget | null): boolean {
+    if (!target || !(target instanceof Node)) return false;
+    return !!(target as Element).closest?.('input, textarea, select, [contenteditable="true"]');
+  }
+
+  /** Hotkeys work when the flow host or any non-editable child has focus. */
+  private isFlowHotkeyContext(): boolean {
+    const h = this.hostRef.nativeElement;
+    const ae = document.activeElement;
+    if (!ae) return false;
+    return h === ae || h.contains(ae);
+  }
+
+  /**
+   * Copy the selected node and every node reachable from it by following outgoing
+   * edges. The start node is never copied; if you select Start, this copies the
+   * downstream graph without the Start node (reconnect the first pasted nodes manually).
+   */
+  private buildDownstreamCopyFragment(rootId: string): { nodes: FlowNode[]; edges: FlowEdge[] } | null {
+    if (!this.artifact) return null;
+    const ids = new Set<string>([rootId]);
+    const q: string[] = [rootId];
+    while (q.length) {
+      const id = q.shift()!;
+      for (const e of this.artifact.edges) {
+        if (e.fromNodeId === id && !ids.has(e.toNodeId)) {
+          ids.add(e.toNodeId);
+          q.push(e.toNodeId);
+        }
+      }
+    }
+    ids.delete('start');
+    if (ids.size === 0) return null;
+    const nodes: FlowNode[] = [];
+    for (const n of this.artifact.nodes) {
+      if (!ids.has(n.id) || n.kind === 'start') continue;
+      nodes.push(JSON.parse(JSON.stringify(n)) as FlowNode);
+    }
+    if (nodes.length === 0) return null;
+    const idSet = new Set(nodes.map((n) => n.id));
+    const edges: FlowEdge[] = this.artifact.edges
+      .filter((e) => idSet.has(e.fromNodeId) && idSet.has(e.toNodeId))
+      .map((e) => JSON.parse(JSON.stringify(e)) as FlowEdge);
+    return { nodes, edges };
+  }
+
+  private copySelectionToClipboard(): void {
+    if (!this.artifact || !this.selectedNodeId) return;
+    const fragment = this.buildDownstreamCopyFragment(this.selectedNodeId);
+    if (!fragment) return;
+    const payload = { v: 1 as const, kind: FLOW_CLIPBOARD_KIND, ...fragment };
+    void navigator.clipboard.writeText(JSON.stringify(payload));
+  }
+
+  private async pasteFromClipboard(): Promise<void> {
+    if (!this.artifact) return;
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      return;
+    }
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (!isFlowClipboardPayload(data)) return;
+    const idMap = new Map<string, string>();
+    const newNodes: FlowNode[] = [];
+    for (const n of data.nodes) {
+      if (n.kind === 'start') continue;
+      const newId = uuidv4();
+      idMap.set(n.id, newId);
+      const clone = JSON.parse(JSON.stringify(n)) as FlowNode;
+      clone.id = newId;
+      clone.x = toNodeCoord(n.x) + PASTE_OFFSET_X;
+      clone.y = toNodeCoord(n.y) + PASTE_OFFSET_Y;
+      newNodes.push(clone);
+    }
+    if (newNodes.length === 0) return;
+    const newEdges: FlowEdge[] = [];
+    for (const e of data.edges) {
+      const from = idMap.get(e.fromNodeId);
+      const to = idMap.get(e.toNodeId);
+      if (!from || !to) continue;
+      newEdges.push({ ...e, id: uuidv4(), fromNodeId: from, toNodeId: to });
+    }
+    this.artifact.nodes = [...this.artifact.nodes, ...newNodes];
+    this.artifact.edges = [...this.artifact.edges, ...newEdges];
+    this.selectedNodeId = newNodes[newNodes.length - 1]!.id;
+    this.cdr.markForCheck();
+    this.persist();
+  }
 
   trackByNode = (_: number, n: FlowNode) => n.id;
   trackByEdge = (_: number, e: FlowEdge) => e.id;
@@ -493,6 +806,25 @@ export class FlowComponent implements OnInit, OnDestroy {
   private persist(): void {
     if (!this.artifact) return;
     void this.artifacts.update('flows', { ...this.artifact, updatedAt: Date.now() });
+  }
+}
+
+/**
+ * If node positions come from storage as strings, `+` in edge math was doing string
+ * concatenation (e.g. "80" + 180 -> "80180") while `translate(n.x, n.y)` still
+ * cast to numbers — edges detached from the nodes until coords were re-saved.
+ */
+function toNodeCoord(v: unknown): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeFlowArtifactCoords(a: FlowArtifact | null | undefined): void {
+  if (!a?.nodes?.length) return;
+  for (const n of a.nodes) {
+    n.x = toNodeCoord(n.x);
+    n.y = toNodeCoord(n.y);
   }
 }
 
@@ -548,4 +880,17 @@ function toPick(req: RequestModel, parentLabel: string): RequestPick {
 function truncate(s: string | undefined, n: number): string {
   if (!s) return '';
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function isFlowClipboardPayload(
+  d: unknown,
+): d is { v: 1; kind: typeof FLOW_CLIPBOARD_KIND; nodes: FlowNode[]; edges: FlowEdge[] } {
+  if (!d || typeof d !== 'object') return false;
+  const o = d as Record<string, unknown>;
+  return (
+    o['v'] === 1 &&
+    o['kind'] === FLOW_CLIPBOARD_KIND &&
+    Array.isArray(o['nodes']) &&
+    Array.isArray(o['edges'])
+  );
 }

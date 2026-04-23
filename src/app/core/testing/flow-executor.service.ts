@@ -34,6 +34,9 @@ interface RawResponse {
   timeMs?: number;
 }
 
+/** Brief pause so the UI can show the active node + edge animation before work starts. */
+const FLOW_PRE_NODE_DELAY_MS = 72;
+
 const METHOD_LABELS: Record<number, string> = {
   [HttpMethod.GET]: 'GET',
   [HttpMethod.POST]: 'POST',
@@ -110,23 +113,40 @@ export class FlowExecutorService {
     let lastPort: FlowEdge['fromPort'] = 'out';
 
     while (current) {
+      const node = current;
       if (this.cancelled.has(flow.id)) { outcome = 'cancelled'; break; }
 
-      const runResult = await this.runNode(current, input, variables);
+      this.zone.run(() =>
+        this.step$.next({
+          flowId: flow.id,
+          step: {
+            nodeId: node.id,
+            status: 'running',
+            startedAt: Date.now(),
+            durationMs: 0,
+            input,
+          },
+        }),
+      );
+      if (this.cancelled.has(flow.id)) { outcome = 'cancelled'; break; }
+      await sleep(FLOW_PRE_NODE_DELAY_MS);
+      if (this.cancelled.has(flow.id)) { outcome = 'cancelled'; break; }
+
+      const runResult = await this.runNode(node, input, variables);
       steps.push(runResult);
       this.zone.run(() => this.step$.next({ flowId: flow.id, step: runResult }));
 
       if (runResult.status === 'failed') { outcome = 'failure'; break; }
 
-      lastPort = portFor(current, runResult);
+      lastPort = portFor(node, runResult);
 
-      if (current.kind === 'terminate') {
-        outcome = (current as TerminateNode).outcome === 'failure' ? 'failure' : 'success';
+      if (node.kind === 'terminate') {
+        outcome = (node as TerminateNode).outcome === 'failure' ? 'failure' : 'success';
         break;
       }
 
       input = runResult.output;
-      const next = outgoing(current.id, lastPort)[0];
+      const next = outgoing(node.id, lastPort)[0];
       if (!next) break;
       current = byId.get(next.toNodeId);
     }
@@ -285,6 +305,10 @@ export class FlowExecutorService {
 function portFor(node: FlowNode, result: FlowNodeRunResult): 'out' | 'true' | 'false' {
   if (node.kind === 'branch') return result.message === 'true' ? 'true' : 'false';
   return 'out';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function applyVars(input: string, vars: Record<string, unknown>): string {

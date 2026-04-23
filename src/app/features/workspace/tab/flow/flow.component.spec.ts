@@ -33,8 +33,9 @@ describe('FlowComponent', () => {
     step$ = new Subject();
     done$ = new Subject();
 
-    artifactsSpy = jasmine.createSpyObj('TestArtifactService', ['flows$', 'update']);
+    artifactsSpy = jasmine.createSpyObj('TestArtifactService', ['flows$', 'flows', 'update']);
     artifactsSpy.flows$.and.returnValue(flows$);
+    artifactsSpy.flows.and.callFake(() => flows$.value);
     artifactsSpy.update.and.resolveTo();
 
     execSpy = jasmine.createSpyObj('FlowExecutorService', ['onStep', 'onDone', 'run', 'cancel']);
@@ -73,6 +74,47 @@ describe('FlowComponent', () => {
     expect(component.artifact!.nodes[0].id).toBe('start');
   });
 
+  it('reloads the canvas when the tab input switches to another flow', () => {
+    const idB = 'flow-bbb';
+    const flowB = NEW_FLOW(idB);
+    flowB.title = 'Other';
+    flows$.next([flows$.value[0]!, flowB]);
+    fixture.componentRef.setInput('tab', { id: `fl:${idB}`, title: 'Other', type: TabType.FLOW });
+    fixture.detectChanges();
+    expect(component.artifact?.id).toBe(idB);
+    expect(component.artifact?.title).toBe('Other');
+  });
+
+  it('preserves node selection when the same flow is re-synced from the store', () => {
+    component.addNode('request');
+    const nodeId = component.selectedNodeId!;
+    const synced = JSON.parse(JSON.stringify(component.artifact!)) as FlowArtifact;
+    synced.title = 'Renamed in store';
+    flows$.next([synced]);
+    fixture.detectChanges();
+    expect(component.artifact?.title).toBe('Renamed in store');
+    expect(component.selectedNodeId).toBe(nodeId);
+  });
+
+  it('preserves last run result when the same flow is re-synced from the store', () => {
+    const fake: FlowRunResult = {
+      runId: 'run-1',
+      flowId: id,
+      startedAt: 1,
+      endedAt: 2,
+      outcome: 'success',
+      variables: {},
+      steps: [{ nodeId: 'start', status: 'success', startedAt: 1, durationMs: 5 }],
+    };
+    component.runResult = fake;
+    const synced = JSON.parse(JSON.stringify(component.artifact!)) as FlowArtifact;
+    synced.title = 'After run';
+    flows$.next([synced]);
+    fixture.detectChanges();
+    expect(component.runResult).toBe(fake);
+    expect(component.nodeStatus.get('start')).toBe('success');
+  });
+
   it('addNode appends a node of the requested kind and selects it', () => {
     component.addNode('request');
     expect(component.artifact!.nodes.length).toBe(2);
@@ -102,11 +144,26 @@ describe('FlowComponent', () => {
     expect(component.artifact!.nodes.some((n) => n.id === 'start')).toBeTrue();
   });
 
-  it('onCanvasClick clears the selection', () => {
+  it('onCanvasClick clears the selection when target is not inside a node', () => {
     component.addNode('assert');
     expect(component.selectedNodeId).not.toBeNull();
-    component.onCanvasClick();
+    const ev = new MouseEvent('click');
+    Object.defineProperty(ev, 'target', { value: document.createElement('div') });
+    component.onCanvasClick(ev);
     expect(component.selectedNodeId).toBeNull();
+  });
+
+  it('onCanvasClick does not clear when click target is inside a node', () => {
+    component.addNode('assert');
+    const id = component.selectedNodeId!;
+    const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeG.setAttribute('class', 'node');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    nodeG.appendChild(rect);
+    const ev = new MouseEvent('click');
+    Object.defineProperty(ev, 'target', { value: rect });
+    component.onCanvasClick(ev);
+    expect(component.selectedNodeId).toBe(id);
   });
 
   it('selectedNode returns the node matching selectedNodeId', () => {
@@ -209,5 +266,25 @@ describe('FlowComponent', () => {
 
   it('edgePath returns "" when endpoints are missing', () => {
     expect(component.edgePath({ id: 'x', fromNodeId: 'a', fromPort: 'next', toNodeId: 'b' } as any)).toBe('');
+  });
+
+  it('edgePath treats string coordinates as numbers (avoids "80"+180 string concat)', () => {
+    component.artifact = {
+      id: 'f1',
+      title: 't',
+      updatedAt: 0,
+      description: '',
+      nodes: [
+        { id: 'start', kind: 'start', label: 'Start', x: 80 as any, y: 80 as any },
+        { id: 'r1', kind: 'request', label: 'R', x: 320, y: 80, target: { kind: 'inline', method: 'GET', url: '/' } },
+      ],
+      edges: [{ id: 'e1', fromNodeId: 'start', fromPort: 'out', toNodeId: 'r1' }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    } as unknown as FlowArtifact;
+    (component.artifact.nodes[0] as { x: unknown; y: unknown }).x = '80';
+    (component.artifact.nodes[0] as { x: unknown; y: unknown }).y = '80';
+    expect(component.edgePath({ id: 'e1', fromNodeId: 'start', fromPort: 'out', toNodeId: 'r1' })).toBe(
+      'M 260 110 C 290 110, 290 110, 320 110',
+    );
   });
 });

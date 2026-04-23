@@ -118,6 +118,7 @@ async function initStores() {
   try {
     db.openDatabase();
     importLegacyIfEmpty();
+    importArtifactSeedsIfDocumentsEmpty();
     await logInfo('Stores initialized (SQLite)');
   } catch (err) {
     await logError('Failed to initialize stores', err);
@@ -234,6 +235,31 @@ function importArtifactDocumentsFromConfig() {
       archiveConfigFile(key);
       any = true;
     }
+  }
+  return any;
+}
+
+/**
+ * When the DB already had settings/collections, {@link importLegacyIfEmpty} bails out
+ * before artifacts run — so local dev often had an empty `flows` document forever.
+ * Seed each artifact kind from `config/<kind>.json` only when that document has no items.
+ */
+function importArtifactSeedsIfDocumentsEmpty() {
+  let any = false;
+  for (const key of Object.values(ARTIFACT_KEYS)) {
+    const existing = getArtifacts(key);
+    if (existing.length > 0) {
+      continue;
+    }
+    const blob = readConfigJsonFile(key);
+    if (blob && Array.isArray(blob.items) && blob.items.length > 0) {
+      db.setDocument(key, JSON.stringify({ items: blob.items }));
+      archiveConfigFile(key);
+      any = true;
+    }
+  }
+  if (any) {
+    void logInfo('Seeded empty test-artifact stores from config JSON', { configDir: getConfigDir() });
   }
   return any;
 }
