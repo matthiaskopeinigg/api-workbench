@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { Observable, of } from 'rxjs';
+import type { UpdaterStatus } from '@models/electron';
 import { AppComponent } from './app.component';
 import { CollectionService } from '@core/collection/collection.service';
 import { CommandSeedsService } from '@core/commands/command-seeds.service';
@@ -31,7 +33,14 @@ describe('AppComponent', () => {
     settingsSpy = jasmine.createSpyObj('SettingsService', ['loadSettings']);
     tabSpy = jasmine.createSpyObj('TabService', ['loadSettings']);
     themeSpy = jasmine.createSpyObj('ThemeService', ['loadTheme']);
-    updateSpy = jasmine.createSpyObj('UpdateService', ['init']);
+    updateSpy = jasmine.createSpyObj('UpdateService', ['installUpdate']);
+    const idleStatus: UpdaterStatus = {
+      state: 'idle',
+      currentVersion: '',
+      supported: false,
+      info: null,
+    };
+    (updateSpy as unknown as { statusStream: Observable<UpdaterStatus> }).statusStream = of(idleStatus);
     viewStateSpy = jasmine.createSpyObj('ViewStateService', ['load']);
     commandSeedsSpy = jasmine.createSpyObj('CommandSeedsService', ['register']);
 
