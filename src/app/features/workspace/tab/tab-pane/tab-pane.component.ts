@@ -116,7 +116,19 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
 
   ngOnDestroy() {
     this.closeContextMenu();
-    this.disposeTabDragGhost();
+    this.clearDragState();
+  }
+
+  /**
+   * If the draggable node is recreated during reorder, `dragend` may not run; clear on any
+   * primary-button release while this pane still thinks a tab drag is active.
+   */
+  @HostListener('window:mouseup', ['$event'])
+  onWindowMouseUp(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    if (this.draggedIndex === null && !this.tabDragGhostEl) return;
+    this.clearDragState();
+    this.persistReorder.emit();
   }
 
   onPaneSurfaceMouseDown() {
@@ -227,9 +239,9 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
 
   onDragStart(event: DragEvent, index: number) {
     this.disposeTabDragGhost();
+    if (!event.dataTransfer) return;
     this.draggedIndex = index;
     document.body.classList.add('aw-dragging');
-    if (!event.dataTransfer) return;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', `${this.paneId}:${index}`);
     try {
@@ -239,6 +251,8 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
       );
     } catch {
       /* setData may throw for custom MIME in some browsers */
+      this.clearDragState();
+      return;
     }
     const tab = this.tabs[index];
     const label = tab?.title ?? 'Tab';
@@ -323,11 +337,15 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
 
   onTabsStripDrop(event: DragEvent) {
     const raw = event.dataTransfer?.getData(WORKBENCH_TAB_DND_MIME);
-    if (!raw) return;
+    if (!raw) {
+      this.clearDragState();
+      return;
+    }
     let data: { paneId: WorkspacePaneId; index: number };
     try {
       data = JSON.parse(raw) as { paneId: WorkspacePaneId; index: number };
     } catch {
+      this.clearDragState();
       return;
     }
 
@@ -346,9 +364,12 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
     /** Unsplit: drop on tab strip opens a split (left / right third), same as context menu. */
     if (!this.splitMode && data.paneId === this.paneId) {
       const strip = this.tabsContainer?.nativeElement;
-      if (!strip) return;
-      const rect = strip.getBoundingClientRect();
-      if (rect.width < 24) return;
+      const rect = strip?.getBoundingClientRect();
+      if (!strip || !rect || rect.width < 24) {
+        this.clearDragState();
+        this.persistReorder.emit();
+        return;
+      }
       const x = event.clientX - rect.left;
       const w3 = rect.width / 3;
       event.preventDefault();
@@ -410,9 +431,13 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
   }
 
   private clearDragState() {
+    const ownedChrome = this.draggedIndex !== null || this.tabDragGhostEl !== null;
     this.draggedIndex = null;
-    document.body.classList.remove('aw-dragging');
     this.disposeTabDragGhost();
+    if (ownedChrome) {
+      document.body.classList.remove('aw-dragging');
+    }
+    this.cdr.markForCheck();
   }
 
   private disposeTabDragGhost(): void {
