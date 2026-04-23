@@ -155,5 +155,57 @@ describe('SettingsComponent', () => {
     component.removeCertificate(0);
     expect(component.certificates.length).toBe(0);
   });
+
+  it('updateStatusMessage should say no new version when release has no update channel file', () => {
+    component.updaterStatus = {
+      state: 'not-available',
+      currentVersion: '1.0.0-beta.18',
+      supported: true,
+      info: { noReleaseChannel: true },
+    } as any;
+    expect(component.updateStatusMessage).toBe('No new version found.');
+  });
+
+  it('updateStatusMessage should say latest version for normal not-available', () => {
+    component.updaterStatus = {
+      state: 'not-available',
+      currentVersion: '1.0.0-beta.17',
+      supported: true,
+      info: { version: '1.0.0-beta.17' },
+    } as any;
+    expect(component.updateStatusMessage).toBe('You\u2019re on the latest version (1.0.0-beta.17).');
+  });
+
+  it('updateStatusMessage should describe development idle when devReadOnly', () => {
+    component.updaterStatus = {
+      state: 'idle',
+      currentVersion: '1.0.0-beta.18',
+      supported: false,
+      info: { devReadOnly: true },
+    } as any;
+    expect(component.updateStatusMessage).toContain('development');
+    expect(component.updateStatusMessage).toContain('GitHub');
+  });
+
+  it('updateStatusMessage should mention GitHub when checking in unsupported build', () => {
+    component.updaterStatus = {
+      state: 'checking',
+      currentVersion: '1.0.0-beta.18',
+      supported: false,
+      info: null,
+    } as any;
+    expect(component.updateStatusMessage).toContain('GitHub');
+  });
+
+  it('updateStatusMessage should describe dev preview when newer exists on GitHub', () => {
+    component.updaterStatus = {
+      state: 'available',
+      currentVersion: '1.0.0-beta.1',
+      supported: false,
+      info: { version: '9.9.9', devPreviewOnly: true },
+    } as any;
+    expect(component.updateStatusMessage).toContain('GitHub');
+    expect(component.updateStatusMessage).toContain('9.9.9');
+  });
 });
 

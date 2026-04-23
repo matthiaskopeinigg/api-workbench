@@ -530,12 +530,16 @@
 
             <button class="fancy-button"
                     *ngIf="updaterStatus.state === 'available'"
+                    type="button"
+                    [disabled]="!updaterStatus.supported"
                     (click)="downloadUpdate()">
               Download update
             </button>
 
             <button class="fancy-button"
                     *ngIf="updaterStatus.state === 'downloaded'"
+                    type="button"
+                    [disabled]="!updaterStatus.supported"
                     (click)="installUpdate()">
               Restart & install
             </button>

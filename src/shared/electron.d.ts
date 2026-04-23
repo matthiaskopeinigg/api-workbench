@@ -53,6 +53,12 @@ export interface UpdaterStatus {
         total?: number;
         message?: string;
         reason?: string;
+        /** Set when the release exists but has no electron-updater channel file (e.g. missing latest.yml). */
+        noReleaseChannel?: boolean;
+        /** Development build: version was compared against GitHub releases only. */
+        devReadOnly?: boolean;
+        /** Newer tag found on GitHub while running an unpackaged dev build (no in-app install). */
+        devPreviewOnly?: boolean;
       };
 }
 

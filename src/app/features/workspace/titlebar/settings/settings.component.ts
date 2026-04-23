@@ -214,14 +214,42 @@ export class SettingsComponent implements OnInit, OnDestroy {
   get updateStatusMessage(): string {
     const s = this.updaterStatus;
     if (!s) return 'Checking\u2026';
-    if (!s.supported) {
-      return s.info?.reason ?? 'Auto-update is only available in packaged builds.';
-    }
     switch (s.state) {
-      case 'idle': return `You are running version ${s.currentVersion}.`;
-      case 'checking': return 'Checking for updates\u2026';
-      case 'not-available': return `You\u2019re on the latest version (${s.currentVersion}).`;
+      case 'disabled':
+        return s.info?.reason ?? 'Auto-update is disabled.';
+      case 'idle':
+        if (s.info?.devReadOnly) {
+          return (
+            `You are running v${s.currentVersion} (development). ` +
+            'The app checks GitHub for newer releases on startup; download and install stay disabled here.'
+          );
+        }
+        if (!s.supported) {
+          return s.info?.reason ?? 'Auto-update is only available in packaged builds.';
+        }
+        return `You are running version ${s.currentVersion}.`;
+      case 'checking':
+        return !s.supported
+          ? 'Checking GitHub for newer releases\u2026'
+          : 'Checking for updates\u2026';
+      case 'not-available':
+        if (s.info?.noReleaseChannel) {
+          return 'No new version found.';
+        }
+        if (s.info?.devReadOnly) {
+          const latest = s.info?.version;
+          return latest
+            ? `No newer version on GitHub (latest published: v${latest}; you are on v${s.currentVersion}).`
+            : 'No newer version on GitHub.';
+        }
+        return `You\u2019re on the latest version (${s.currentVersion}).`;
       case 'available':
+        if (!s.supported && s.info?.devPreviewOnly) {
+          return (
+            `Newer release on GitHub: v${s.info?.version ?? ''}. ` +
+            'Download a packaged installer from the repository releases page to update.'
+          );
+        }
         return `Version ${s.info?.version ?? ''} is available. It downloads automatically; you can restart when prompted.`;
       case 'downloading': {
         const p = s.info?.percent ?? 0;
@@ -230,17 +258,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
       case 'downloaded': return `Version ${s.info?.version ?? ''} is ready to install.`;
       case 'error': {
         const m = s.info?.message ?? '';
-        // GitHub Atom lists the newest tag first; a tag-only or failed CI release has no latest.yml/beta.yml.
         if (/CHANNEL_FILE_NOT_FOUND|Cannot find .*\.yml|latest\.yml|beta\.yml/i.test(m)) {
-          return (
-            'The newest GitHub release has no update metadata yet (missing latest.yml). ' +
-            'That usually means the Build/Release workflow is still running, failed, or the tag was published without CI artifacts. ' +
-            'Check GitHub Actions for this repository, or try again later.'
-          );
+          return 'No new version found.';
         }
         return m ? `Couldn\u2019t check for updates: ${m}` : `Couldn\u2019t check for updates. Please try again later.`;
       }
-      case 'disabled': return s.info?.reason ?? 'Auto-update is disabled.';
       default: return '';
     }
   }
