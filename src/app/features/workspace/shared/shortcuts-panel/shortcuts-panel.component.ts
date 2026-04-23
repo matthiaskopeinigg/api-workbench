@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { APP_SHORTCUTS, ShortcutEntry, ShortcutsPanelService } from '@core/shortcuts-panel.service';
+import { APP_SHORTCUTS, ShortcutEntry, ShortcutsPanelService } from '@core/commands/shortcuts-panel.service';
 
 /**
  * Modal popover that lists application keyboard shortcuts. Opened via command

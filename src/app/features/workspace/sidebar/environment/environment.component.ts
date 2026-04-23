@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, On
 import { CommonModule } from '@angular/common';
 import { v4 as uuidv4 } from 'uuid';
 import { Environment } from '@models/environment';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabItem, TabService, TabType } from '@core/tab.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -113,6 +113,7 @@ export class EnvironmentComponent implements OnInit, OnDestroy {
     if (this.selectedEnv?.id === removed.id) {
       this.selectedEnv = null;
     }
+    this.environmentsService.triggerEnvironmentDeleted(removed.id);
   }
 
   

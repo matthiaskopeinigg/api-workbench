@@ -102,6 +102,8 @@ export interface AwElectronApi {
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;
+  /** Open a URL in the system default browser. */
+  openExternalUrl: (url: string) => Promise<{ ok: boolean; error?: string }>;
 
   httpRequest: (request: IpcHttpRequest) => Promise<IpcHttpResponse | null>;
   getAllCookies: () => Promise<object[]>;
@@ -215,7 +217,14 @@ export interface MockServerStatus {
   /** Currently-effective server options. */
   options?: MockServerOptions;
   registered: Array<{ requestId: string; variantCount: number; activeVariantId: string | null }>;
-  standalone?: Array<{ id: string; method: string; path: string; variantCount: number; activeVariantId: string | null }>;
+  standalone?: Array<{
+    id: string;
+    name?: string;
+    method: string;
+    path: string;
+    variantCount: number;
+    activeVariantId: string | null;
+  }>;
 }
 
 /**
@@ -241,6 +250,8 @@ export interface MockHit {
 
 export interface StandaloneMockEndpointInput {
   id?: string;
+  /** Optional label for the sidebar; empty means show path. */
+  name?: string;
   method: string;
   path: string;
   variants: Array<{
@@ -257,6 +268,8 @@ export interface StandaloneMockEndpointInput {
 
 export interface StandaloneMockEndpoint {
   id: string;
+  /** Display name in the list; empty string means use path as the main label. */
+  name: string;
   method: string;
   path: string;
   variants: Array<{

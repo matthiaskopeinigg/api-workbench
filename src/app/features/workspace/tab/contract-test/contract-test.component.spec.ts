@@ -1,13 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { ContractTestComponent } from './contract-test.component';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { ContractValidatorService } from '@core/contract-validator.service';
-import { CollectionService } from '@core/collection.service';
-import { EnvironmentsService } from '@core/environments.service';
-import { SettingsService } from '@core/settings.service';
-import type { TabItem } from '@core/tab.service';
-import { TabType } from '@core/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { ContractValidatorService } from '@core/testing/contract-validator.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { SettingsService } from '@core/settings/settings.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TabType } from '@core/tabs/tab.service';
 import { NEW_CONTRACT_TEST } from '@models/testing/contract-test';
 import type { ContractTestArtifact, ContractFinding, ContractRunResult } from '@models/testing/contract-test';
 

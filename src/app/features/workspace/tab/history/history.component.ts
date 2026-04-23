@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AwDatePipe } from '../../shared/pipes/aw-date.pipe';
 import { RequestHistoryEntry } from '@models/request-history';
 import { HttpMethod } from '@models/request';
-import { TabItem, TabType } from '@core/tab.service';
-import { RequestHistoryService } from '@core/request-history.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
 
 interface CollapsedSections {
   request: boolean;
@@ -17,7 +18,7 @@ interface CollapsedSections {
 
 @Component({
   selector: 'app-history',
-  imports: [CommonModule],
+  imports: [CommonModule, AwDatePipe],
   templateUrl: './history.component.html',
   styleUrl: './history.component.scss',
   standalone: true,

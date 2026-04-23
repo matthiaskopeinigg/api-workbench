@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Request } from '@models/request';
-import { SnippetService, SnippetGenerator, SnippetEditorLang } from '@core/snippet.service';
+import { SnippetService, SnippetGenerator, SnippetEditorLang } from '@core/snippets/snippet.service';
 import { CodeEditorComponent } from '../code-editor/code-editor.component';
 
 @Component({

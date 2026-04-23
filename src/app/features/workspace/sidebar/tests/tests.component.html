@@ -23,20 +23,38 @@
           class="item"
           (dblclick)="openItem(s, item)"
           (contextmenu)="openContextMenu($event, s, item)">
-          <button type="button" class="item-btn" (click)="openItem(s, item)">
-            <span class="item-dot"></span>
-            <span class="item-title" *ngIf="editingId !== item.id">{{ item.title }}</span>
-            <input
-              *ngIf="editingId === item.id"
-              class="item-rename"
-              [(ngModel)]="editingTitle"
-              (blur)="commitRename(s, item)"
-              (keydown.enter)="commitRename(s, item)"
-              (keydown.escape)="cancelRename()"
-              (click)="$event.stopPropagation()"
-              autofocus
-            />
-          </button>
+          <div class="item-inner" [class.item-inner--loadtest]="s.key === 'loadTests'">
+            <button type="button" class="item-btn" (click)="openItem(s, item)">
+              <span class="item-dot"></span>
+              <span class="item-title" *ngIf="editingId !== item.id">{{ item.title }}</span>
+              <input
+                *ngIf="editingId === item.id"
+                class="item-rename"
+                [(ngModel)]="editingTitle"
+                (blur)="commitRename(s, item)"
+                (keydown.enter)="commitRename(s, item)"
+                (keydown.escape)="cancelRename()"
+                (click)="$event.stopPropagation()"
+                autofocus
+              />
+            </button>
+
+            <div *ngIf="s.key === 'loadTests'" class="item-lt-profile-add" (click)="$event.stopPropagation()">
+              <select
+                [id]="'ltadd-' + item.id"
+                class="tests-lt-add-profile"
+                [attr.aria-label]="'Add load profile to ' + (item.title || 'load test')"
+                (change)="onAddLoadTestProfile($event, item)"
+                title="Add a load profile (template or empty) to this test"
+              >
+                <option value="">＋</option>
+                <optgroup label="Template">
+                  <option *ngFor="let t of loadTestTemplateList" [value]="loadTestTplPrefix + t.id">{{ t.name }}</option>
+                </optgroup>
+                <option [value]="loadTestEmptyVal">Empty</option>
+              </select>
+            </div>
+          </div>
 
           <div
             *ngIf="contextMenuFor === item.id && contextMenuKind === s.key"

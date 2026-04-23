@@ -1,11 +1,11 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { HomeComponent } from './home.component';
-import { CollectionService } from '@core/collection.service';
-import { ImportService } from '@core/import.service';
-import { FileDialogService } from '@core/file-dialog.service';
-import { ImportIntentsService } from '@core/import-intents.service';
-import { ImportBatchService } from '@core/import-batch.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { ImportService } from '@core/import-pipeline/import.service';
+import { FileDialogService } from '@core/platform/file-dialog.service';
+import { ImportIntentsService } from '@core/import-pipeline/import-intents.service';
+import { ImportBatchService } from '@core/import-pipeline/import-batch.service';
 import { Collection } from '@models/collection';
 
 describe('HomeComponent', () => {

@@ -1,53 +1,134 @@
 <div class="loadtest-tab" *ngIf="artifact as a">
-  <header class="lt-header">
+  <form class="lt-header" (ngSubmit)="$event.preventDefault()">
     <input
       class="title-input"
       [(ngModel)]="a.title"
       (ngModelChange)="onTitleChange()"
+      (keydown.enter)="$event.preventDefault()"
+      name="loadTestTitle"
+      autocomplete="off"
       placeholder="Untitled load test"
     />
     <div class="lt-header-end">
+    <div
+      class="lt-header-run lt-header-profile"
+      role="group"
+      aria-label="Active load test profile"
+      title="Which preset you edit and run (each has its own target and load settings)"
+    >
+      <span class="lt-header-cue" aria-hidden="true">Profile</span>
+      <div class="lt-header-profile-pick">
+        <app-dropdown
+          [options]="headerProfileOptions(a)"
+          [value]="a.activeProfileId"
+          align="right"
+          [menuMaxWidth]="'min(100%, 28rem)'"
+          [placeholder]="'Profile'"
+          [ariaLabel]="'Load test profile, or add from a template'"
+          (valueChange)="onProfileHeaderPick(a, $event)"
+        />
+      </div>
+    </div>
     <app-run-environment-select
       [value]="runEnvironmentId"
       (valueChange)="onRunEnvironmentChange($event)"
     />
     <div class="header-actions">
       <button type="button" class="btn ghost" *ngIf="result" (click)="exportResultJson()">Export JSON</button>
-      <button type="button" class="btn primary" *ngIf="!running" (click)="start()">▶ Start</button>
+      <button
+        type="button"
+        class="btn primary"
+        *ngIf="!running"
+        (click)="start($event)"
+      >▶ Start</button>
       <button type="button" class="btn danger" *ngIf="running" [disabled]="cancelling" (click)="cancel()">
         {{ cancelling ? 'Cancelling…' : '■ Cancel' }}
       </button>
     </div>
     </div>
-  </header>
+  </form>
 
   <div class="lt-body">
 
     
     <aside class="lt-config">
-      <section class="cfg-section">
-        <h4>Targets</h4>
-        <ul class="targets" *ngIf="a.config.targets.length; else noTargets">
-          <li *ngFor="let t of a.config.targets; let i = index; trackBy: trackByIndex" class="target-row">
+      <div class="lt-config-plan">
+        <div class="lt-plan-top">
+          <span class="lt-plan-eyebrow">Now editing</span>
+          <span class="lt-plan-meta">{{ a.config.targets.length }} target<span *ngIf="a.config.targets.length !== 1">s</span>
+            · {{ a.config.captureResponseDetails ? 'Capture on' : 'Capture off' }}</span>
+        </div>
+        <p class="lt-plan-line" *ngIf="activeProfile(a) as ap" [title]="configSummaryLine(a)">{{ ap.name }}</p>
+        <p class="lt-plan-knobs" *ngIf="activeProfile(a)" [title]="'Load settings for the active profile'">{{ configSummaryLine(a) }}</p>
+        <p class="lt-plan-line" *ngIf="!activeProfile(a)">{{ configSummaryLine(a) }}</p>
+        <ng-container *ngIf="activeProfile(a) as ap">
+          <div class="lt-plan-profile-meta" *ngIf="a.profiles?.length">
+            <label class="lt-field lt-field--tight" title="Name for the profile selected in the bar above.">
+              <span class="field-label">Name</span>
+              <input type="text" [(ngModel)]="ap.name" (ngModelChange)="onProfileMetaChange()" placeholder="e.g. Smoke" />
+            </label>
+            <label class="lt-field lt-field--note" title="Optional. Shown in the profile menu for context.">
+              <span class="field-label">Notes <span class="field-optional">(optional)</span></span>
+              <input type="text" class="lt-profile-note" [(ngModel)]="ap.description" (ngModelChange)="onProfileMetaChange()" placeholder="Short note…" />
+            </label>
+          </div>
+        </ng-container>
+      </div>
+
+      <section
+        class="cfg-section cfg-section--card"
+        title="Save the current load settings as a new profile. Add templates and empty rows from the Profile menu above."
+      >
+        <div class="cfg-section-head">
+          <h4>Profiles</h4>
+          <button type="button" class="btn btn-sm ghost" (click)="toggleProfilesSection()">
+            {{ profilesSectionOpen ? 'Hide' : 'Show' }}
+          </button>
+        </div>
+        <div class="lt-profiles-body" *ngIf="profilesSectionOpen">
+          <p class="lt-profiles-hint">Create a new profile as a copy of the settings you are editing now. Switch profiles or add from a template in the bar above.</p>
+          <label class="lt-field lt-field--tight lt-profiles-name-field" title="Name for the new profile. Leave blank to use a default name.">
+            <span class="field-label">New profile name <span class="field-optional">(optional)</span></span>
+            <input
+              type="text"
+              name="newLoadProfileName"
+              [(ngModel)]="newProfileFromCurrentName"
+              (keydown.enter)="$event.preventDefault(); addProfileCloningCurrent(a)"
+              placeholder="e.g. Staging run"
+            />
+          </label>
+          <button type="button" class="btn btn-sm primary" (click)="addProfileCloningCurrent(a)">New profile from current</button>
+        </div>
+      </section>
+
+      <section class="cfg-section cfg-section--card" title="One saved request or an inline URL is loaded. Picking a different one replaces the current target.">
+        <div class="cfg-section-head">
+          <h4>Target</h4>
+        </div>
+        <ul class="targets" *ngIf="activeTarget(a) as t; else noTargets">
+          <li class="target-row">
             <span class="kind-badge">{{ t.kind === 'inline' ? 'Inline' : 'Saved' }}</span>
             <span class="target-label" [title]="targetLabel(t)">{{ targetLabel(t) }}</span>
-            <button type="button" class="icon-btn" (click)="removeTarget(i)" title="Remove">×</button>
+            <button type="button" class="icon-btn" (click)="clearTarget()" title="Clear target">×</button>
           </li>
         </ul>
         <ng-template #noTargets>
-          <div class="empty">No targets yet — add one below.</div>
+          <div class="empty">No target yet — pick a saved request or an inline URL below.</div>
         </ng-template>
 
-        <div class="add-saved" *ngIf="requestPicks.length">
-          <label>Add saved request</label>
-          <select #picker (change)="addSavedTarget(picker.value); picker.value = ''">
-            <option value="">Pick a request…</option>
-            <option *ngFor="let r of requestPicks" [value]="r.id">{{ r.method }} — {{ r.label }}</option>
-          </select>
+        <div class="add-saved" *ngIf="requestDdOptions.length">
+          <span class="add-saved-label">Saved request</span>
+          <app-dropdown
+            [options]="requestDdOptions"
+            [value]="addRequestValue"
+            [placeholder]="activeTarget(a) ? 'Replace with…' : 'Select request…'"
+            [menuMaxWidth]="'min(100%, 24rem)'"
+            (valueChange)="onPickedAddTarget($event)"
+          />
         </div>
 
         <button type="button" class="btn ghost full" (click)="showInlineEditor = !showInlineEditor">
-          {{ showInlineEditor ? 'Cancel inline' : '+ Add inline target' }}
+          {{ showInlineEditor ? 'Cancel inline' : (activeTarget(a) ? 'Use inline URL instead' : '+ Inline URL') }}
         </button>
 
         <div class="inline-editor" *ngIf="showInlineEditor">
@@ -61,101 +142,234 @@
           <textarea
             *ngIf="inlineDraft.method !== 'GET' && inlineDraft.method !== 'HEAD'"
             placeholder="Optional request body"
-            rows="3"
+            rows="2"
             [(ngModel)]="inlineDraft.body"></textarea>
-          <button type="button" class="btn primary full" (click)="addInlineTarget()">Add</button>
+          <button type="button" class="btn primary full" (click)="addInlineTarget()">{{ activeTarget(a) ? 'Apply' : 'Set' }} inline</button>
         </div>
       </section>
 
-      <section class="cfg-section">
-        <h4>Load profile</h4>
-        <div class="cfg-grid">
-          <label>VUs (concurrent users)
+      <section class="cfg-section cfg-section--card cfg-section--load">
+        <div class="cfg-section-head">
+          <h4>Load</h4>
+        </div>
+        <div class="cfg-grid cfg-grid--2">
+          <label class="lt-field lt-field--tight" title="Virtual users: concurrent loops. Each VU repeats the same request.">
+            <span class="field-label">VUs</span>
             <input type="number" min="1" max="500"
-                   [(ngModel)]="a.config.vus" (change)="onConfigChange()" />
+                   [(ngModel)]="a.config.vus" (change)="onLoadConfigChange()" />
           </label>
-          <label>Ramp-up (s)
+          <label class="lt-field lt-field--tight" title="Seconds to ramp from 0 to full VU count. 0 = all VUs start at once.">
+            <span class="field-label">Ramp (s)</span>
             <input type="number" min="0"
-                   [(ngModel)]="a.config.rampUpSec" (change)="onConfigChange()" />
+                   [(ngModel)]="a.config.rampUpSec" (change)="onLoadConfigChange()" />
           </label>
         </div>
 
         <fieldset class="stop-mode">
-          <legend>Stop after</legend>
-          <label>
-            <input type="radio" name="stopMode" [checked]="stopMode === 'duration'"
-                   (change)="setStopMode('duration')" /> Duration
-          </label>
-          <label>
-            <input type="radio" name="stopMode" [checked]="stopMode === 'iterations'"
-                   (change)="setStopMode('iterations')" /> Total iterations
-          </label>
+          <legend>Stop</legend>
+          <div class="stop-mode-radios">
+            <label class="stop-opt" title="End after N seconds of wall-clock time.">
+              <input type="radio" name="stopMode" [checked]="stopMode === 'duration'"
+                     (change)="setStopMode('duration')" />
+              <span>Duration</span>
+            </label>
+            <label class="stop-opt" title="End after this many successful HTTP calls to the target (all VUs count toward the same total).">
+              <input type="radio" name="stopMode" [checked]="stopMode === 'iterations'"
+                     (change)="setStopMode('iterations')" />
+              <span>Iterations</span>
+            </label>
+          </div>
         </fieldset>
 
-        <div class="cfg-grid">
-          <label *ngIf="stopMode === 'duration'">Duration (s)
+        <div class="cfg-grid cfg-grid--2">
+          <label class="lt-field lt-field--tight" *ngIf="stopMode === 'duration'" title="Stop the run when this many seconds have elapsed (all VUs share the same time window).">
+            <span class="field-label">Duration (s)</span>
             <input type="number" min="1"
                    [ngModel]="a.config.durationSec"
-                   (ngModelChange)="a.config.durationSec = $event; onConfigChange()" />
+                   (ngModelChange)="a.config.durationSec = $event; onLoadConfigChange()" />
           </label>
-          <label *ngIf="stopMode === 'iterations'">Iterations
+          <label class="lt-field lt-field--tight" *ngIf="stopMode === 'iterations'" title="Stops when the run has completed this many requests to the target (shared across all VUs).">
+            <span class="field-label">Iterations</span>
             <input type="number" min="1"
                    [ngModel]="a.config.iterations"
-                   (ngModelChange)="a.config.iterations = $event; onConfigChange()" />
+                   (ngModelChange)="a.config.iterations = $event; onLoadConfigChange()" />
           </label>
-          <label>RPS cap (optional)
-            <input type="number" min="0" placeholder="No cap"
+          <label class="lt-field lt-field--tight" title="Optional global RPS cap (token bucket). Empty = no limit.">
+            <span class="field-label">RPS cap</span>
+            <input type="number" min="0" placeholder="—"
                    [ngModel]="a.config.rpsCap"
                    (ngModelChange)="onRpsCapChange(a, $event)" />
           </label>
-          <label>Think time (ms)
+          <label class="lt-field lt-field--tight" title="Pause after each VU completes one request (one iteration) before the next.">
+            <span class="field-label">Think (ms)</span>
             <input type="number" min="0"
-                   [(ngModel)]="a.config.thinkMs" (change)="onConfigChange()" />
+                   [(ngModel)]="a.config.thinkMs" (change)="onLoadConfigChange()" />
           </label>
         </div>
-        <label class="lt-capture-option">
-          <input type="checkbox" [(ngModel)]="a.config.captureResponseDetails" (change)="onConfigChange()" />
-          <span>Capture response details</span>
+        <label class="lt-capture-option" title="Saves response headers and a small body sample on each request (more memory on long runs).">
+          <input type="checkbox" [(ngModel)]="a.config.captureResponseDetails" (change)="onLoadConfigChange()" />
+          <span>Capture responses</span>
         </label>
-        <p class="lt-capture-hint">When enabled, each request records response headers and a truncated body preview so you can open any row in <strong>Slowest 10</strong> (or an error sample) after the run. Uses more memory on long tests.</p>
       </section>
     </aside>
 
     
     <main class="lt-results">
 
+      <ng-container *ngIf="activeSummary() as sm">
+        <section *ngIf="progress || result" [class]="'lt-overview lt-health-' + runHealthClass()">
+          <div class="lt-overview-text">
+            <span class="lt-state-pill">{{ runStateLabel() }}</span>
+            <p
+              class="lt-outcome"
+              *ngIf="runOutcomeLine() as oc"
+              [ngClass]="'is-' + oc.kind"
+            >
+              {{ oc.text }}
+            </p>
+            <span class="lt-overview-hint" *ngIf="running">Rolling window while running; final numbers use the full sample.</span>
+          </div>
+          <div class="lt-overview-digits">
+            <div class="lt-od">
+              <span class="lt-od-l">Success rate</span>
+              <span class="lt-od-v">{{ successRatePct(sm) }}%</span>
+            </div>
+            <div class="lt-od" *ngIf="sm.failed > 0">
+              <span class="lt-od-l">Error rate</span>
+              <span class="lt-od-v is-err">{{ errorRatePct(sm) }}%</span>
+            </div>
+            <div class="lt-od">
+              <span class="lt-od-l">Throughput</span>
+              <span class="lt-od-v">{{ sm.rps }} <span class="lt-od-u">req/s</span></span>
+            </div>
+            <div class="lt-od" *ngIf="running">
+              <span class="lt-od-l">Active VUs</span>
+              <span class="lt-od-v">{{ progress?.activeVus ?? 0 }}</span>
+            </div>
+          </div>
+        </section>
+      </ng-container>
+
       <section class="stats" *ngIf="progress || result">
-        <aw-stat-card label="Requests" [value]="(result?.summary?.total ?? progress?.summary?.total) || 0"></aw-stat-card>
-        <aw-stat-card label="RPS" [value]="(result?.summary?.rps ?? progress?.summary?.rps) || 0"></aw-stat-card>
-        <aw-stat-card label="Errors"
+        <aw-stat-card label="Total requests" [value]="(result?.summary?.total ?? progress?.summary?.total) || 0"></aw-stat-card>
+        <aw-stat-card label="OK" [value]="(result?.summary?.successful ?? progress?.summary?.successful) || 0" tone="success"></aw-stat-card>
+        <aw-stat-card label="Failed"
                       [value]="(result?.summary?.failed ?? progress?.summary?.failed) || 0"
                       [tone]="((result?.summary?.failed ?? progress?.summary?.failed) || 0) > 0 ? 'error' : 'default'"></aw-stat-card>
-        <aw-stat-card label="p50" unit="ms" [value]="(result?.summary?.p50 ?? progress?.summary?.p50) || 0"></aw-stat-card>
-        <aw-stat-card label="p95" unit="ms" [value]="(result?.summary?.p95 ?? progress?.summary?.p95) || 0"></aw-stat-card>
-        <aw-stat-card label="p99" unit="ms" [value]="(result?.summary?.p99 ?? progress?.summary?.p99) || 0"></aw-stat-card>
-        <aw-stat-card label="Active VUs" [value]="progress?.activeVus ?? 0"
-                      [sub]="running ? 'running…' : (result ? result.status : 'idle')"></aw-stat-card>
-        <aw-stat-card label="Elapsed" unit="s"
+        <aw-stat-card
+          label="Mean latency"
+          unit="ms"
+          [value]="(result?.summary?.meanMs ?? progress?.summary?.meanMs) || 0"
+          [tone]="latencyStatTone((result?.summary?.meanMs ?? progress?.summary?.meanMs) || 0, 'mean')"></aw-stat-card>
+        <aw-stat-card
+          label="p99 (tail)"
+          unit="ms"
+          [value]="(result?.summary?.p99 ?? progress?.summary?.p99) || 0"
+          [tone]="latencyStatTone((result?.summary?.p99 ?? progress?.summary?.p99) || 0, 'p99')"></aw-stat-card>
+        <aw-stat-card label="Wall time" unit="s"
                       [value]="(result?.summary?.elapsedSec ?? progress?.summary?.elapsedSec) || 0"></aw-stat-card>
       </section>
 
       <div class="empty-result" *ngIf="!progress && !result">
-        Configure a load profile on the left, then press <strong>Start</strong>.
+        <p class="empty-lead">No run yet</p>
+        <p>Choose a target and a load profile, then <strong>Start</strong> — throughput, latency, status mix, and slowest calls appear here.</p>
       </div>
 
-      <section class="charts" *ngIf="progress || result">
-        <div class="chart-card">
-          <h5>Throughput</h5>
-          <aw-time-series-chart [xs]="chartXs" [series]="rpsChartSeries"></aw-time-series-chart>
+      <ng-container *ngIf="result?.summary as fs">
+        <section class="lt-latency-panel" *ngIf="!running">
+          <div class="lt-panel-head">
+            <h3>Latency analysis</h3>
+            <p class="lt-panel-dek">Full-run percentiles and mean. Compare p95 vs p99 for tail impact. Labels use typical API heuristics, not your SLOs.</p>
+            <p
+              class="lt-lat-panel-verdict"
+              *ngIf="latencyPanelVerdict(fs, false) as lv"
+              [ngClass]="'is-' + lv.kind"
+            >{{ lv.text }}</p>
+          </div>
+          <ul class="lt-latency-list">
+            <li *ngFor="let row of latencyRows(fs)">
+              <div class="lt-latency-rowhead">
+                <span class="lt-lat-label">{{ row.label }}</span>
+                <div class="lt-lat-value-group">
+                  <span class="lt-lat-ms" [ngClass]="'is-' + row.grade">{{ formatDuration(row.ms) }}</span>
+                  <span class="lt-lat-grade" [ngClass]="'is-' + row.grade">{{ row.gradeLabel }}</span>
+                </div>
+              </div>
+              <div class="lt-lat-bar-wrap" [attr.title]="row.detail">
+                <div class="lt-lat-bar" [ngClass]="'is-' + row.grade" [style.width.%]="row.widthPct"></div>
+              </div>
+              <p class="lt-lat-dek">{{ row.detail }}</p>
+            </li>
+          </ul>
+        </section>
+      </ng-container>
+
+      <ng-container *ngIf="running && progress?.summary as psm">
+        <section class="lt-latency-panel is-live">
+          <div class="lt-panel-head">
+            <h3>Latency snapshot</h3>
+            <p class="lt-panel-dek">Rolling percentiles; final p99 is from the full run. Good / fair / slow uses the same heuristics as the analysis table.</p>
+            <p
+              class="lt-lat-panel-verdict"
+              *ngIf="latencyPanelVerdict(psm, true) as lvv"
+              [ngClass]="'is-' + lvv.kind"
+            >{{ lvv.text }}</p>
+          </div>
+          <ul class="lt-latency-list">
+            <li *ngFor="let row of latencyRows(psm)">
+              <div class="lt-latency-rowhead">
+                <span class="lt-lat-label">{{ row.label }}</span>
+                <div class="lt-lat-value-group">
+                  <span class="lt-lat-ms" [ngClass]="'is-' + row.grade">~{{ formatDuration(row.ms) }}</span>
+                  <span class="lt-lat-grade" [ngClass]="'is-' + row.grade">{{ row.gradeLabel }}</span>
+                </div>
+              </div>
+              <div class="lt-lat-bar-wrap" [attr.title]="row.detail">
+                <div class="lt-lat-bar" [ngClass]="'is-' + row.grade" [style.width.%]="row.widthPct"></div>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </ng-container>
+
+      <div class="lt-charts-wrap" *ngIf="progress || result">
+        <div class="lt-charts-toolbar">
+          <span class="lt-range-hint" *ngIf="chartViewRange as cv; else noZoom">
+            Zoom: points {{ cv.start + 1 }}–{{ cv.end + 1 }} of {{ chartXs.length }}
+          </span>
+          <ng-template #noZoom><span class="lt-range-hint">Drag on a chart to zoom a time range · Double-click to reset</span></ng-template>
+          <button type="button" class="btn ghost" *ngIf="chartViewRange" (click)="resetChartView()">Reset zoom</button>
         </div>
-        <div class="chart-card">
-          <h5>Latency</h5>
-          <aw-time-series-chart [xs]="chartXs" [series]="latencyChartSeries"></aw-time-series-chart>
-        </div>
-      </section>
+        <section class="charts">
+          <div class="chart-card">
+            <h5>Throughput &amp; errors / s</h5>
+            <p class="chart-dek">RPS and errors per engine tick ({{ chartXs.length }} points).</p>
+            <aw-time-series-chart
+              [xs]="chartXs"
+              [series]="rpsChartSeries"
+              [minPoints]="1"
+              [viewRange]="chartViewRange"
+              [enableBrush]="true"
+              [showBrushHint]="false"
+              (viewRangeChange)="onChartViewChange($event)"></aw-time-series-chart>
+          </div>
+          <div class="chart-card">
+            <h5>Latency (rolling window)</h5>
+            <p class="chart-dek">p50, p95, p99 of recent durations. Same time window as the chart above when zoomed.</p>
+            <aw-time-series-chart
+              [xs]="chartXs"
+              [series]="latencyChartSeries"
+              [minPoints]="1"
+              [viewRange]="chartViewRange"
+              [enableBrush]="true"
+              [showBrushHint]="false"
+              (viewRangeChange)="onChartViewChange($event)"></aw-time-series-chart>
+          </div>
+        </section>
+      </div>
 
       <section class="status-buckets" *ngIf="(result || progress) as src">
-        <h5>Status codes</h5>
+        <h5>HTTP status mix</h5>
         <div class="bucket-row" *ngFor="let entry of (src.summary.statusBuckets | keyvalue)">
           <span class="bucket-pill" [class]="'tone-' + bucketTone(entry.key)">{{ entry.key }}</span>
           <div class="bucket-bar">
@@ -193,7 +407,7 @@
                 <td>{{ formatDuration(s.durationMs) }}</td>
                 <td>{{ s.vu }}</td>
                 <td>{{ s.iteration }}</td>
-                <td>{{ s.startedAt | date: 'HH:mm:ss.SSS' }}</td>
+                <td>{{ s.startedAt | awDate: 'HH:mm:ss.SSS' }}</td>
                 <td>
                   <button type="button" class="lt-view-response" (click)="openSampleDetails(s)">View</button>
                 </td>

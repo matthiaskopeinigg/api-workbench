@@ -1,10 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { CollectionComponent } from './collection.component';
-import { CollectionService } from '@core/collection.service';
-import { SessionService } from '@core/session.service';
-import { RequestService } from '@core/request.service';
-import { TabService } from '@core/tab.service';
-import { SettingsService } from '@core/settings.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { SessionService } from '@core/session/session.service';
+import { RequestService } from '@core/http/request.service';
+import { TabService } from '@core/tabs/tab.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { ViewStateService } from '@core/session/view-state.service';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { Collection } from '@models/collection';
@@ -18,6 +19,7 @@ describe('CollectionComponent', () => {
   let requestServiceSpy: jasmine.SpyObj<RequestService>;
   let tabServiceSpy: jasmine.SpyObj<TabService>;
   let settingsServiceSpy: jasmine.SpyObj<SettingsService>;
+  let viewStateServiceSpy: jasmine.SpyObj<ViewStateService>;
 
   const mockCollections: Collection[] = [
     {
@@ -49,6 +51,7 @@ describe('CollectionComponent', () => {
     requestServiceSpy = jasmine.createSpyObj('RequestService', ['getSelectedRequestAsObservable', 'selectRequest']);
     tabServiceSpy = jasmine.createSpyObj('TabService', ['getSelectedTab']);
     settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings']);
+    viewStateServiceSpy = jasmine.createSpyObj('ViewStateService', ['clearRequestView']);
 
     collectionServiceSpy.getCollectionsObservable.and.returnValue(of(mockCollections));
     collectionServiceSpy.getSelectedFolderAsObservable.and.returnValue(of(null as any));
@@ -64,7 +67,8 @@ describe('CollectionComponent', () => {
         { provide: SessionService, useValue: sessionServiceSpy },
         { provide: RequestService, useValue: requestServiceSpy },
         { provide: TabService, useValue: tabServiceSpy },
-        { provide: SettingsService, useValue: settingsServiceSpy }
+        { provide: SettingsService, useValue: settingsServiceSpy },
+        { provide: ViewStateService, useValue: viewStateServiceSpy }
       ]
     }).compileComponents();
 

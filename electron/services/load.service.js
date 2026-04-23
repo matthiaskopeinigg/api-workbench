@@ -99,6 +99,7 @@ function createRunHandle(runId, rawConfig, listeners) {
       errors: tickErrors,
       p50: percentile(recent, 50),
       p95: percentile(recent, 95),
+      p99: percentile(recent, 99),
     };
     series.push(point);
     if (series.length > 800) series.shift();
@@ -313,29 +314,26 @@ function createRunHandle(runId, rawConfig, listeners) {
   }
 }
 
+/**
+ * HttpMethod enum GET=0 in the renderer: `0` is falsy in JS, so never use
+ * `if (target.method)` for IpcHttpRequest. Always normalize to a string.
+ */
+function normalizeLoadMethod(m) {
+  if (m === 0) return 'GET';
+  if (m == null || m === '') return 'GET';
+  return String(m);
+}
+
 function toIpcRequest(target) {
   if (target == null) {
     throw new Error('Load target is null');
   }
-  // Renderer sends full IpcHttpRequest (mTLS, proxy, SSL, etc.); `kind` is absent.
-  if (target.kind === 'inline') {
-    const headers = {};
-    for (const h of target.headers || []) {
-      if (h && h.key) headers[h.key] = h.value || '';
-    }
-    return {
-      method: target.method || 'GET',
-      url: target.url,
-      headers,
-      params: {},
-      body: target.body || undefined,
-      followRedirects: true,
-      timeoutMs: 30000,
-    };
-  }
-  if (target.url && target.method) {
+  // Renderer sends resolved IpcHttpRequest first (url + method), including all targets in order.
+  if (target.url) {
+    const method = normalizeLoadMethod(target.method);
     return {
       ...target,
+      method,
       headers: target.headers && typeof target.headers === 'object' && !Array.isArray(target.headers)
         ? target.headers
         : {},
@@ -344,12 +342,30 @@ function toIpcRequest(target) {
         : {},
     };
   }
+  // Raw inline (headers as [{ key, value }, …]) — e.g. tests; not the usual IPC path
+  if (target.kind === 'inline') {
+    const headers = {};
+    for (const h of target.headers || []) {
+      if (h && h.key) headers[h.key] = h.value || '';
+    }
+    return {
+      method: normalizeLoadMethod(target.method),
+      url: target.url,
+      headers,
+      params: {},
+      body: target.body || undefined,
+      followRedirects: true,
+      timeoutMs: 30000,
+    };
+  }
   throw new Error(`Unsupported load target: ${String(target && target.kind)}`);
 }
 
 function normalizeConfig(c) {
+  const raw = Array.isArray(c?.targets) ? c.targets : [];
+  const targets = raw.length > 1 ? [raw[0]] : raw;
   return {
-    targets: Array.isArray(c?.targets) ? c.targets : [],
+    targets,
     vus: Math.max(1, Math.min(500, Number(c?.vus) || 1)),
     durationSec: c?.durationSec == null ? null : Math.max(1, Number(c.durationSec)),
     iterations: c?.iterations == null ? null : Math.max(1, Number(c.iterations)),

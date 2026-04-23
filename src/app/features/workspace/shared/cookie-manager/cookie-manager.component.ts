@@ -1,7 +1,7 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CookieService } from '@core/cookie.service';
+import { CookieService } from '@core/http/cookie.service';
 
 @Component({
   selector: 'app-cookie-manager',

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabItem } from '@core/tab.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabItem } from '@core/tabs/tab.service';
 import { Environment } from '@models/environment';
 
 export interface EnvironmentVariable {

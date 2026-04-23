@@ -11,8 +11,9 @@ import {
   HostListener
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TabItem, TabService, TabType } from '@core/tab.service';
-import { ViewStateService } from '@core/view-state.service';
+import { TabItem, tabIdForTestArtifact, TabService, TabType } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { ViewStateService } from '@core/session/view-state.service';
 import { EnvironmentComponent } from './environment/environment.component';
 import { HistoryComponent } from './history/history.component';
 import { RequestComponent } from './request/request.component';
@@ -23,10 +24,10 @@ import { LoadTestComponent } from './load-test/load-test.component';
 import { TestSuiteComponent } from './test-suite/test-suite.component';
 import { ContractTestComponent } from './contract-test/contract-test.component';
 import { FlowComponent } from './flow/flow.component';
-import { EnvironmentsService } from '@core/environments.service';
-import { RequestHistoryService } from '@core/request-history.service';
-import { RequestService } from '@core/request.service';
-import { CollectionService } from '@core/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { RequestService } from '@core/http/request.service';
+import { CollectionService } from '@core/collection/collection.service';
 
 @Component({
   selector: 'app-tab',
@@ -72,14 +73,16 @@ export class TabComponent implements OnInit, OnDestroy {
   canScrollLeft = false;
   canScrollRight = false;
 
-  constructor(private environmentsService: EnvironmentsService,
+  constructor(
+    private environmentsService: EnvironmentsService,
     private tabService: TabService,
     private requestHistoryService: RequestHistoryService,
     private requestService: RequestService,
     private collectionService: CollectionService,
+    private testArtifacts: TestArtifactService,
     private viewState: ViewStateService,
-    private cdr: ChangeDetectorRef) {
-  }
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   async ngOnInit() {
     await this.viewState.load();
@@ -189,6 +192,26 @@ export class TabComponent implements OnInit, OnDestroy {
         this.tabs[index] = { ...this.tabs[index], title: updatedFolder.title };
         this.tabs = [...this.tabs];
         await this.saveTabs();
+        this.cdr.markForCheck();
+      }
+    });
+
+    this.testArtifacts.getTestArtifactDeletedObservable().subscribe(async (ev) => {
+      const tabId = tabIdForTestArtifact(ev.kind, ev.id);
+      if (!tabId) {
+        return;
+      }
+      const index = this.tabs.findIndex(t => t.id === tabId);
+      if (index !== -1) {
+        await this.closeTab(index);
+        this.cdr.markForCheck();
+      }
+    });
+
+    this.environmentsService.getEnvironmentDeletedObservable().subscribe(async (environmentId: string) => {
+      const index = this.tabs.findIndex(t => t.id === environmentId);
+      if (index !== -1) {
+        await this.closeTab(index);
         this.cdr.markForCheck();
       }
     });

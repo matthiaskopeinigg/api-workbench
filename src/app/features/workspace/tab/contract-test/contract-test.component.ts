@@ -10,11 +10,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
-import type { TabItem } from '@core/tab.service';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { CollectionService } from '@core/collection.service';
-import { ContractValidatorService } from '@core/contract-validator.service';
-import { SettingsService } from '@core/settings.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { ContractValidatorService } from '@core/testing/contract-validator.service';
+import { SettingsService } from '@core/settings/settings.service';
 import type {
   ContractFinding,
   ContractRunResult,
@@ -22,18 +22,19 @@ import type {
   SpecSource,
 } from '@models/testing/contract-test';
 import type { Collection } from '@models/collection';
-import { parseOpenApi, type ParsedSpec } from '@core/openapi-parser';
+import { parseOpenApi, type ParsedSpec } from '@core/import-pipeline/openapi-parser';
 
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
 import { TreeResultsComponent, type TreeNode } from '../../shared/testing-ui/tree-results.component';
 import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
+import { AwDatePipe } from '../../shared/pipes/aw-date.pipe';
 
 type SeverityFilter = 'all' | 'error' | 'warning' | 'info';
 
 @Component({
   selector: 'app-contract-test',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatCardComponent, TreeResultsComponent, RunEnvironmentSelectComponent],
+  imports: [CommonModule, FormsModule, StatCardComponent, TreeResultsComponent, RunEnvironmentSelectComponent, AwDatePipe],
   templateUrl: './contract-test.component.html',
   styleUrls: ['./contract-test.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

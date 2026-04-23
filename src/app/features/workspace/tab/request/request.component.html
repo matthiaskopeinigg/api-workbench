@@ -6,7 +6,7 @@
     </app-dropdown>
 
     <app-variable-input class="url-input" [placeholder]="'Enter URL'" [(ngModel)]="request.url"
-      (ngModelChange)="updateUrlManual($event)" [activeVariables]="activeVariables"
+      (ngModelChange)="updateUrlManual($event)" [activeVariables]="activeVariables" [enablePathParamHighlight]="true"
       (onEnter)="sendRequest()"></app-variable-input>
 
     <button class="btn btn-accent send-btn" (click)="sendRequest()" [disabled]="isLoading">
@@ -63,7 +63,8 @@
 
       <div class="env-group">
         <app-dropdown [options]="environmentOptions" [value]="selectedEnvironmentId || 'none'"
-          (valueChange)="onEnvironmentChange($event)" placeholder="Select Environment" align="right">
+          (valueChange)="onEnvironmentChange($event)" placeholder="Select Environment" align="right"
+          menuMaxWidth="min(92vw, 24rem)">
         </app-dropdown>
       </div>
     </div>

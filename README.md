@@ -17,6 +17,48 @@
 
 Everything stays on your machine. No cloud sync, no account sign-up, no telemetry — just a fast desktop client for HTTP, WebSockets, mocks, and contract validation.
 
+## Screenshots
+
+<div align="center" style="max-width: 800px; margin-left: auto; margin-right: auto;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="6">
+    <tbody>
+      <tr>
+        <td colspan="2" align="center" valign="top">
+          <b>Main workspace</b> — collections, request bar, and response panel<br /><br />
+          <img src="docs/images/readme/01-workspace.png" alt="Main workspace preview" width="100%" style="max-width: 100%; height: auto; display: block;" />
+        </td>
+      </tr>
+      <tr>
+        <td width="50%" align="center" valign="top">
+          <b>Environments</b> — keys, values, and descriptions<br /><br />
+          <img src="docs/images/readme/02-environments.png" alt="Environments preview" width="100%" style="max-width: 100%; height: auto; display: block;" />
+        </td>
+        <td width="50%" align="center" valign="top">
+          <b>Test suite</b> — cases and run<br /><br />
+          <img src="docs/images/readme/03-test-suite.png" alt="Test suite preview" width="100%" style="max-width: 100%; height: auto; display: block;" />
+        </td>
+      </tr>
+      <tr>
+        <td width="50%" align="center" valign="top">
+          <b>Load test</b> — profile, charts, and run controls<br /><br />
+          <img src="docs/images/readme/04-load-test.png" alt="Load test preview" width="100%" style="max-width: 100%; height: auto; display: block;" />
+        </td>
+        <td width="50%" align="center" valign="top">
+          <b>Mock server</b> — routes, requests, and responses<br /><br />
+          <img src="docs/images/readme/05-mockserver.png" alt="Mock server preview" width="100%" style="max-width: 100%; height: auto; display: block;" />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+## Documentation
+
+- **GitHub Wiki (full guide):** [github.com/matthiaskopeinigg/api-workbench/wiki](https://github.com/matthiaskopeinigg/api-workbench/wiki)  
+  — environments, `{{variables}}`, `$` placeholders, features overview, and roadmap.
+- **Wiki source in this repository:** [`docs/wiki/`](docs/wiki/) (Markdown to copy into the wiki or to browse offline). Start with [`docs/wiki/README.md`](docs/wiki/README.md) for how to publish.
+- **In the desktop app:** open **Help** from the left activity bar (bottom section) for a short reference and a button that opens the wiki in your **system browser**.
+
 ## Features
 
 ### Request workbench
@@ -112,6 +154,8 @@ npm run lint                                              # tsc --noEmit on the 
   - `models/`, `shared/` — domain types and shared UI helpers.
 - `electron/` — main-process code: IPC handlers, `http.service.js` (HTTP/1.1 + h2 + SOCKS), `load.service.js`, `mock.service.js`, `store.service.js` (SQLite).
 - `public/` — static assets (app icons).
+- `docs/images/readme/` — images used in this README (SVG previews; optional PNGs for real screenshots).
+- `docs/wiki/` — GitHub Wiki source (Markdown + sidebar).
 - `plans/` — roadmap / design docs.
 - `.github/workflows/` — CI (`ci.yml`) and multi-OS release (`release.yml`).
 

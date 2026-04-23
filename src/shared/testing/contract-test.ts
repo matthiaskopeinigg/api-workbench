@@ -1,6 +1,6 @@
 /**
  * Shared types for the Contract Test tab. The matcher runs in the
- * renderer; spec parsing lives in `src/app/core/openapi-parser.ts` so the
+ * renderer; spec parsing lives in `src/app/core/import-pipeline/openapi-parser.ts` so the
  * import flow and contract validation share one source of truth.
  */
 

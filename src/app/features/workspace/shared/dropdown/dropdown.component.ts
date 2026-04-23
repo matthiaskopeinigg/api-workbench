@@ -6,6 +6,8 @@ export interface DropdownOption {
     value: any;
     /** Optional native tooltip (e.g. full path for truncated labels). */
     title?: string;
+    /** Optional second line in the menu (e.g. template / preset description). */
+    description?: string;
 }
 
 @Component({
@@ -22,6 +24,8 @@ export class DropdownComponent {
     @Input() align: 'left' | 'right' = 'left';
     /** Max width for the menu panel (long labels). */
     @Input() menuMaxWidth = 'min(100%, 20rem)';
+    /** Accessible name for the trigger (e.g. filter role). */
+    @Input() ariaLabel = '';
     @Output() valueChange = new EventEmitter<any>();
 
     isOpen = false;

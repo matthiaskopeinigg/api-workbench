@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { SettingsComponent } from './settings/settings.component';
 import { CommonModule } from '@angular/common';
-import { WindowService } from '@core/window.service';
+import { WindowService } from '@core/platform/window.service';
 import { CookieManagerComponent } from '../shared/cookie-manager/cookie-manager.component';
 
 @Component({

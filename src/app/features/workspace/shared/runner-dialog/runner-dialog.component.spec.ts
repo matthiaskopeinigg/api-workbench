@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { RunnerDialogComponent } from './runner-dialog.component';
-import { RunnerService, RunnerState } from '@core/runner.service';
+import { RunnerService, RunnerState } from '@core/testing/runner.service';
 import { Collection } from '@models/collection';
 
 describe('RunnerDialogComponent', () => {

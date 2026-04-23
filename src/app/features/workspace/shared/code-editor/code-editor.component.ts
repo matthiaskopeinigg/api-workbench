@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DYNAMIC_BARE_RE, DYNAMIC_BRACED_RE, DYNAMIC_PLACEHOLDER_TOOLTIPS } from '@core/placeholders/dynamic-placeholders';
 
 export type EditorLanguage =
   | 'json'
@@ -453,6 +454,8 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       html = this.highlightJavascript(html);
     }
     html = this.highlightBraceVariables(html);
+    html = this.highlightBracedDynamicInHtml(html);
+    html = this.highlightDynamicPlaceholdersInHtml(html);
     if (text.endsWith('\n')) {
       html += '<br>';
     }
@@ -514,6 +517,27 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       const cls = defined ? 'variable-highlight' : 'variable-highlight-error';
       return `<span class="${cls}" title="${title}">{${key}}</span>`;
     });
+  }
+
+  private highlightBracedDynamicInHtml(html: string): string {
+    const re = new RegExp(DYNAMIC_BRACED_RE.source, DYNAMIC_BRACED_RE.flags);
+    return html.replace(re, (full, name: string) => {
+      const tip = DYNAMIC_PLACEHOLDER_TOOLTIPS[name] ?? 'Value generated when the request is sent';
+      return `<span class="variable-highlight" title="${this.escapeTitleAttr(tip)}">${full}</span>`;
+    });
+  }
+
+  /** e.g. `trace-$uuid` in JSON bodies — same class as `{{name}}` in variable inputs. */
+  private highlightDynamicPlaceholdersInHtml(html: string): string {
+    const re = new RegExp(DYNAMIC_BARE_RE.source, DYNAMIC_BARE_RE.flags);
+    return html.replace(re, (full, name: string) => {
+      const tip = DYNAMIC_PLACEHOLDER_TOOLTIPS[name] ?? 'Value generated when the request is sent';
+      return `<span class="variable-highlight" title="${this.escapeTitleAttr(tip)}">${full}</span>`;
+    });
+  }
+
+  private escapeTitleAttr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   }
 
   formatCode(): void {

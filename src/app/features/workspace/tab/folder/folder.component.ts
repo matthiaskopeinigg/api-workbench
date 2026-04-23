@@ -4,13 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { Folder } from '@models/collection';
 import { HttpHeader, Script, AuthType } from '@models/request';
-import { CollectionService } from '@core/collection.service';
-import { TabItem } from '@core/tab.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { TabItem } from '@core/tabs/tab.service';
 import { CodeEditorComponent } from '../../shared/code-editor/code-editor.component';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
-import { EnvironmentsService } from '@core/environments.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
-import { cleanKv, pruneEmptyKv } from '@core/kv-utils';
+import { cleanKv, pruneEmptyKv } from '@core/utils/kv-utils';
 
 export interface FolderVariable {
     key: string;

@@ -1,12 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { FlowComponent } from './flow.component';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { FlowExecutorService } from '@core/flow-executor.service';
-import { CollectionService } from '@core/collection.service';
-import { EnvironmentsService } from '@core/environments.service';
-import type { TabItem } from '@core/tab.service';
-import { TabType } from '@core/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { FlowExecutorService } from '@core/testing/flow-executor.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TabType } from '@core/tabs/tab.service';
 import { NEW_FLOW } from '@models/testing/flow';
 import type { FlowArtifact, FlowNodeRunResult, FlowRunResult, RequestNode } from '@models/testing/flow';
 

@@ -2,9 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { SimpleChange } from '@angular/core';
 import { WebSocketComponent } from './websocket.component';
-import { WebSocketService } from '@core/websocket.service';
-import { TabType } from '@core/tab.service';
-import type { TabItem } from '@core/tab.service';
+import { WebSocketService } from '@core/websocket/websocket.service';
+import { TabType } from '@core/tabs/tab.service';
+import type { TabItem } from '@core/tabs/tab.service';
 
 describe('WebSocketComponent', () => {
   let fixture: ComponentFixture<WebSocketComponent>;

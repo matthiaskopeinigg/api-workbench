@@ -1,11 +1,11 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { RequestComponent } from './request.component';
-import { RequestService } from '@core/request.service';
-import { RequestHistoryService } from '@core/request-history.service';
-import { SettingsService } from '@core/settings.service';
-import { CollectionService } from '@core/collection.service';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabItem, TabType } from '@core/tab.service';
+import { RequestService } from '@core/http/request.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
 import { HttpMethod } from '@models/request';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -14,7 +14,7 @@ import { SecurityContext } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { CodeEditorComponent } from '../../shared/code-editor/code-editor.component';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
-import { ScriptService } from '@core/script.service';
+import { ScriptService } from '@core/http/script.service';
 
 describe('RequestComponent', () => {
   let component: RequestComponent;

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { TabComponent } from './tab.component';
-import { TabItem, TabType } from '@core/tab.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
 
 describe('TabComponent', () => {
   let component: TabComponent;

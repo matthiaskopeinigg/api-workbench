@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HistoryComponent } from './history.component';
-import { RequestHistoryService } from '@core/request-history.service';
-import { SessionService } from '@core/session.service';
-import { TabService, TabType } from '@core/tab.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { SessionService } from '@core/session/session.service';
+import { TabService, TabType } from '@core/tabs/tab.service';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { HttpMethod } from '@models/request';

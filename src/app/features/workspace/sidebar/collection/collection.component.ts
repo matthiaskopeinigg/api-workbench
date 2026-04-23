@@ -4,13 +4,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { Subject, takeUntil } from 'rxjs';
 import { Collection, Folder } from '@models/collection';
 import { HttpMethod, Request } from '@models/request';
-import { CollectionService } from '@core/collection.service';
-import { SessionService } from '@core/session.service';
-import { RequestService } from '@core/request.service';
-import { TabItem, TabService, TabType } from '@core/tab.service';
-import { SettingsService } from '@core/settings.service';
-import { ImportService } from '@core/import.service';
-import { RunnerDialogService } from '@core/runner-dialog.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { SessionService } from '@core/session/session.service';
+import { ViewStateService } from '@core/session/view-state.service';
+import { RequestService } from '@core/http/request.service';
+import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { ImportService } from '@core/import-pipeline/import.service';
+import { RunnerDialogService } from '@core/testing/runner-dialog.service';
 import { FormsModule } from '@angular/forms';
 
 const DEFAULT_HEADERS = [
@@ -74,6 +75,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     private settingsService: SettingsService,
     private importService: ImportService,
     private runnerDialogService: RunnerDialogService,
+    private viewState: ViewStateService,
     private cdr: ChangeDetectorRef
   ) { }
 
@@ -727,7 +729,10 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.collections = [...this.collections];
     await this.saveCollections();
 
-    requestIds.forEach(id => this.collectionService.triggerRequestDeleted(id));
+    requestIds.forEach(id => {
+      this.viewState.clearRequestView(id);
+      this.collectionService.triggerRequestDeleted(id);
+    });
     childFolderIds.forEach(id => this.collectionService.triggerFolderDeleted(id));
 
     this.closeMenu();
@@ -745,6 +750,14 @@ export class CollectionComponent implements OnInit, OnDestroy {
     let ids: string[] = folder.requests.map(r => r.id);
     for (const sub of folder.folders) {
       ids = [...ids, ...this.getAllRequestIdsInFolder(sub)];
+    }
+    return ids;
+  }
+
+  private getAllRequestIdsInCollection(c: Collection): string[] {
+    const ids: string[] = c.requests.map(r => r.id);
+    for (const f of c.folders) {
+      ids.push(...this.getAllRequestIdsInFolder(f));
     }
     return ids;
   }
@@ -776,6 +789,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
   }
 
   async deleteCollection(collectionId: string) {
+    const col = this.collections.find(c => c.id === collectionId);
+    if (col) {
+      for (const id of this.getAllRequestIdsInCollection(col)) {
+        this.viewState.clearRequestView(id);
+      }
+    }
     this.collections = this.collections.filter(c => c.id !== collectionId);
     await this.saveCollections();
     this.closeMenu();

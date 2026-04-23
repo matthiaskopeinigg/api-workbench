@@ -17,15 +17,16 @@ import { CollectionComponent } from './collection/collection.component';
 import { HistoryComponent } from './history/history.component';
 import { TestsComponent } from './tests/tests.component';
 import { Subject, takeUntil } from 'rxjs';
-import { CollectionService } from '@core/collection.service';
-import { SessionService } from '@core/session.service';
-import { SettingsService } from '@core/settings.service';
-import { TabService } from '@core/tab.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { SessionService } from '@core/session/session.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { TabService } from '@core/tabs/tab.service';
 import { FormsModule } from '@angular/forms';
+import { HelpDialogComponent } from './help-dialog/help-dialog.component';
 
 @Component({
   selector: 'app-sidebar',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HelpDialogComponent],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss',
   standalone: true,
@@ -46,12 +47,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
       component: EnvironmentComponent,
     },
     {
-      label: 'Mock Server',
-      icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
-      component: null,
-      action: () => this.tabService.openMockServerTab(),
-    },
-    {
       label: 'Tests',
       icon: 'M9 3h6v2h-1v3.586l4.707 7.243A2 2 0 0 1 16.984 19H7.016a2 2 0 0 1-1.723-3.171L10 8.586V5H9V3z',
       component: TestsComponent,
@@ -59,20 +54,33 @@ export class SidebarComponent implements OnInit, OnDestroy {
   ];
 
   /**
-   * Entries pinned to the bottom of the activity strip (e.g. History), below
-   * the main list. "Tool" items that only open a tab (Mock Server) use
-   * `action` with `component: null` in the main `items` array instead.
+   * Entries pinned to the bottom of the activity strip, below the main list.
+   * Order: Mock Server → History → Help.
    */
   toolItems: SidebarItem[] = [
+    {
+      label: 'Mock Server',
+      icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
+      component: null,
+      action: () => this.tabService.openMockServerTab(),
+    },
     {
       label: 'History',
       icon: 'M13 3a9 9 0 1 0 8.94 10H20a7 7 0 1 1-2.05-5.95L15 10h7V3l-2.36 2.36A9 9 0 0 0 13 3zm-1 5v5l4.28 2.54.72-1.21L13.5 12V8z',
       component: HistoryComponent,
     },
+    {
+      label: 'Help',
+      icon:
+        'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z',
+      component: null,
+      action: () => this.openHelp(),
+    },
   ];
 
   collapsed = true;
   selectedItem: SidebarItem | null = null;
+  showHelp = false;
   private destroy$ = new Subject<void>();
 
   private static readonly SIDEBAR_VIEW_KEY = 'sidebarView';
@@ -84,10 +92,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
 
   private skipNextClose = false;
 
-  /**
-   * Find a nav entry by label in the main list or the bottom tool strip
-   * (e.g. History after Mock Server was moved to the main list).
-   */
+  /** Find a nav entry by label in the main list or the bottom tool strip. */
   private findItemByLabel(label: string): SidebarItem | undefined {
     return this.items.find((i) => i.label === label) ?? this.toolItems.find((i) => i.label === label);
   }
@@ -217,6 +222,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
     this.secondaryToggled.next(false);
     this.cdr.markForCheck();
     void this.persistView();
+  }
+
+  openHelp(): void {
+    this.showHelp = true;
+    this.cdr.markForCheck();
+  }
+
+  onHelpClosed(): void {
+    this.showHelp = false;
+    this.cdr.markForCheck();
   }
 
   startResizing(event: MouseEvent) {

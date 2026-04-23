@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { CommandRegistryService } from '@core/command-registry.service';
+import { CommandRegistryService } from '@core/commands/command-registry.service';
 import { CommandPaletteComponent } from './command-palette.component';
 
 describe('CommandPaletteComponent', () => {

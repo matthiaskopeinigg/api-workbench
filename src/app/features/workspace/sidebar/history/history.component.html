@@ -48,7 +48,7 @@
           <div class="middle">
             <div class="url">{{ entry.request.url }}</div>
             <div class="time">
-              {{ entry.createdAt | date:'shortTime' }}
+              {{ entry.createdAt | awDate:'shortTime' }}
               <small class="elapsed">· {{ getElapsedTime(entry) }}</small>
             </div>
           </div>

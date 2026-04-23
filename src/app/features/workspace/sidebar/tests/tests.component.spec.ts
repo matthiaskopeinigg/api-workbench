@@ -1,8 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { TestsComponent } from './tests.component';
-import { TabService } from '@core/tab.service';
-import { TestArtifactService } from '@core/test-artifact.service';
+import { TabService } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { DEFAULT_LOAD_CONFIG, ensureLoadTestProfiles, LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX } from '@models/testing/load-test';
+import type { LoadTestArtifact } from '@models/testing/load-test';
 
 describe('TestsComponent (sidebar)', () => {
   let fixture: ComponentFixture<TestsComponent>;
@@ -24,8 +26,9 @@ describe('TestsComponent (sidebar)', () => {
 
     artifactsSpy = jasmine.createSpyObj('TestArtifactService', [
       'loadTests$', 'testSuites$', 'contractTests$', 'flows$',
-      'create', 'update', 'remove', 'duplicate',
+      'create', 'update', 'remove', 'duplicate', 'getById',
     ]);
+    artifactsSpy.getById.and.returnValue(undefined);
     artifactsSpy.loadTests$.and.returnValue(loadTests$);
     artifactsSpy.testSuites$.and.returnValue(testSuites$);
     artifactsSpy.contractTests$.and.returnValue(contractTests$);
@@ -153,6 +156,28 @@ describe('TestsComponent (sidebar)', () => {
     (window.confirm as jasmine.Spy).and.returnValue(true);
     await component.deleteItem(component.sections[0], { id: 'lt-1', title: 't', updatedAt: 0 });
     expect(artifactsSpy.remove).toHaveBeenCalledWith('loadTests', 'lt-1');
+  });
+
+  it('onAddLoadTestProfile appends a template and opens the load test tab', async () => {
+    const base = ensureLoadTestProfiles({
+      id: 'lt-99',
+      title: 'My LT',
+      updatedAt: 1,
+      config: { ...DEFAULT_LOAD_CONFIG, targets: [] },
+    } as LoadTestArtifact);
+    artifactsSpy.getById.and.callFake(
+      (k: string, id: string) => (k === 'loadTests' && id === 'lt-99' ? base : undefined) as any,
+    );
+    const el = document.createElement('select');
+    el.add(new Option('…', ''));
+    el.add(new Option('Smoke', `${LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX}tpl-smoke`));
+    el.selectedIndex = 1;
+    const ev = { target: el } as unknown as Event;
+    await component.onAddLoadTestProfile(ev, { id: 'lt-99', title: 'My LT', updatedAt: 1 });
+    expect(artifactsSpy.update).toHaveBeenCalled();
+    const updated = artifactsSpy.update.calls.mostRecent().args[1] as LoadTestArtifact;
+    expect(updated.profiles?.length).toBeGreaterThan(1);
+    expect(tabSpy.openLoadTestTab).toHaveBeenCalledWith('lt-99', 'My LT');
   });
 
   it('unsubscribes from artifact streams on destroy', () => {

@@ -40,6 +40,9 @@ const registry = new Map();
 
 const standalone = new Map();
 
+/** Standalone routes whose path ends with `/*` (one extra segment) or `/**` (any suffix). */
+const standaloneWildcards = [];
+
 const hits = [];
 
 let broadcaster = null;
@@ -80,6 +83,58 @@ function normalizePath(p) {
   return path.replace(/\/+$/, '') || '/';
 }
 
+/**
+ * Suffix `/*`  → one path segment under base.
+ * Suffix `/**` → base or any path under it.
+ * @returns {{ pathMode: 'single' | 'greedy', basePath: string } | null}
+ */
+function parsePathWildcard(pathRaw) {
+  const raw = String(pathRaw || '').trim();
+  if (raw.endsWith('/**')) {
+    return { pathMode: 'greedy', basePath: normalizePath(raw.slice(0, -3)) };
+  }
+  if (raw.endsWith('/*')) {
+    return { pathMode: 'single', basePath: normalizePath(raw.slice(0, -2)) };
+  }
+  return null;
+}
+
+function requestPathMatchesWild(entry, requestPath) {
+  const p = normalizePath(String(requestPath || '').split('?')[0]);
+  if (entry.pathMode === 'greedy') {
+    const b = entry.basePath;
+    if (!b || b === '/') {
+      return true;
+    }
+    return p === b || p.startsWith(`${b}/`);
+  }
+  if (entry.pathMode === 'single') {
+    const b = entry.basePath;
+    if (b === '/' || b === '') {
+      return p.split('/').filter(Boolean).length === 1;
+    }
+    if (!p.startsWith(`${b}/`)) return false;
+    const rest = p.slice(b.length + 1);
+    return rest.length > 0 && !rest.includes('/');
+  }
+  return false;
+}
+
+function findWildcardStandalone(method, requestPath) {
+  const m = String(method).toUpperCase();
+  const matches = standaloneWildcards.filter(
+    (e) => e && e.method === m && requestPathMatchesWild(e, requestPath),
+  );
+  matches.sort((a, b) => b.basePath.length - a.basePath.length);
+  return matches[0] || null;
+}
+
+function removeWildcardById(id) {
+  for (let i = standaloneWildcards.length - 1; i >= 0; i--) {
+    if (standaloneWildcards[i].id === id) standaloneWildcards.splice(i, 1);
+  }
+}
+
 function getStatus() {
   return {
     ...state,
@@ -90,13 +145,24 @@ function getStatus() {
       variantCount: Array.isArray(entry.variants) ? entry.variants.length : 0,
       activeVariantId: entry.activeVariantId || null,
     })),
-    standalone: Array.from(standalone.values()).map((e) => ({
-      id: e.id,
-      method: e.method,
-      path: e.path,
-      variantCount: e.variants.length,
-      activeVariantId: e.activeVariantId || null,
-    })),
+    standalone: [
+      ...Array.from(standalone.values()).map((e) => ({
+        id: e.id,
+        name: e.name || '',
+        method: e.method,
+        path: e.path,
+        variantCount: e.variants.length,
+        activeVariantId: e.activeVariantId || null,
+      })),
+      ...standaloneWildcards.map((e) => ({
+        id: e.id,
+        name: e.name || '',
+        method: e.method,
+        path: e.path,
+        variantCount: e.variants.length,
+        activeVariantId: e.activeVariantId || null,
+      })),
+    ],
   };
 }
 
@@ -246,8 +312,12 @@ async function handleRequest(req, res) {
 
   const capturedReqBody = await readRequestBody(req);
 
-  const standaloneKey = `${method}:${normalizePath(req.url || '/').split('?')[0]}`;
-  const standaloneEntry = standalone.get(standaloneKey);
+  const pathNoQuery = normalizePath((req.url || '/').split('?')[0]);
+  const standaloneKey = `${method}:${pathNoQuery}`;
+  let standaloneEntry = standalone.get(standaloneKey);
+  if (!standaloneEntry) {
+    standaloneEntry = findWildcardStandalone(method, pathNoQuery);
+  }
   if (standaloneEntry) {
     const variant = pickVariant(standaloneEntry, null);
     if (variant) {
@@ -420,21 +490,27 @@ function unregister(requestId) {
 function clearAll() {
   registry.clear();
   standalone.clear();
+  standaloneWildcards.length = 0;
 }
 
 function registerStandalone(endpoint) {
   if (!endpoint || !endpoint.method || !endpoint.path) return null;
   const id = endpoint.id || crypto.randomUUID();
   const method = String(endpoint.method).toUpperCase();
-  const path = normalizePath(endpoint.path);
+  const path = normalizePath(endpoint.path.split('?')[0]);
   for (const [key, value] of standalone.entries()) {
     if (value.id === id) standalone.delete(key);
   }
+  removeWildcardById(id);
+  const wild = parsePathWildcard(endpoint.path);
   const variants = Array.isArray(endpoint.variants) ? endpoint.variants : [];
+  const rawName = typeof endpoint.name === 'string' ? String(endpoint.name).trim() : '';
+  const name = rawName.slice(0, 200);
   const value = {
     id,
+    name,
     method,
-    path,
+    path: String(endpoint.path).trim() || path,
     variants: variants.map((v) => ({
       id: String(v.id || crypto.randomUUID()),
       name: String(v.name || ''),
@@ -446,19 +522,33 @@ function registerStandalone(endpoint) {
     })),
     activeVariantId: endpoint.activeVariantId || null,
   };
-  standalone.set(`${method}:${path}`, value);
-  return value;
+  if (wild && wild.basePath) {
+    Object.assign(value, {
+      pathMode: wild.pathMode,
+      basePath: wild.basePath,
+    });
+    standaloneWildcards.push(value);
+    return value;
+  }
+  const exactPath = path;
+  standalone.set(`${method}:${exactPath}`, { ...value, path: exactPath });
+  return standalone.get(`${method}:${exactPath}`);
 }
 
 function unregisterStandalone(id) {
   for (const [key, value] of standalone.entries()) {
     if (value.id === id) { standalone.delete(key); return true; }
   }
-  return false;
+  const before = standaloneWildcards.length;
+  removeWildcardById(id);
+  return standaloneWildcards.length < before;
 }
 
 function listStandalone() {
-  return Array.from(standalone.values()).map((e) => ({ ...e }));
+  return [
+    ...Array.from(standalone.values()).map((e) => ({ ...e })),
+    ...standaloneWildcards.map((e) => ({ ...e })),
+  ];
 }
 
 function listHits() {

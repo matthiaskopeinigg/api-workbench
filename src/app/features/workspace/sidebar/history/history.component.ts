@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AwDatePipe } from '../../shared/pipes/aw-date.pipe';
 import { RequestHistory, RequestHistoryEntry } from '@models/request-history';
 import { HttpMethod } from '@models/request';
-import { RequestHistoryService } from '@core/request-history.service';
-import { SessionService } from '@core/session.service';
-import { TabItem, TabService, TabType } from '@core/tab.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { SessionService } from '@core/session/session.service';
+import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
 import { Subject, takeUntil } from 'rxjs';
 
 interface HistoryGroup {
@@ -24,7 +25,7 @@ interface HistoryGroup {
 @Component({
   selector: 'app-history',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AwDatePipe],
   templateUrl: './history.component.html',
   styleUrls: ['./history.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

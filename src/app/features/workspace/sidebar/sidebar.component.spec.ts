@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { SidebarComponent } from './sidebar.component';
-import { CollectionService } from '@core/collection.service';
-import { SessionService } from '@core/session.service';
-import { SettingsService } from '@core/settings.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { SessionService } from '@core/session/session.service';
+import { SettingsService } from '@core/settings/settings.service';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { SidebarItem } from './sidebar-item';

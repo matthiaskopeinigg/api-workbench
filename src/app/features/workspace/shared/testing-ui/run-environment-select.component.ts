@@ -11,7 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 
-import { EnvironmentsService } from '@core/environments.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
 import type { Environment } from '@models/environment';
 import { DropdownComponent, type DropdownOption } from '../dropdown/dropdown.component';
 

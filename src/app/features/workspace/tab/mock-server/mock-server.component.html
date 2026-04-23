@@ -91,41 +91,53 @@
       </button>
     </div>
 
-    <div class="header-row config-row advanced-row" *ngIf="showAdvanced">
-      <label class="config-field">
-        <span class="config-label">CORS</span>
-        <select [ngModel]="options.corsMode"
-                (ngModelChange)="onOptionChange('corsMode', $event)">
-          <option value="off">Off</option>
-          <option value="all">Allow all origins</option>
-          <option value="list">Allow listed origins</option>
-        </select>
-      </label>
-
-      <label class="config-field">
-        <span class="config-label">Default Content-Type</span>
-        <input type="text"
-               [ngModel]="options.defaultContentType"
-               (ngModelChange)="onOptionChange('defaultContentType', $event)" />
-      </label>
-
-      <label class="config-checkbox">
-        <input type="checkbox"
-               [ngModel]="options.captureBodies"
-               (ngModelChange)="onOptionChange('captureBodies', $event)" />
-        <span>Capture request &amp; response bodies in activity log</span>
-      </label>
-
-      <label class="config-checkbox">
-        <input type="checkbox"
-               [ngModel]="options.autoStart"
-               (ngModelChange)="onOptionChange('autoStart', $event)" />
-        <span>Auto-start server on app launch</span>
-      </label>
-
-      <button type="button" class="btn-ghost danger" (click)="resetAllVariants()">
-        Reset all variants
-      </button>
+    <div class="config-row advanced-row" *ngIf="showAdvanced">
+      <div class="advanced-fields">
+        <label class="config-field advanced-field-cors">
+          <span class="config-label">CORS</span>
+          <app-dropdown
+            class="advanced-dd"
+            [options]="corsModeOptions"
+            [value]="options.corsMode"
+            align="right"
+            [menuMaxWidth]="'min(100%, 20rem)'"
+            ariaLabel="Cross-origin resource sharing (CORS)"
+            (valueChange)="onCorsModeChange($event)"
+          />
+        </label>
+        <label class="config-field advanced-field-ct">
+          <span class="config-label">Default Content-Type</span>
+          <input
+            type="text"
+            class="advanced-ct-input"
+            [ngModel]="options.defaultContentType"
+            (ngModelChange)="onOptionChange('defaultContentType', $event)"
+            [title]="options.defaultContentType"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="e.g. application/json; charset=utf-8"
+          />
+        </label>
+      </div>
+      <div class="advanced-toggles">
+        <label class="config-checkbox">
+          <input type="checkbox"
+                 [ngModel]="options.captureBodies"
+                 (ngModelChange)="onOptionChange('captureBodies', $event)" />
+          <span>Capture request &amp; response bodies in activity log</span>
+        </label>
+        <label class="config-checkbox">
+          <input type="checkbox"
+                 [ngModel]="options.autoStart"
+                 (ngModelChange)="onOptionChange('autoStart', $event)" />
+          <span>Auto-start server on app launch</span>
+        </label>
+      </div>
+      <div class="advanced-footer">
+        <button type="button" class="btn-ghost danger btn-small" (click)="resetAllVariants()">
+          Reset all variants
+        </button>
+      </div>
     </div>
 
     <div class="bind-warning" *ngIf="options.bindAddress === '0.0.0.0' && status.status === 'running'">
@@ -168,7 +180,9 @@
                   [class.selected]="selectionKind === 'standalone' && selectedStandaloneId === endpoint.id"
                   (click)="selectStandalone(endpoint)">
             <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
-            <span class="entry-title" [title]="endpoint.path">{{ endpoint.path }}</span>
+            <span class="entry-title" [title]="standaloneEntryTitle(endpoint)">
+              {{ standalonePrimaryLabel(endpoint) }}
+            </span>
             <span class="entry-meta">
               <span class="entry-badge" [class.has-active]="!!endpoint.activeVariantId">
                 {{ endpoint.variants.length }}
@@ -227,10 +241,9 @@
     </aside>
 
     
-    <section class="mock-main">
+    <section class="mock-main" [class.no-activity]="!activityPaneVisible">
 
-      
-      <div class="editor-pane">
+      <div class="editor-pane" [class.editor-pane--fill]="!activityPaneVisible">
         <div class="editor-empty" *ngIf="selectionKind === null">
           <div class="empty-icon" aria-hidden="true">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -406,9 +419,10 @@
             <div class="editor-title-block standalone-title-block">
               <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
               <div class="editor-title-text">
-                <div class="editor-title">Standalone mock</div>
-                <div class="editor-subtitle">
-                  Matches by method + path. Lives only inside the mock server.
+                <div class="editor-title">{{ standalonePrimaryLabel(endpoint) }}</div>
+                <div class="editor-subtitle standalone-editor-subtitle">
+                  <code class="standalone-head-path">{{ endpoint.method }} {{ endpoint.path }}</code>
+                  <span>Only in this mock server (not a collection request).</span>
                 </div>
               </div>
             </div>
@@ -419,17 +433,35 @@
           </div>
 
           <div class="standalone-route">
+            <label class="standalone-field standalone-name-field">
+              <span class="config-label">Name</span>
+              <input type="text"
+                     [(ngModel)]="endpoint.name"
+                     (ngModelChange)="onStandaloneFieldChange()"
+                     placeholder="e.g. Health check, OAuth stub…"
+                     maxlength="200"
+                     spellcheck="true"
+                     autocomplete="off" />
+            </label>
             <label class="standalone-field method-field">
               <span class="config-label">Method</span>
-              <select [(ngModel)]="endpoint.method" (ngModelChange)="onStandaloneFieldChange()">
-                <option *ngFor="let m of methodOptions" [value]="m">{{ m }}</option>
-              </select>
+              <app-dropdown
+                class="standalone-method-dd"
+                [options]="standaloneMethodOptions"
+                [value]="endpoint.method"
+                [menuMaxWidth]="'min(100%, 12rem)'"
+                ariaLabel="HTTP method for this mock"
+                (valueChange)="onStandaloneMethodSelect($event)"
+              />
             </label>
             <label class="standalone-field path-field">
               <span class="config-label">Path</span>
-              <input type="text" placeholder="/path"
+              <input type="text" placeholder="/v1/health  or  /test/*  or  /api/**"
                      [(ngModel)]="endpoint.path"
                      (ngModelChange)="onStandaloneFieldChange()" />
+              <p class="standalone-path-hint">
+                Exact path, or a suffix <code>/*</code> (one extra path segment) or <code>/**</code> (this path and any subpaths), e.g. <code>/test/users/*</code>, <code>/api/**</code>.
+              </p>
             </label>
             <div class="standalone-url-wrap" *ngIf="status.status === 'running'">
               <span class="config-label">Full URL</span>
@@ -577,35 +609,43 @@
         </ng-container>
       </div>
 
-      
+      <ng-container *ngIf="activityPaneVisible">
       <div class="activity-pane">
         <div class="activity-head">
           <span class="activity-title">
             Activity
             <span class="activity-count">{{ filteredHits().length }} / {{ hits.length }}</span>
           </span>
+          <div class="activity-head-end">
+          <button type="button" class="btn-ghost btn-small activity-hide-btn"
+                  (click)="setActivityPaneVisible(false)"
+                  title="Hide the activity log (more space for the editor)">
+            Hide
+          </button>
           <div class="activity-filters">
             <input type="text" class="activity-filter" placeholder="Filter path…"
                    [(ngModel)]="hitFilter" />
-            <select [(ngModel)]="methodFilter" class="activity-select" aria-label="Method filter">
-              <option value="">Any method</option>
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="PATCH">PATCH</option>
-              <option value="DELETE">DELETE</option>
-              <option value="OPTIONS">OPTIONS</option>
-              <option value="HEAD">HEAD</option>
-            </select>
-            <select [(ngModel)]="statusFilter" class="activity-select" aria-label="Status filter">
-              <option value="">Any status</option>
-              <option value="2xx">2xx</option>
-              <option value="3xx">3xx</option>
-              <option value="4xx">4xx</option>
-              <option value="5xx">5xx</option>
-            </select>
+            <app-dropdown
+              class="activity-filter-dd"
+              [options]="activityMethodOptions"
+              [value]="methodFilter"
+              align="right"
+              [menuMaxWidth]="'min(100%, 12rem)'"
+              ariaLabel="Filter by HTTP method"
+              (valueChange)="onActivityMethodFilter($event)"
+            />
+            <app-dropdown
+              class="activity-filter-dd"
+              [options]="activityStatusOptions"
+              [value]="statusFilter"
+              align="right"
+              [menuMaxWidth]="'min(100%, 10rem)'"
+              ariaLabel="Filter by response status"
+              (valueChange)="onActivityStatusFilter($event)"
+            />
             <button type="button" class="btn-ghost btn-small" (click)="exportHits()" title="Export as JSON">Export</button>
             <button type="button" class="btn-ghost btn-small" (click)="clearHits()" title="Clear log">Clear</button>
+          </div>
           </div>
         </div>
 
@@ -636,6 +676,20 @@
             </button>
 
             <div class="activity-detail" *ngIf="expandedHitId === hit.id">
+              <div class="detail-section">
+                <div class="detail-title">Full request (raw)</div>
+                <pre class="detail-body detail-full-req">{{ formatFullRequest(hit) }}</pre>
+                <div class="detail-actions">
+                  <button type="button" class="btn-ghost btn-small"
+                          (click)="copyValue(formatFullRequest(hit), 'fullreq:' + hit.id)">
+                    {{ copied === ('fullreq:' + hit.id) ? 'Copied' : 'Copy request' }}
+                  </button>
+                </div>
+                <p class="activity-caption" *ngIf="!options.captureBodies && hit.reqBody == null && hit.method !== 'GET' && hit.method !== 'HEAD'">
+                  Request body is empty: turn on <strong>Capture bodies</strong> in server options to log payloads (max 64 KB each).
+                </p>
+              </div>
+
               <div class="detail-section">
                 <div class="detail-title">Request headers</div>
                 <table class="kv-table">
@@ -672,6 +726,18 @@
           </div>
         </div>
       </div>
+      </ng-container>
+
+      <button
+        *ngIf="!activityPaneVisible"
+        type="button"
+        class="activity-reveal"
+        (click)="setActivityPaneVisible(true)"
+        title="Show request activity and filters">
+        <span class="activity-reveal-label">Activity</span>
+        <span class="activity-reveal-count">{{ hits.length }} captured</span>
+        <span class="activity-reveal-hint">Show</span>
+      </button>
     </section>
   </div>
 </div>

@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Response } from '@models/response';
-import { ResponseHistoryService } from '@core/response-history.service';
+import { ResponseHistoryService } from '@core/http/response-history.service';
 import type { ResponseHistoryListItem } from '@models/electron';
-import { canonicalizeIfJson, diffLines, toSideBySide, SideBySideRow, DiffOp } from '@core/diff.util';
+import { canonicalizeIfJson, diffLines, toSideBySide, SideBySideRow, DiffOp } from '@core/utils/diff.util';
+import { formatTimestampForUi } from '../../../shared/utils/timestamp.util';
 
 /**
  * Diff tab: lets the user compare the current response against a previous
@@ -101,12 +102,10 @@ export class ResponseDiffComponent implements OnChanges {
   }
 
   formatTimestamp(ms: number | null): string {
-    if (!ms) return '';
-    try {
-      return new Date(ms).toLocaleString();
-    } catch {
-      return String(ms);
+    if (ms == null || ms === 0) {
+      return '';
     }
+    return formatTimestampForUi(ms, 'medium');
   }
 
   trackByRow = (index: number, row: SideBySideRow) =>

@@ -1,14 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { LoadTestComponent } from './load-test.component';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { LoadTestService } from '@core/load-test.service';
-import { CollectionService } from '@core/collection.service';
-import { SessionService } from '@core/session.service';
-import { EnvironmentsService } from '@core/environments.service';
-import type { TabItem } from '@core/tab.service';
-import { TabType } from '@core/tab.service';
-import { DEFAULT_LOAD_CONFIG } from '@models/testing/load-test';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { LoadTestService } from '@core/testing/load-test.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { SessionService } from '@core/session/session.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TabType } from '@core/tabs/tab.service';
+import { DEFAULT_LOAD_CONFIG, LOAD_TEST_PROFILE_TEMPLATES, ensureLoadTestProfiles } from '@models/testing/load-test';
 import type { LoadTestArtifact, LoadProgressEvent, LoadRunResult } from '@models/testing/load-test';
 
 describe('LoadTestComponent', () => {
@@ -83,6 +83,25 @@ describe('LoadTestComponent', () => {
     expect(component.artifact?.title).toBe('My Load');
   });
 
+  it('trims multiple legacy targets to the first on load', () => {
+    const multi: LoadTestArtifact = {
+      id,
+      title: 'T',
+      updatedAt: 0,
+      config: {
+        ...DEFAULT_LOAD_CONFIG,
+        targets: [
+          { kind: 'saved', requestId: 'a' },
+          { kind: 'saved', requestId: 'b' },
+        ],
+      },
+    };
+    tests$.next([ensureLoadTestProfiles(JSON.parse(JSON.stringify(multi)) as LoadTestArtifact)]);
+    fixture.detectChanges();
+    expect(component.artifact!.config.targets.length).toBe(1);
+    expect((component.artifact!.config.targets[0] as { requestId: string }).requestId).toBe('a');
+  });
+
   it('stopMode getter reflects the active config', () => {
     expect(component.stopMode).toBe('duration');
     component.artifact!.config.durationSec = null;
@@ -99,10 +118,90 @@ describe('LoadTestComponent', () => {
     expect(component.artifact!.config.durationSec).toBe(30);
   });
 
-  it('addSavedTarget appends a saved target to config', () => {
+  it('forks a Custom profile when load settings change on a preset (userCustom: false)', () => {
+    const tpl = LOAD_TEST_PROFILE_TEMPLATES[0];
+    const cfg = tpl.factory();
+    const withPreset: LoadTestArtifact = {
+      id,
+      title: 'My Load',
+      updatedAt: 0,
+      activeProfileId: 'p-preset',
+      profiles: [
+        {
+          id: 'p-preset',
+          name: tpl.name,
+          description: 'preset',
+          userCustom: false,
+          isTemplate: true,
+          config: cfg,
+        },
+      ],
+      config: cfg,
+    };
+    tests$.next([ensureLoadTestProfiles(JSON.parse(JSON.stringify(withPreset)) as LoadTestArtifact)]);
+    fixture.detectChanges();
+    expect(component.artifact?.profiles?.length).toBe(1);
+    expect(component.artifact?.activeProfileId).toBe('p-preset');
+    component.setStopMode('iterations');
+    expect(component.artifact?.profiles?.length).toBe(2);
+    expect(component.artifact?.activeProfileId).not.toBe('p-preset');
+    expect(component.activeProfile(component.artifact ?? null)?.name).toMatch(/^Custom/);
+    expect(component.artifact!.config.iterations).toBe(100);
+  });
+
+  it('canRemoveActiveProfile is false for template rows', () => {
+    const a = component.artifact!;
+    a.profiles = [
+      { id: 'p1', name: 'Smoke', userCustom: false, isTemplate: true, config: { ...DEFAULT_LOAD_CONFIG, targets: [] } },
+      { id: 'p2', name: 'Custom', userCustom: true, config: { ...DEFAULT_LOAD_CONFIG, targets: [] } },
+    ];
+    a.activeProfileId = 'p1';
+    expect(component.canRemoveActiveProfile(a)).toBeFalse();
+    a.activeProfileId = 'p2';
+    expect(component.canRemoveActiveProfile(a)).toBeTrue();
+  });
+
+  it('addProfileCloningCurrent appends a profile from the current config', () => {
+    const a = component.artifact!;
+    a.config.vus = 7;
+    const before = a.profiles?.length ?? 0;
+    component.newProfileFromCurrentName = '';
+    component.addProfileCloningCurrent(a);
+    expect(a.profiles?.length).toBe(before + 1);
+    expect(component.activeProfile(a)?.name).toMatch(/^From current/);
+    expect(a.config.vus).toBe(7);
+  });
+
+  it('addProfileCloningCurrent uses the draft name when set', () => {
+    const a = component.artifact!;
+    component.newProfileFromCurrentName = 'My copy';
+    component.addProfileCloningCurrent(a);
+    expect(component.activeProfile(a)?.name).toBe('My copy');
+    expect(component.newProfileFromCurrentName).toBe('');
+  });
+
+  it('removeActiveProfile does not remove a template row', () => {
+    const a = component.artifact!;
+    const cfg = { ...DEFAULT_LOAD_CONFIG, targets: [] };
+    a.profiles = [
+      { id: 'p1', name: 'T', userCustom: false, isTemplate: true, config: cfg },
+      { id: 'p2', name: 'U', userCustom: true, config: { ...cfg } },
+    ];
+    a.activeProfileId = 'p1';
+    a.config = a.profiles[0].config;
+    const before = a.profiles.length;
+    component.removeActiveProfile(a);
+    expect(a.profiles.length).toBe(before);
+    expect(a.activeProfileId).toBe('p1');
+  });
+
+  it('addSavedTarget sets the only saved target; a second call replaces it', () => {
     component.addSavedTarget('req-1');
     expect(component.artifact!.config.targets.length).toBe(1);
     expect(component.artifact!.config.targets[0]).toEqual(jasmine.objectContaining({ kind: 'saved', requestId: 'req-1' }));
+    component.addSavedTarget('req-2');
+    expect(component.artifact!.config.targets.length).toBe(1);
+    expect(component.artifact!.config.targets[0]).toEqual(jasmine.objectContaining({ kind: 'saved', requestId: 'req-2' }));
   });
 
   it('addSavedTarget is a no-op on empty input', () => {
@@ -125,12 +224,10 @@ describe('LoadTestComponent', () => {
     expect(component.showInlineEditor).toBeFalse();
   });
 
-  it('removeTarget splices by index', () => {
+  it('clearTarget removes the target', () => {
     component.addSavedTarget('a');
-    component.addSavedTarget('b');
-    component.removeTarget(0);
-    expect(component.artifact!.config.targets.length).toBe(1);
-    expect((component.artifact!.config.targets[0] as any).requestId).toBe('b');
+    component.clearTarget();
+    expect(component.artifact!.config.targets.length).toBe(0);
   });
 
   it('onRpsCapChange coerces empty string to null, numbers otherwise', () => {
@@ -175,7 +272,7 @@ describe('LoadTestComponent', () => {
     const event: LoadProgressEvent = {
       runId: 'run-1', status: 'running', startedAt: 0, activeVus: 5,
       summary: { total: 1, successful: 1, failed: 0, statusBuckets: {}, p50: 10, p90: 20, p95: 20, p99: 30, meanMs: 10, rps: 1, elapsedSec: 1 },
-      point: { t: 1000, rps: 5, errors: 0, p50: 10, p95: 20 },
+      point: { t: 1000, rps: 5, errors: 0, p50: 10, p95: 20, p99: 30 },
     };
     progress$.next(event);
     expect(component.chartXs.length).toBe(1);
@@ -193,8 +290,8 @@ describe('LoadTestComponent', () => {
       config: component.artifact!.config,
       summary: { total: 1, successful: 1, failed: 0, statusBuckets: {}, p50: 1, p90: 1, p95: 1, p99: 1, meanMs: 1, rps: 1, elapsedSec: 1 },
       series: [
-        { t: 100, rps: 1, errors: 0, p50: 1, p95: 1 },
-        { t: 200, rps: 2, errors: 0, p50: 2, p95: 3 },
+        { t: 100, rps: 1, errors: 0, p50: 1, p95: 1, p99: 1 },
+        { t: 200, rps: 2, errors: 0, p50: 2, p95: 3, p99: 4 },
       ],
       slowest: [], errors: [], errorMessage: undefined,
     } as any;
@@ -224,7 +321,7 @@ describe('LoadTestComponent', () => {
     component.progress = {
       runId: 'run-1', status: 'running', startedAt: 0, activeVus: 0,
       summary: { total: 4, successful: 3, failed: 1, statusBuckets: { '200': 3, '500': 1 }, p50: 0, p90: 0, p95: 0, p99: 0, meanMs: 0, rps: 0, elapsedSec: 0 },
-      point: { t: 0, rps: 0, errors: 0, p50: 0, p95: 0 },
+      point: { t: 0, rps: 0, errors: 0, p50: 0, p95: 0, p99: 0 },
     } as any;
     expect(component.bucketPct('200', 3)).toBe(75);
     expect(component.bucketPct('500', 1)).toBe(25);

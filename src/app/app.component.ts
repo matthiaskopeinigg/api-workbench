@@ -1,27 +1,27 @@
 import { Component, HostListener, OnInit } from '@angular/core';
 import { FileDialogResult } from '@models/file-dialog';
-import { BatchImportDialogService } from '@core/batch-import-dialog.service';
+import { BatchImportDialogService } from '@core/import-pipeline/batch-import-dialog.service';
 import { RouterOutlet } from '@angular/router';
-import { ThemeService } from '@core/theme.service';
-import { RequestHistoryService } from '@core/request-history.service';
+import { ThemeService } from '@core/settings/theme.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
 
-import { CollectionService } from '@core/collection.service';
-import { CommandSeedsService } from '@core/command-seeds.service';
-import { EnvironmentsService } from '@core/environments.service';
-import { SessionService } from '@core/session.service';
-import { SettingsService } from '@core/settings.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { CommandSeedsService } from '@core/commands/command-seeds.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { SessionService } from '@core/session/session.service';
+import { SettingsService } from '@core/settings/settings.service';
 import { CommonModule } from '@angular/common';
-import { TabService } from '@core/tab.service';
-import { UpdateService } from '@core/update.service';
-import { ViewStateService } from '@core/view-state.service';
+import { TabService } from '@core/tabs/tab.service';
+import { UpdateService } from '@core/platform/update.service';
+import { ViewStateService } from '@core/session/view-state.service';
 import { CommandPaletteComponent } from './features/workspace/shared/command-palette/command-palette.component';
 import { BatchImportDialogComponent } from './features/workspace/shared/batch-import-dialog/batch-import-dialog.component';
 import { RunnerDialogComponent } from './features/workspace/shared/runner-dialog/runner-dialog.component';
 import { ShortcutsPanelComponent } from './features/workspace/shared/shortcuts-panel/shortcuts-panel.component';
-import { RunnerDialogService, RunnerDialogRequest } from '@core/runner-dialog.service';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { SampleWorkspaceSeeder } from '@core/sample-workspace.seeder';
-import { LOAD_TEST_SESSION_RUNS_KEY } from '@core/load-test-session.keys';
+import { RunnerDialogService, RunnerDialogRequest } from '@core/testing/runner-dialog.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { SampleWorkspaceSeeder } from '@core/seeding/sample-workspace.seeder';
+import { LOAD_TEST_SESSION_RUNS_KEY } from '@core/testing/load-test-session.keys';
 import { Subscription } from 'rxjs';
 
 @Component({

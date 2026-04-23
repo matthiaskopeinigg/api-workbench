@@ -1,6 +1,12 @@
 :host {
-    display: inline-block;
+    display: block;
     position: relative;
+    min-width: 0;
+    /* In flex rows, 100% width makes this control eat the full row; auto + max-width
+       keeps the trigger content-sized. In normal block flow, block + width: auto
+       still stretches to the container. */
+    width: auto;
+    max-width: 100%;
     font-family: inherit;
 }
 
@@ -9,13 +15,13 @@
 }
 
 .dropdown-trigger {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    column-gap: 8px;
     background: var(--surface);
     color: var(--text-color);
-    padding: 0 10px;
+    padding: 0 8px 0 10px;
     border-radius: var(--aw-radius-sm, 6px);
     font-weight: 600;
     font-size: 0.85rem;
@@ -25,10 +31,12 @@
         box-shadow var(--aw-duration-fast, 120ms) ease;
     height: var(--aw-control-height, 34px);
     box-sizing: border-box;
-    min-width: 100px;
+    min-width: 0; /* must shrink in flex; label uses ellipsis, arrow stays reserved */
     border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
     width: 100%;
     text-align: left;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 
     &.is-placeholder {
         color: color-mix(in srgb, var(--text-color), transparent 50%);
@@ -45,28 +53,35 @@
 
     &:focus-visible {
         outline: none;
-        border-color: var(--secondary-color);
-        box-shadow: 0 0 0 3px var(--aw-focus-ring-strong, color-mix(in srgb, var(--secondary-color), transparent 70%));
+        border-color: color-mix(in srgb, var(--primary-color), transparent 25%);
+        box-shadow: 0 0 0 3px
+            var(--aw-focus-ring, color-mix(in srgb, var(--primary-color), transparent 70%));
     }
 
     .label {
+        min-width: 0;
+        flex: 1 1 0%;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        flex: 1;
     }
 
     .arrow {
         flex-shrink: 0;
+        flex-grow: 0;
+        width: 10px;
+        height: 6px;
+        margin-left: 2px;
         transition: transform var(--aw-duration-fast, 120ms) ease;
-        opacity: 0.55;
+        opacity: 0.6;
     }
 }
 
 .dropdown-container.open {
     .dropdown-trigger {
-        border-color: var(--secondary-color);
-        box-shadow: 0 0 0 3px var(--aw-focus-ring-strong, color-mix(in srgb, var(--secondary-color), transparent 70%));
+        border-color: color-mix(in srgb, var(--primary-color), transparent 20%);
+        box-shadow: 0 0 0 3px
+            var(--aw-focus-ring, color-mix(in srgb, var(--primary-color), transparent 70%));
 
         .arrow {
             transform: rotate(180deg);
@@ -90,12 +105,15 @@
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
+    right: auto;
     min-width: 100%;
     width: max-content;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
     background-color: var(--surface);
-    border: 1px solid var(--border-color);
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 20%);
     border-radius: var(--aw-radius-md, 8px);
-    padding: 4px;
+    padding: 6px;
     box-shadow: var(--aw-shadow-lg);
     z-index: 9999;
     max-height: 300px;
@@ -108,20 +126,23 @@
         border-radius: 10px;
     }
 
+    /* Align this edge with the same edge of the trigger (wider menu grows inward). */
     &.align-right {
         left: auto;
         right: 0;
     }
 
     .dropdown-item {
-        display: flex;
+        /* Grid keeps the checkmark column from overlapping the label in narrow menus. */
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 7px 10px;
+        column-gap: 10px;
+        min-height: 2.1rem;
+        padding: 8px 10px 8px 12px;
         border: 0;
         background: transparent;
-        border-radius: var(--aw-radius-xs, 5px);
+        border-radius: var(--aw-radius-sm, 6px);
         cursor: pointer;
         font-size: 0.85rem;
         color: var(--text-color);
@@ -131,31 +152,85 @@
         transition: background-color var(--aw-duration-fast, 120ms) ease,
             color var(--aw-duration-fast, 120ms) ease;
 
+        .dropdown-item-text {
+            min-width: 0;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+        }
+
         .dropdown-item-label {
+            display: block;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .dropdown-item-desc {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 400;
+            line-height: 1.35;
+            color: color-mix(in srgb, var(--text-color), transparent 38%);
+        }
+
+        .dropdown-item-check {
+            color: var(--primary-color);
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+            justify-self: end;
+        }
+
+        &:not(.is-stacked) .dropdown-item-label {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .dropdown-item-check {
-            color: var(--secondary-color);
-            flex-shrink: 0;
+        &.is-stacked {
+            align-items: start;
+
+            .dropdown-item-check {
+                margin-top: 2px;
+                align-self: start;
+            }
+
+            .dropdown-item-label {
+                white-space: normal;
+            }
+
+            .dropdown-item-desc {
+                white-space: normal;
+                word-wrap: break-word;
+                overflow-wrap: anywhere;
+            }
         }
 
         &:hover {
-            background: color-mix(in srgb, var(--text-color), transparent 94%);
+            background: color-mix(in srgb, var(--text-color), transparent 92%);
         }
 
         &.selected {
-            background: color-mix(in srgb, var(--secondary-color), transparent 90%);
-            color: var(--secondary-color);
+            background: color-mix(in srgb, var(--primary-color), transparent 86%);
+            color: var(--text-color);
             font-weight: 600;
+
+            .dropdown-item-check {
+                color: var(--primary-color);
+            }
+
+            .dropdown-item-desc {
+                font-weight: 400;
+                color: color-mix(in srgb, var(--text-color), transparent 40%);
+            }
         }
 
         &:focus { outline: none; }
         &:focus-visible {
             outline: 2px solid var(--aw-focus-ring, var(--primary-color));
-            outline-offset: -2px;
+            outline-offset: 2px;
         }
     }
 }
@@ -163,10 +238,8 @@
 @keyframes dropdown-slide-in {
     from {
         opacity: 0;
-        transform: translateY(-4px) scale(0.98);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
     }
 }

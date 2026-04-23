@@ -11,10 +11,10 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { TabItem } from '@core/tab.service';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { TestSuiteRunnerService } from '@core/test-suite-runner.service';
-import { CollectionService } from '@core/collection.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { TestSuiteRunnerService } from '@core/testing/test-suite-runner.service';
+import { CollectionService } from '@core/collection/collection.service';
 import type {
   Assertion,
   CaseRunResult,
@@ -36,6 +36,7 @@ import { TreeResultsComponent, type TreeNode } from '../../shared/testing-ui/tre
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
 import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
 import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
+import { AwDatePipe } from '../../shared/pipes/aw-date.pipe';
 
 interface RequestPick {
   id: string;
@@ -67,7 +68,7 @@ type AssertionKind = Assertion['kind'];
 @Component({
   selector: 'app-test-suite',
   standalone: true,
-  imports: [CommonModule, FormsModule, TreeResultsComponent, StatCardComponent, RunEnvironmentSelectComponent, DropdownComponent],
+  imports: [CommonModule, FormsModule, TreeResultsComponent, StatCardComponent, RunEnvironmentSelectComponent, DropdownComponent, AwDatePipe],
   templateUrl: './test-suite.component.html',
   styleUrls: ['./test-suite.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

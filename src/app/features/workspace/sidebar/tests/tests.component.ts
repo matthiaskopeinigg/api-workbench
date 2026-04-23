@@ -10,10 +10,19 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 
-import { TabService } from '@core/tab.service';
-import { TestArtifactService } from '@core/test-artifact.service';
+import { TabService } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
 import type { LoadTestArtifact } from '@models/testing/load-test';
-import { DEFAULT_LOAD_CONFIG } from '@models/testing/load-test';
+import {
+  appendEmptyLoadTestProfile,
+  appendLoadTestProfileFromTemplate,
+  DEFAULT_LOAD_CONFIG,
+  ensureLoadTestProfiles,
+  findLoadTestProfileTemplateById,
+  LOAD_TEST_PROFILE_PICKER_EMPTY,
+  LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX,
+  LOAD_TEST_PROFILE_TEMPLATES,
+} from '@models/testing/load-test';
 import type { TestSuiteArtifact } from '@models/testing/test-suite';
 import { NEW_TEST_SUITE } from '@models/testing/test-suite';
 import type { ContractTestArtifact } from '@models/testing/contract-test';
@@ -46,6 +55,11 @@ interface Section<T extends ArtifactBase> {
 })
 export class TestsComponent implements OnInit, OnDestroy {
   sections: Section<ArtifactBase>[] = [];
+
+  /** Load test → profile template catalog (sidebar quick-add). */
+  readonly loadTestTemplateList = LOAD_TEST_PROFILE_TEMPLATES;
+  readonly loadTestTplPrefix = LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX;
+  readonly loadTestEmptyVal = LOAD_TEST_PROFILE_PICKER_EMPTY;
 
   /** Inline rename state. */
   editingId: string | null = null;
@@ -159,6 +173,41 @@ export class TestsComponent implements OnInit, OnDestroy {
     this.contextMenuKind = null;
   }
 
+  /**
+   * Tests sidebar: add a load profile (from template or empty) to the given
+   * load test without opening the tab first.
+   */
+  async onAddLoadTestProfile(event: Event, item: ArtifactBase): Promise<void> {
+    const sel = event.target as HTMLSelectElement;
+    const value = (sel.value || '').trim();
+    sel.value = '';
+    if (!value) {
+      return;
+    }
+    const raw = this.artifacts.getById<LoadTestArtifact>('loadTests', item.id);
+    if (!raw) {
+      return;
+    }
+    const a = JSON.parse(JSON.stringify(raw)) as LoadTestArtifact;
+    if (value.startsWith(LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX)) {
+      const tid = value.slice(LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX.length);
+      const t = findLoadTestProfileTemplateById(tid);
+      if (!t) {
+        return;
+      }
+      ensureLoadTestProfiles(a);
+      appendLoadTestProfileFromTemplate(a, t);
+    } else if (value === LOAD_TEST_PROFILE_PICKER_EMPTY) {
+      ensureLoadTestProfiles(a);
+      appendEmptyLoadTestProfile(a);
+    } else {
+      return;
+    }
+    await this.artifacts.update('loadTests', a);
+    this.tabService.openLoadTestTab(a.id, a.title);
+    this.cdr.markForCheck();
+  }
+
   async duplicateItem(section: Section<ArtifactBase>, item: ArtifactBase): Promise<void> {
     this.closeContextMenu();
     await this.artifacts.duplicate(section.key, item.id, uuidv4());
@@ -181,12 +230,12 @@ export class TestsComponent implements OnInit, OnDestroy {
   }
 
   private makeLoadTest(): LoadTestArtifact {
-    return {
+    return ensureLoadTestProfiles({
       id: uuidv4(),
       title: 'New load test',
       updatedAt: Date.now(),
       config: { ...DEFAULT_LOAD_CONFIG, targets: [] },
-    };
+    });
   }
 
   private makeSuite(): TestSuiteArtifact {

@@ -13,7 +13,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { Collection, Folder } from '@models/collection';
-import { RunnerService, RunnerState } from '@core/runner.service';
+import { RunnerService, RunnerState } from '@core/testing/runner.service';
 
 type Source = Collection | Folder;
 

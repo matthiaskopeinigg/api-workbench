@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { TitlebarComponent } from './titlebar.component';
-import { WindowService } from '@core/window.service';
+import { WindowService } from '@core/platform/window.service';
 import { CommonModule } from '@angular/common';
 
 describe('TitlebarComponent', () => {

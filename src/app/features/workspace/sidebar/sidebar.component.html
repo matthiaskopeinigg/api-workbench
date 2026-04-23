@@ -56,3 +56,5 @@
 
   <div class="resizer" (mousedown)="startResizing($event)"></div>
 </aside>
+
+<app-help-dialog *ngIf="showHelp" (closed)="onHelpClosed()"></app-help-dialog>

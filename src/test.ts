@@ -24,6 +24,7 @@ if (typeof window !== 'undefined' && !(window as any).awElectron) {
         minimizeWindow: () => undefined,
         maximizeWindow: () => undefined,
         closeWindow: () => undefined,
+        openExternalUrl: () => Promise.resolve({ ok: true }),
         httpRequest: () => Promise.resolve(null),
         getAllCookies: () => Promise.resolve([]),
         deleteCookie: () => Promise.resolve(),

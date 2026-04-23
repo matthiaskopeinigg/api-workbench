@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CodeSnippetsDialogComponent } from './code-snippets-dialog.component';
-import { SnippetService, SnippetGenerator } from '@core/snippet.service';
+import { SnippetService, SnippetGenerator } from '@core/snippets/snippet.service';
 import { HttpMethod } from '@models/request';
 
 describe('CodeSnippetsDialogComponent', () => {

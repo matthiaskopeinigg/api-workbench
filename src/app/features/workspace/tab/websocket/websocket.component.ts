@@ -11,9 +11,10 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
-import { TabItem } from '@core/tab.service';
-import { WebSocketService } from '@core/websocket.service';
+import { TabItem } from '@core/tabs/tab.service';
+import { WebSocketService } from '@core/websocket/websocket.service';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
+import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
 import {
   WebSocketConnectionStatus,
   WebSocketFrame,
@@ -185,12 +186,6 @@ export class WebSocketComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   formatTimestamp(at: number | undefined): string {
-    if (!at) return '';
-    const d = new Date(at);
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+    return formatTimestampForUi(at, 'HH:mm:ss.SSS');
   }
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, '0');
 }

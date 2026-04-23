@@ -2,9 +2,9 @@ import { Component, Input, OnChanges, OnInit, ViewChild, ElementRef, ChangeDetec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Certificate, RequestEditorSection } from '@models/settings';
-import { SettingsService } from '@core/settings.service';
-import { RequestService } from '@core/request.service';
-import { CollectionService } from '@core/collection.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { RequestService } from '@core/http/request.service';
+import { CollectionService } from '@core/collection/collection.service';
 import { HttpMethod, Request, AuthType, RequestBodyMode, RequestBody, FormDataField, UrlencodedField, MockVariant } from '@models/request';
 import type { IpcStructuredBody } from '@models/ipc-http-request';
 import { Response, TestResult } from '@models/response';
@@ -22,26 +22,27 @@ interface ScriptRunResult {
   consoleLogs?: Array<{ level: string; args: string[] }>;
   errors?: Array<{ message: string; stack?: string }>;
 }
-import { TabItem, TabService, TabType } from '@core/tab.service';
-import { RequestHistoryService } from '@core/request-history.service';
+import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
 import { RequestHistoryEntry } from '@models/request-history';
 import { v4 as uuidv4 } from 'uuid';
 import { CodeEditorComponent, EditorLanguage } from '../../shared/code-editor/code-editor.component';
-import { EnvironmentsService } from '@core/environments.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
 import { Environment } from '@models/environment';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
 import { Subject, takeUntil } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { CodeSnippetsDialogComponent } from '../../shared/code-snippets-dialog/code-snippets-dialog.component';
-import { ScriptService } from '@core/script.service';
+import { ScriptService } from '@core/http/script.service';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
 import { ResponseSearchComponent, ResponseSearchSegment, ResponseSearchMatch } from '../../shared/response-search/response-search.component';
-import { ViewStateService, TabViewState } from '@core/view-state.service';
-import { cleanKv, hasKey, pruneEmptyKv } from '@core/kv-utils';
-import { AuthSignerService } from '@core/auth-signer.service';
-import { ResponseHistoryService } from '@core/response-history.service';
+import { ViewStateService, TabViewState } from '@core/session/view-state.service';
+import { applyDynamicPlaceholders } from '@core/placeholders/dynamic-placeholders';
+import { cleanKv, hasKey, pruneEmptyKv } from '@core/utils/kv-utils';
+import { AuthSignerService } from '@core/http/auth-signer.service';
+import { ResponseHistoryService } from '@core/http/response-history.service';
 import { ResponseDiffComponent } from './response-diff/response-diff.component';
-import { MockServerService } from '@core/mock-server.service';
+import { MockServerService } from '@core/mock-server/mock-server.service';
 import type { MockServerStatus } from '@models/electron';
 
 @Component({
@@ -193,6 +194,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   private persistViewState(partial: TabViewState) {
     if (!this.tab?.id) return;
     this.viewState.patch(this.tab.id, partial);
+    this.viewState.patchRequestView(this.tab.id, partial);
   }
 
   private applyDefaultActiveRequestTabFromSettings(): void {
@@ -205,7 +207,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   private restoreViewState() {
     if (!this.tab?.id) return;
-    const saved = this.viewState.get(this.tab.id);
+    const fromRequest = this.viewState.getRequestView(this.tab.id);
+    const fromTab = this.viewState.get(this.tab.id);
+    const saved: TabViewState = { ...fromRequest, ...fromTab };
 
     if (saved?.activeRequestTab) {
       this.activeRequestTab = saved.activeRequestTab;
@@ -213,7 +217,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       this.applyDefaultActiveRequestTabFromSettings();
     }
 
-    if (!saved) {
+    if (!fromRequest && !fromTab) {
       return;
     }
 
@@ -227,8 +231,6 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   async ngOnInit() {
-    this.loadRequest();
-
     this.environmentsService.getEnvironmentsObservable()
       .pipe(takeUntil(this.destroy$))
       .subscribe(envs => {
@@ -1232,10 +1234,13 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   private replaceVariables(text: string): string {
     if (!text || typeof text !== 'string') return text;
-    return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-      const val = this.activeVariables[key];
+    let t = text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+      const k = String(key).trim();
+      const val = this.activeVariables[k];
       return val !== undefined ? val : match;
     });
+    t = applyDynamicPlaceholders(t);
+    return t;
   }
 
   /**
@@ -1657,14 +1662,14 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
     parents.reverse().forEach(folder => {
       cleanKv(folder.variables).forEach(v => {
-        this.activeVariables[v.key as string] = v.value as string;
+        this.activeVariables[v.key as string] = (v.value ?? '') as string;
       });
     });
 
     if (this.selectedEnvironmentId) {
       const env = this.environmentsService.getEnvironmentById(this.selectedEnvironmentId);
       cleanKv(env?.variables).forEach(v => {
-        this.activeVariables[v.key as string] = v.value as string;
+        this.activeVariables[v.key as string] = (v.value ?? '') as string;
       });
     }
     this.cdr.markForCheck();

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { ShortcutsPanelComponent } from './shortcuts-panel.component';
-import { APP_SHORTCUTS, ShortcutsPanelService } from '@core/shortcuts-panel.service';
+import { APP_SHORTCUTS, ShortcutsPanelService } from '@core/commands/shortcuts-panel.service';
 
 describe('ShortcutsPanelComponent', () => {
   let fixture: ComponentFixture<ShortcutsPanelComponent>;

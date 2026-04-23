@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
 import { MockServerComponent } from './mock-server.component';
-import { CollectionService } from '@core/collection.service';
-import { MockServerService } from '@core/mock-server.service';
-import { TabType, MOCK_SERVER_TAB_ID } from '@core/tab.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { MockServerService } from '@core/mock-server/mock-server.service';
+import { TabType, MOCK_SERVER_TAB_ID } from '@core/tabs/tab.service';
 import type { MockServerStatus, MockServerOptions, StandaloneMockEndpoint, MockHit } from '@models/electron';
 
 describe('MockServerComponent', () => {
@@ -159,12 +159,28 @@ describe('MockServerComponent', () => {
 
   it('addStandalone picks a unique path, registers it, and selects the result', async () => {
     mockSpy.registerStandalone.and.resolveTo({
-      id: 'sa-1', method: 'GET', path: '/mock/new', variants: [{ id: 'v1' } as any], activeVariantId: 'v1',
+      id: 'sa-1',
+      name: '',
+      method: 'GET',
+      path: '/mock/new',
+      variants: [{ id: 'v1' } as any],
+      activeVariantId: 'v1',
     } as StandaloneMockEndpoint);
-    mockSpy.listStandalone.and.resolveTo([{ id: 'sa-1', method: 'GET', path: '/mock/new' } as any]);
+    mockSpy.listStandalone.and.resolveTo([{ id: 'sa-1', name: '', method: 'GET', path: '/mock/new' } as any]);
     await component.addStandalone();
-    expect(mockSpy.registerStandalone).toHaveBeenCalled();
+    expect(mockSpy.registerStandalone).toHaveBeenCalledWith(
+      jasmine.objectContaining({ name: '', method: 'GET', path: '/mock/new' }),
+    );
     expect(component.selectedStandaloneId).toBe('sa-1');
+  });
+
+  it('standalonePrimaryLabel uses name or falls back to path', () => {
+    expect(
+      component.standalonePrimaryLabel({ name: '  Health  ', path: '/api/x', id: '1' } as StandaloneMockEndpoint),
+    ).toBe('Health');
+    expect(
+      component.standalonePrimaryLabel({ name: '', path: '/api/x', id: '1' } as StandaloneMockEndpoint),
+    ).toBe('/api/x');
   });
 
   it('removeStandalone only calls through when the user confirms', async () => {

@@ -80,6 +80,14 @@ describe('CodeEditorComponent', () => {
     expect(component.highlightedContent).toContain('token-number');
   });
 
+  it('updateHighlighting should wrap $uuid in variable-highlight in JSON', () => {
+    component.innerContent = '"trace-$uuid"';
+    component.language = 'json';
+    component.updateHighlighting();
+    expect(component.highlightedContent).toContain('variable-highlight');
+    expect(component.highlightedContent).toContain('$uuid');
+  });
+
   it('should leave non-JSON/XML languages unchanged by auto-format scheduling', () => {
     component.language = 'plain';
     const spy = jasmine.createSpy('contentChange');

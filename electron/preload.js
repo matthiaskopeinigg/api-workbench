@@ -25,6 +25,7 @@ const awElectron = {
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
 
   httpRequest: (request) => ipcRenderer.invoke('http-request', request),
   getAllCookies: () => ipcRenderer.invoke('cookies:get-all'),

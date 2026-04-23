@@ -105,13 +105,7 @@
         </div>
       }
     } @else if (activeTab.type === TabType.LOAD_TEST && isLoadTestTab(activeTab)) {
-      @defer {
-        <app-load-test [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <span class="defer-label">Loading Load Test…</span>
-        </div>
-      }
+      <app-load-test [tab]="activeTab" />
     } @else if (activeTab.type === TabType.TEST_SUITE && isTestSuiteTab(activeTab)) {
       @defer {
         <app-test-suite [tab]="activeTab" />

@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { CookieManagerComponent } from './cookie-manager.component';
-import { CookieService } from '@core/cookie.service';
+import { CookieService } from '@core/http/cookie.service';
 
 describe('CookieManagerComponent', () => {
   let component: CookieManagerComponent;

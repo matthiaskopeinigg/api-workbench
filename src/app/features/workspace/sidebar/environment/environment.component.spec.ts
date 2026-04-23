@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { EnvironmentComponent } from './environment.component';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabService, TabType } from '@core/tab.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabService, TabType } from '@core/tabs/tab.service';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 
@@ -24,7 +24,8 @@ describe('EnvironmentComponent', () => {
       'saveEnvironments',
       'getEnvironmentById',
       'selectEnvironment',
-      'getSelectedEnvironmentAsObservable'
+      'getSelectedEnvironmentAsObservable',
+      'triggerEnvironmentDeleted',
     ]);
     tabServiceSpy = jasmine.createSpyObj('TabService', ['getSelectedTab', 'isEnvironmentTab']);
 
@@ -71,14 +72,15 @@ describe('EnvironmentComponent', () => {
     expect(component.environments.length).toBe(initialLength);
   });
 
-  it('should delete environment', () => {
+  it('should delete environment', async () => {
     const initialLength = component.environments.length;
     const devIndex = component.environments.findIndex(e => e.title === 'Dev');
-    component.deleteEnvironment(devIndex >= 0 ? devIndex : 0);
+    await component.deleteEnvironment(devIndex >= 0 ? devIndex : 0);
 
     expect(component.environments.length).toBe(initialLength - 1);
     expect(component.environments.every(e => e.title !== 'Dev')).toBeTrue();
     expect(environmentsServiceSpy.saveEnvironments).toHaveBeenCalled();
+    expect(environmentsServiceSpy.triggerEnvironmentDeleted).toHaveBeenCalled();
   });
 
   it('should select environment', () => {

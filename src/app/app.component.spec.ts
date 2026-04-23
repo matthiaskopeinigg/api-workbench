@@ -1,15 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { AppComponent } from './app.component';
-import { CollectionService } from '@core/collection.service';
-import { CommandSeedsService } from '@core/command-seeds.service';
-import { EnvironmentsService } from '@core/environments.service';
-import { RequestHistoryService } from '@core/request-history.service';
-import { SessionService } from '@core/session.service';
-import { SettingsService } from '@core/settings.service';
-import { TabService } from '@core/tab.service';
-import { ThemeService } from '@core/theme.service';
-import { UpdateService } from '@core/update.service';
-import { ViewStateService } from '@core/view-state.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { CommandSeedsService } from '@core/commands/command-seeds.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { SessionService } from '@core/session/session.service';
+import { SettingsService } from '@core/settings/settings.service';
+import { TabService } from '@core/tabs/tab.service';
+import { ThemeService } from '@core/settings/theme.service';
+import { UpdateService } from '@core/platform/update.service';
+import { ViewStateService } from '@core/session/view-state.service';
 
 describe('AppComponent', () => {
   let collectionSpy: jasmine.SpyObj<CollectionService>;

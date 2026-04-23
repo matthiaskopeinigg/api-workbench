@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { EnvironmentComponent } from './environment.component';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabItem, TabType } from '@core/tab.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
 
 describe('EnvironmentComponent', () => {
   let component: EnvironmentComponent;

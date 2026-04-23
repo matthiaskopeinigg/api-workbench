@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { SimpleChange } from '@angular/core';
 import { ResponseDiffComponent } from './response-diff.component';
-import { ResponseHistoryService } from '@core/response-history.service';
+import { ResponseHistoryService } from '@core/http/response-history.service';
 import type { ResponseHistoryListItem } from '@models/electron';
 
 describe('ResponseDiffComponent', () => {

@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Subject, of } from 'rxjs';
 import { FolderComponent } from './folder.component';
-import { CollectionService } from '@core/collection.service';
-import { EnvironmentsService } from '@core/environments.service';
-import { TabItem, TabType } from '@core/tab.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
 import { AuthType } from '@models/request';
 import { Folder } from '@models/collection';
 

@@ -7,7 +7,7 @@
         [(ngModel)]="artifact.title"
         (ngModelChange)="onTitleChange()"
         placeholder="Untitled flow" />
-      <span class="updated">Updated {{ artifact.updatedAt | date:'short' }}</span>
+      <span class="updated">Updated {{ artifact.updatedAt | awDate:'short' }}</span>
     </div>
     <div class="header-end">
     <app-run-environment-select

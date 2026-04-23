@@ -5,12 +5,12 @@ import { Subscription } from 'rxjs';
 import {
   BatchImportDialogService,
   BatchImportDialogState,
-} from '@core/batch-import-dialog.service';
+} from '@core/import-pipeline/batch-import-dialog.service';
 import {
   buildPreviewRows,
   formatBatchImportSummary,
-} from '@core/import-batch.service';
-import type { BatchMergeMode } from '@core/import-batch.service';
+} from '@core/import-pipeline/import-batch.service';
+import type { BatchMergeMode } from '@core/import-pipeline/import-batch.service';
 
 @Component({
   selector: 'app-batch-import-dialog',

@@ -13,10 +13,10 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { TabItem } from '@core/tab.service';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { FlowExecutorService } from '@core/flow-executor.service';
-import { CollectionService } from '@core/collection.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { FlowExecutorService } from '@core/testing/flow-executor.service';
+import { CollectionService } from '@core/collection/collection.service';
 import type {
   BranchNode,
   FlowArtifact,
@@ -38,6 +38,7 @@ import { HttpMethod, type Request as RequestModel } from '@models/request';
 
 import { StatCardComponent } from '../../shared/testing-ui/stat-card.component';
 import { RunEnvironmentSelectComponent } from '../../shared/testing-ui/run-environment-select.component';
+import { AwDatePipe } from '../../shared/pipes/aw-date.pipe';
 
 interface RequestPick { id: string; label: string; method: string; }
 
@@ -78,7 +79,7 @@ const VIEW_DEFAULT_H = 1500;
 @Component({
   selector: 'app-flow',
   standalone: true,
-  imports: [CommonModule, FormsModule, StatCardComponent, RunEnvironmentSelectComponent],
+  imports: [CommonModule, FormsModule, StatCardComponent, RunEnvironmentSelectComponent, AwDatePipe],
   templateUrl: './flow.component.html',
   styleUrls: ['./flow.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

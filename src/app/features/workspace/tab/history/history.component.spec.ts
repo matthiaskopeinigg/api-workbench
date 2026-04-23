@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { HistoryComponent } from './history.component';
-import { RequestHistoryService } from '@core/request-history.service';
-import { TabItem, TabType } from '@core/tab.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { TabItem, TabType } from '@core/tabs/tab.service';
 import { HttpMethod } from '@models/request';
 
 describe('HistoryComponent', () => {

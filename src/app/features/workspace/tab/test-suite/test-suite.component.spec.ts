@@ -1,12 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { TestSuiteComponent } from './test-suite.component';
-import { TestArtifactService } from '@core/test-artifact.service';
-import { TestSuiteRunnerService } from '@core/test-suite-runner.service';
-import { CollectionService } from '@core/collection.service';
-import { EnvironmentsService } from '@core/environments.service';
-import type { TabItem } from '@core/tab.service';
-import { TabType } from '@core/tab.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
+import { TestSuiteRunnerService } from '@core/testing/test-suite-runner.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import type { TabItem } from '@core/tabs/tab.service';
+import { TabType } from '@core/tabs/tab.service';
 import { NEW_TEST_SUITE } from '@models/testing/test-suite';
 import type { TestSuiteArtifact, CaseRunResult, SuiteRunResult, SnapshotAssertion } from '@models/testing/test-suite';
 import type { Folder } from '@models/collection';

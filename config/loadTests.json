@@ -2,12 +2,50 @@
   "items": [
     {
       "id": "a1000000-0000-4000-8000-000000000020",
-      "title": "Sample: JSONPlaceholder (light load)",
+      "title": "Sample: JSONPlaceholder (multi-profile)",
       "updatedAt": 1700000000000,
+      "activeProfileId": "p-light",
+      "profiles": [
+        {
+          "id": "p-light",
+          "name": "Light (default)",
+          "description": "A short run with a small RPS cap; good for a quick check.",
+          "isTemplate": true,
+          "config": {
+            "targets": [
+              { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
+            ],
+            "vus": 2,
+            "durationSec": 8,
+            "iterations": null,
+            "rampUpSec": 1,
+            "rpsCap": 5,
+            "thinkMs": 200,
+            "captureResponseDetails": false
+          }
+        },
+        {
+          "id": "p-stress",
+          "name": "Stress sample",
+          "description": "Higher VUs, no RPS cap — for experiments on a test environment only.",
+          "isTemplate": true,
+          "config": {
+            "targets": [
+              { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
+            ],
+            "vus": 12,
+            "durationSec": 20,
+            "iterations": null,
+            "rampUpSec": 4,
+            "rpsCap": null,
+            "thinkMs": 0,
+            "captureResponseDetails": false
+          }
+        }
+      ],
       "config": {
         "targets": [
-          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" },
-          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000011" }
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
         ],
         "vus": 2,
         "durationSec": 8,
@@ -20,13 +58,11 @@
     },
     {
       "id": "a1000000-0000-4000-8000-000000000032",
-      "title": "Complex: mixed targets + ramp",
+      "title": "Complex: ramp + RPS cap",
       "updatedAt": 1700000001000,
       "config": {
         "targets": [
-          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" },
-          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000012" },
-          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000016" }
+          { "kind": "saved", "requestId": "a1000000-0000-4000-8000-000000000010" }
         ],
         "vus": 3,
         "durationSec": 12,

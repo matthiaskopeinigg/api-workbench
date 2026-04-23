@@ -50,7 +50,7 @@
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
           <span class="stat-label">Started</span>
-          <span class="stat-value">{{ requestHistoryEntry.createdAt | date:'mediumTime' }}</span>
+          <span class="stat-value">{{ requestHistoryEntry.createdAt | awDate:'mediumTime' }}</span>
         </div>
 
         <div class="stat">
@@ -59,11 +59,11 @@
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           <span class="stat-label">Finished</span>
-          <span class="stat-value">{{ requestHistoryEntry.response.receivedAt | date:'mediumTime' }}</span>
+          <span class="stat-value">{{ requestHistoryEntry.response.receivedAt | awDate:'mediumTime' }}</span>
         </div>
 
         <div class="stat stat-date">
-          <span class="stat-value">{{ requestHistoryEntry.createdAt | date:'mediumDate' }}</span>
+          <span class="stat-value">{{ requestHistoryEntry.createdAt | awDate:'mediumDate' }}</span>
         </div>
       </div>
     </div>

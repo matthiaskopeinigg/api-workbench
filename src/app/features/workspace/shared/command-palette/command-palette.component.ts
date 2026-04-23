@@ -16,7 +16,7 @@ import {
   CommandRegistryService,
   searchCommands,
   CommandSearchResult,
-} from '@core/command-registry.service';
+} from '@core/commands/command-registry.service';
 
 /**
  * Global command palette. Opens with Ctrl/Cmd+K, closes with Escape. All

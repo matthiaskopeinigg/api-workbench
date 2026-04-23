@@ -10,9 +10,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
-import { TabItem } from '@core/tab.service';
-import { CollectionService } from '@core/collection.service';
-import { MockServerService } from '@core/mock-server.service';
+import { TabItem } from '@core/tabs/tab.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { MockServerService } from '@core/mock-server/mock-server.service';
 import { Collection, Folder } from '@models/collection';
 import { HttpMethod, MockVariant, Request as RequestModel } from '@models/request';
 import type {
@@ -22,6 +22,9 @@ import type {
   StandaloneMockEndpoint,
 } from '@models/electron';
 import { v4 as uuidv4 } from 'uuid';
+
+import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
+import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
 
 interface EndpointGroup {
   collectionId: string;
@@ -76,7 +79,7 @@ interface VariantLike {
 @Component({
   selector: 'app-mock-server',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DropdownComponent],
   templateUrl: './mock-server.component.html',
   styleUrl: './mock-server.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,6 +111,9 @@ export class MockServerComponent implements OnInit, OnDestroy {
   /** Form-bound port string (lets the user clear the field for "auto"). */
   portInput = '';
   showAdvanced = false;
+  /** When false, the activity log is hidden so the editor uses the full main column. */
+  activityPaneVisible = true;
+  private readonly activityPanePrefKey = 'aw.mockServer.showActivity';
   copied: 'baseUrl' | string | null = null;
 
   groups: EndpointGroup[] = [];
@@ -124,7 +130,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
   selectedStandaloneId: string | null = null;
   selectedStandalone: StandaloneMockEndpoint | null = null;
   selectionKind: SelectionKind = null;
-  readonly methodOptions = STANDALONE_METHODS;
+  /** Standalone route HTTP method (app-dropdown, same list as STANDALONE_METHODS). */
+  readonly standaloneMethodOptions: DropdownOption[] = STANDALONE_METHODS.map((m) => ({
+    label: m,
+    value: m,
+  }));
   readonly bodyTypeOptions: ReadonlyArray<BodyType> = [
     'json', 'xml', 'html', 'text', 'form', 'none', 'custom',
   ];
@@ -133,6 +143,30 @@ export class MockServerComponent implements OnInit, OnDestroy {
   hitFilter = '';
   methodFilter = '';
   statusFilter: '' | '2xx' | '3xx' | '4xx' | '5xx' = '';
+  /** Activity log method filter options (app-dropdown, not native select). */
+  readonly activityMethodOptions: DropdownOption[] = [
+    { label: 'Any method', value: '' },
+    { label: 'GET', value: 'GET' },
+    { label: 'POST', value: 'POST' },
+    { label: 'PUT', value: 'PUT' },
+    { label: 'PATCH', value: 'PATCH' },
+    { label: 'DELETE', value: 'DELETE' },
+    { label: 'OPTIONS', value: 'OPTIONS' },
+    { label: 'HEAD', value: 'HEAD' },
+  ];
+  readonly activityStatusOptions: DropdownOption[] = [
+    { label: 'Any status', value: '' },
+    { label: '2xx', value: '2xx' },
+    { label: '3xx', value: '3xx' },
+    { label: '4xx', value: '4xx' },
+    { label: '5xx', value: '5xx' },
+  ];
+  /** Advanced header: CORS policy (shared app-dropdown). */
+  readonly corsModeOptions: DropdownOption[] = [
+    { label: 'Off', value: 'off' },
+    { label: 'Allow all origins', value: 'all' },
+    { label: 'Allow listed origins', value: 'list' },
+  ];
   expandedHitId: string | null = null;
 
   /** Variant ids whose response-headers editor is currently expanded. */
@@ -148,6 +182,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
   ) {}
 
   async ngOnInit(): Promise<void> {
+    this.loadActivityPanePreference();
     this.collectionService
       .getCollectionsObservable()
       .pipe(takeUntil(this.destroy$))
@@ -195,7 +230,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   private async refreshStandalones(): Promise<void> {
     const list = await this.mockServer.listStandalone();
-    this.standalones = list;
+    this.standalones = list.map((e) => ({
+      ...e,
+      name: typeof e.name === 'string' ? e.name : '',
+    }));
     if (this.selectedStandaloneId) {
       this.selectedStandalone =
         list.find((e) => e.id === this.selectedStandaloneId) || null;
@@ -210,6 +248,31 @@ export class MockServerComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  private loadActivityPanePreference(): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+    try {
+      if (localStorage.getItem(this.activityPanePrefKey) === '0') {
+        this.activityPaneVisible = false;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  setActivityPaneVisible(visible: boolean): void {
+    this.activityPaneVisible = visible;
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.activityPanePrefKey, visible ? '1' : '0');
+      } catch {
+        // ignore
+      }
+    }
+    this.cdr.markForCheck();
   }
 
   private rebuildGroups(): void {
@@ -310,6 +373,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
     }
     const variantId = uuidv4();
     const created = await this.mockServer.registerStandalone({
+      name: '',
       method: 'GET',
       path,
       variants: [{
@@ -331,7 +395,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
       evt.stopPropagation();
       evt.preventDefault();
     }
-    const ok = window.confirm(`Delete standalone mock ${endpoint.method} ${endpoint.path}?`);
+    const label = endpoint.name?.trim() || `${endpoint.method} ${endpoint.path}`;
+    const ok = window.confirm(`Delete standalone mock “${label}”?`);
     if (!ok) return;
     await this.mockServer.unregisterStandalone(endpoint.id);
     if (this.selectedStandaloneId === endpoint.id) {
@@ -352,6 +417,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
     const s = this.selectedStandalone;
     const updated = await this.mockServer.registerStandalone({
       id: s.id,
+      name: s.name,
       method: s.method,
       path: s.path,
       variants: s.variants.map((v) => ({
@@ -367,6 +433,24 @@ export class MockServerComponent implements OnInit, OnDestroy {
     });
     if (updated) this.selectedStandalone = updated;
     await this.refreshStandalones();
+  }
+
+  onStandaloneMethodSelect(method: string): void {
+    if (!this.selectedStandalone) return;
+    this.selectedStandalone.method = method;
+    this.onStandaloneFieldChange();
+  }
+
+  /** Rail + editor title: custom name, or the path if the name is empty. */
+  standalonePrimaryLabel(e: StandaloneMockEndpoint): string {
+    const n = e.name.trim();
+    return n || e.path;
+  }
+
+  /** Tooltip for the rail row: name (if any) and the route. */
+  standaloneEntryTitle(e: StandaloneMockEndpoint): string {
+    const n = e.name.trim();
+    return n ? `${n} — ${e.method} ${e.path}` : `${e.method} ${e.path}`;
   }
 
   onStandaloneFieldChange(): void {
@@ -675,6 +759,22 @@ export class MockServerComponent implements OnInit, OnDestroy {
     } catch { /* ignore */ }
   }
 
+  onActivityMethodFilter(v: string | null | undefined): void {
+    this.methodFilter = v ?? '';
+    this.cdr.markForCheck();
+  }
+
+  onActivityStatusFilter(v: string | null | undefined): void {
+    this.statusFilter = (v || '') as typeof this.statusFilter;
+    this.cdr.markForCheck();
+  }
+
+  onCorsModeChange(v: string | null | undefined): void {
+    if (v !== 'off' && v !== 'all' && v !== 'list') return;
+    void this.onOptionChange('corsMode', v);
+    this.cdr.markForCheck();
+  }
+
   filteredHits(): MockHit[] {
     const filter = this.hitFilter.trim().toLowerCase();
     return this.hits.filter((h) => {
@@ -727,9 +827,27 @@ export class MockServerComponent implements OnInit, OnDestroy {
   }
 
   formatTime(ms: number): string {
-    if (!ms) return '';
-    const d = new Date(ms);
-    return d.toLocaleTimeString();
+    return formatTimestampForUi(ms, 'mediumTime');
+  }
+
+  /** Reconstructs a raw-style HTTP request for the activity log. */
+  formatFullRequest(hit: MockHit): string {
+    const pathQ = (hit.path || '/').split('?');
+    const pathLine = pathQ[0] + (pathQ[1] != null && pathQ[1] !== '' ? `?${pathQ[1]}` : '');
+    const first = `${hit.method} ${pathLine} HTTP/1.1`;
+    const hdrs = (hit.reqHeaders || [])
+      .map((h) => `${h.key}: ${h.value}`)
+      .join('\n');
+    if (hdrs) {
+      if (hit.reqBody == null || hit.reqBody === '') {
+        return `${first}\n${hdrs}`;
+      }
+      return `${first}\n${hdrs}\n\n${hit.reqBody}`;
+    }
+    if (hit.reqBody != null && hit.reqBody !== '') {
+      return `${first}\n\n${hit.reqBody}`;
+    }
+    return first;
   }
 
   toggleAdvanced(): void {
