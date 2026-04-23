@@ -37,6 +37,14 @@ export type UpdaterState =
   | 'error'
   | 'disabled';
 
+/** One row from GitHub releases (for the update version picker). */
+export interface UpdaterReleaseSummary {
+  tag: string;
+  version: string;
+  prerelease: boolean;
+  name: string;
+}
+
 export interface UpdaterStatus {
   state: UpdaterState;
   currentVersion: string;
@@ -126,6 +134,7 @@ export interface AwElectronApi {
   getOAuth2ClientCredentials: (config: OAuth2ClientCredentialsConfig) => Promise<Record<string, unknown>>;
 
   getUpdaterStatus: () => Promise<UpdaterStatus>;
+  listUpdaterReleases: () => Promise<UpdaterReleaseSummary[]>;
   checkForUpdates: () => Promise<UpdaterStatus>;
   downloadUpdate: () => Promise<UpdaterStatus>;
   installUpdate: () => void;

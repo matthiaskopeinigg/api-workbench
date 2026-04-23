@@ -11,6 +11,7 @@ const path = require('path');
 const https = require('https');
 const { logInfo, logError } = require('./logger.service');
 const { getMainWindow } = require('./window.service');
+const storeService = require('./store.service');
 
 let autoUpdater = null;
 try {
@@ -135,12 +136,26 @@ function compareVersionTags(a, b) {
     return pa.prerelease.localeCompare(pb.prerelease);
 }
 
+function readUpdateSettings() {
+    try {
+        const s = storeService.getSettings();
+        const u = s?.updates || {};
+        return {
+            allowPrerelease: u.allowPrerelease === true,
+            allowDowngrade: u.allowDowngrade === true,
+            targetRelease: typeof u.targetRelease === 'string' ? u.targetRelease.trim() : 'latest',
+        };
+    } catch {
+        return { allowPrerelease: false, allowDowngrade: false, targetRelease: 'latest' };
+    }
+}
+
 /**
  * Unpackaged builds: compare app version to published GitHub releases (no electron-updater feed).
  */
 async function checkGitHubReleasesForDev() {
     const { owner, repo } = readGithubRepoFromPackageJson();
-    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=15`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=30`;
     const res = await httpsGet(url);
     if (!res.ok) {
         throw new Error(`GitHub releases request failed (${res.statusCode})`);
@@ -154,10 +169,35 @@ async function checkGitHubReleasesForDev() {
     if (!Array.isArray(arr) || arr.length === 0) {
         throw new Error('No releases returned from GitHub');
     }
+    const { allowPrerelease, targetRelease } = readUpdateSettings();
+    const wantLatest = !targetRelease || targetRelease.toLowerCase() === 'latest';
+
+    if (!wantLatest) {
+        const needle = targetRelease.replace(/^v/i, '').trim();
+        const match = arr.find((r) => {
+            if (r.draft) return false;
+            const tag = String(r.tag_name || '').replace(/^v/i, '').trim();
+            return tag === needle;
+        });
+        if (!match) {
+            throw new Error(`No GitHub release found for version "${needle}"`);
+        }
+        const bestTag = String(match.tag_name || '').replace(/^v/i, '').trim();
+        const current = getCurrentVersion();
+        const cmp = compareVersionTags(bestTag, current);
+        return {
+            remoteVersion: bestTag,
+            current,
+            newer: cmp > 0,
+            releaseNotes: match.body || null,
+        };
+    }
+
     let bestTag = null;
     let bestRelease = null;
     for (const r of arr) {
         if (r.draft) continue;
+        if (r.prerelease && !allowPrerelease) continue;
         const tag = String(r.tag_name || '').replace(/^v/i, '').trim();
         if (!tag) continue;
         if (bestTag == null || compareVersionTags(tag, bestTag) > 0) {
@@ -194,6 +234,77 @@ function pushStatus(state, info = null) {
     }
 }
 
+/**
+ * Applies Settings → About → update policy to electron-updater (packaged builds only).
+ * Call after startup and whenever settings are saved.
+ */
+function applyFromStoredSettings() {
+    if (!app.isPackaged || !autoUpdater) {
+        return;
+    }
+    const { allowPrerelease, allowDowngrade, targetRelease } = readUpdateSettings();
+    const wantLatest = !targetRelease || targetRelease.toLowerCase() === 'latest';
+    const { owner, repo } = readGithubRepoFromPackageJson();
+
+    autoUpdater.allowPrerelease = allowPrerelease;
+    autoUpdater.allowDowngrade = allowDowngrade === true || !wantLatest;
+
+    let feedLabel = 'github:latest';
+    if (wantLatest) {
+        autoUpdater.setFeedURL({
+            provider: 'github',
+            owner,
+            repo,
+        });
+    } else {
+        const ver = String(targetRelease).replace(/^v/i, '').trim();
+        const tagForUrl = String(targetRelease).trim().match(/^v/i) ? String(targetRelease).trim() : `v${ver}`;
+        const base = `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(tagForUrl)}`;
+        const url = base.endsWith('/') ? base : `${base}/`;
+        feedLabel = `generic:${tagForUrl}`;
+        autoUpdater.setFeedURL({
+            provider: 'generic',
+            url,
+        });
+    }
+
+    logInfo('Updater preferences applied', {
+        allowPrerelease,
+        allowDowngrade: autoUpdater.allowDowngrade,
+        feed: feedLabel,
+    });
+}
+
+/** @returns {Promise<Array<{ tag: string; version: string; prerelease: boolean; name: string }>>} */
+async function listPublishedReleases() {
+    const { owner, repo } = readGithubRepoFromPackageJson();
+    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=40`;
+    const res = await httpsGet(url);
+    if (!res.ok) {
+        throw new Error(`GitHub releases request failed (${res.statusCode})`);
+    }
+    let arr;
+    try {
+        arr = JSON.parse(res.body);
+    } catch {
+        throw new Error('Invalid response from GitHub releases API');
+    }
+    if (!Array.isArray(arr)) {
+        return [];
+    }
+    const rows = arr
+        .filter((r) => !r.draft && r.tag_name)
+        .map((r) => ({
+            tag: String(r.tag_name),
+            version: String(r.tag_name).replace(/^v/i, '').trim(),
+            prerelease: !!r.prerelease,
+            name: r.name ? String(r.name) : '',
+        }))
+        .filter((r) => r.version);
+    rows.sort((a, b) => compareVersionTags(b.version, a.version));
+    return rows;
+}
+
 function init() {
     if (!app.isPackaged) {
         pushStatus(STATE.IDLE, { devReadOnly: true });
@@ -208,8 +319,6 @@ function init() {
     // Download in the background as soon as an update is found (no manual “Download” step).
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    // Stable channel: only non–pre-release GitHub releases (future betas stay off the default feed).
-    autoUpdater.allowPrerelease = false;
 
     autoUpdater.on('checking-for-update', () => pushStatus(STATE.CHECKING));
     autoUpdater.on('update-available', (info) =>
@@ -239,6 +348,7 @@ function init() {
         pushStatus(STATE.ERROR, { message: err?.message || String(err) });
     });
 
+    applyFromStoredSettings();
     logInfo('Updater service initialized');
 }
 
@@ -269,6 +379,7 @@ async function checkForUpdates() {
     if (!autoUpdater) return getStatus();
 
     try {
+        applyFromStoredSettings();
         await autoUpdater.checkForUpdates();
     } catch (err) {
         if (isMissingUpdateChannelFileError(err)) {
@@ -311,5 +422,7 @@ module.exports = {
     checkForUpdates,
     downloadUpdate,
     quitAndInstall,
+    applyFromStoredSettings,
+    listPublishedReleases,
     STATE,
 };

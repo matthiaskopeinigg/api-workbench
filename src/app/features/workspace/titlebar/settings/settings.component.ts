@@ -58,6 +58,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     { label: 'Expand Only', value: 'expand' }
   ];
 
+  /** GitHub releases for Settings → About → update version picker (first entry is always Latest). */
+  releasePickerOptions: DropdownOption[] = [{ label: 'Latest (default feed)', value: 'latest' }];
+
   defaultRequestEditorSectionOptions: DropdownOption[] = [
     { label: 'Params', value: 'params' as RequestEditorSection },
     { label: 'Headers', value: 'headers' as RequestEditorSection },
@@ -170,6 +173,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.loadSettings();
+    void this.refreshReleasePickerOptions();
     await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
     await this.environmentsService.loadEnvironments();
     this.rebuildHeaderFieldVariables();
@@ -350,6 +354,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
         user: [settings?.proxy?.user ?? ''],
         password: [settings?.proxy?.password ?? ''],
         noProxy: [settings?.proxy?.noProxy ?? []]
+      }),
+
+      updates: this.fb.group({
+        allowPrerelease: [settings?.updates?.allowPrerelease ?? false],
+        allowDowngrade: [settings?.updates?.allowDowngrade ?? false],
+        targetRelease: [settings?.updates?.targetRelease ?? 'latest'],
       }),
     });
 
@@ -944,6 +954,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (tab === 'data') {
       void this.refreshStorageInfo();
     }
+    if (tab === 'about') {
+      void this.refreshReleasePickerOptions();
+    }
+  }
+
+  async refreshReleasePickerOptions(): Promise<void> {
+    const base: DropdownOption[] = [{ label: 'Latest (default feed)', value: 'latest' }];
+    try {
+      const rows = await this.updateService.listUpdaterReleases();
+      for (const r of rows) {
+        const label = r.prerelease ? `${r.tag} (pre-release)` : r.tag;
+        base.push({ label, value: r.version });
+      }
+      const cur = this.settingsForm?.get('updates.targetRelease')?.value as string | undefined;
+      if (cur && cur !== 'latest' && !base.some((o) => o.value === cur)) {
+        base.push({ label: `Pinned: ${cur}`, value: cur });
+      }
+      this.releasePickerOptions = base;
+    } catch {
+      this.releasePickerOptions = base;
+    }
+    this.cdr.markForCheck();
   }
 
   async refreshStorageInfo(): Promise<void> {

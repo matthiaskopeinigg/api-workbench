@@ -1,6 +1,6 @@
 import { Injectable, NgZone, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import type { UpdaterStatus } from '../../../shared/electron';
+import type { UpdaterReleaseSummary, UpdaterStatus } from '../../../shared/electron';
 
 /**
  * Bridges the Electron `updater:*` IPC surface to the Angular world as a single
@@ -44,6 +44,17 @@ export class UpdateService implements OnDestroy {
     this.unsubscribe = api.onUpdaterStatus((status) => {
       this.zone.run(() => this.status$.next(status));
     });
+  }
+
+  async listUpdaterReleases(): Promise<UpdaterReleaseSummary[]> {
+    const api = window.awElectron;
+    if (!api?.listUpdaterReleases) return [];
+    try {
+      return await api.listUpdaterReleases();
+    } catch (err) {
+      console.error('Failed to list updater releases', err);
+      return [];
+    }
   }
 
   async checkForUpdates(): Promise<void> {

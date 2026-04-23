@@ -3,6 +3,7 @@ const updater = require('../services/updater.service');
 
 function registerUpdaterIpcHandlers() {
     ipcMain.handle('updater:get-status', () => updater.getStatus());
+    ipcMain.handle('updater:list-releases', () => updater.listPublishedReleases());
     ipcMain.handle('updater:check', () => updater.checkForUpdates());
     ipcMain.handle('updater:download', () => updater.downloadUpdate());
     ipcMain.on('updater:install', () => updater.quitAndInstall());

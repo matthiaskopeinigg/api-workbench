@@ -9,8 +9,29 @@ export interface Settings {
   dns: DnsSettings;
   proxy: ProxySettings;
   logging: LoggingSettings;
+  /** Auto-update policy (packaged app only; GitHub releases feed). */
+  updates?: UpdateSettings;
   /** Optional keyboard chord overrides (action id → chord, e.g. Mod+KeyK). */
   keyboard?: KeyboardSettings;
+}
+
+/** Controls electron-updater behavior for GitHub-published builds. */
+export interface UpdateSettings {
+  /**
+   * When true, pre-releases on GitHub (e.g. SNAPSHOT, beta) are considered when
+   * resolving the newest update. When false, only stable (non–pre-release) releases are.
+   */
+  allowPrerelease: boolean;
+  /**
+   * When true, allows moving to an older semver than the running app when the feed
+   * offers it (e.g. returning to a stable line after testing a snapshot).
+   */
+  allowDowngrade: boolean;
+  /**
+   * `"latest"` = default GitHub provider feed (newest version matching the flags above).
+   * Otherwise an app version string without a leading `v` (e.g. `1.0.1`) to pin updates to that release’s artifacts.
+   */
+  targetRelease: string;
 }
 
 /** Per-action chord overrides; omitted keys use built-in defaults from the shortcut catalog. */

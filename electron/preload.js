@@ -49,6 +49,7 @@ const awElectron = {
   getOAuth2ClientCredentials: (config) => ipcRenderer.invoke('get-oauth2-client-credentials', config),
 
   getUpdaterStatus: () => ipcRenderer.invoke('updater:get-status'),
+  listUpdaterReleases: () => ipcRenderer.invoke('updater:list-releases'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.send('updater:install'),

@@ -12,6 +12,7 @@ Full file-level diff since **v1.0.1**:
 
 ### Added
 
+- **Settings → About → Update channel** — optional pre-releases, allow downgrade to older installs, pin the updater to a specific GitHub release (version picker with refresh), applied to the packaged auto-updater.
 - **Workspace tab layout** — split the tab workspace into panes, with split preview and dock strips for predictable docking.
 - **Tab pane** — dedicated tab strip / pane for workspace tabs, including drag-and-drop reorder within a strip and **moves between panes**.
 - **Keyboard shortcuts** — persisted bindings, central shortcut service with **chord** parsing, and a catalog of default actions.
