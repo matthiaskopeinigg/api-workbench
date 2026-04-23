@@ -89,6 +89,8 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   showSnippets = false;
   requestTabsHeight = 400;
   private isResizing = false;
+  /** True while window-level listeners for request/response splitter are attached. */
+  private responseResizeGestureArmed = false;
   isRequestHidden = false;
   isResponseHidden = false;
 
@@ -265,6 +267,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.endResponseResizeGesture();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -1197,11 +1200,33 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   onResizeStart(event: MouseEvent) {
+    if (this.responseResizeGestureArmed) return;
     this.isResizing = true;
+    this.responseResizeGestureArmed = true;
     event.preventDefault();
-    document.addEventListener('mousemove', this.onResizeMove);
-    document.addEventListener('mouseup', this.onResizeEnd);
+    window.addEventListener('mousemove', this.onResizeMove, true);
+    window.addEventListener('mouseup', this.onResizeEnd, true);
+    window.addEventListener('blur', this.onResizeEnd, true);
+    document.addEventListener('visibilitychange', this.onResizeVisibilityEnd);
     document.body.style.cursor = 'row-resize';
+  }
+
+  private onResizeVisibilityEnd = () => {
+    if (document.visibilityState === 'hidden') {
+      this.onResizeEnd();
+    }
+  };
+
+  /** Removes splitter listeners and restores cursor (idempotent). */
+  private endResponseResizeGesture(): void {
+    if (!this.responseResizeGestureArmed) return;
+    this.responseResizeGestureArmed = false;
+    this.isResizing = false;
+    window.removeEventListener('mousemove', this.onResizeMove, true);
+    window.removeEventListener('mouseup', this.onResizeEnd, true);
+    window.removeEventListener('blur', this.onResizeEnd, true);
+    document.removeEventListener('visibilitychange', this.onResizeVisibilityEnd);
+    document.body.style.cursor = '';
   }
 
   responseHeight = 300;
@@ -1230,10 +1255,8 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   };
 
   onResizeEnd = () => {
-    this.isResizing = false;
-    document.removeEventListener('mousemove', this.onResizeMove);
-    document.removeEventListener('mouseup', this.onResizeEnd);
-    document.body.style.cursor = '';
+    if (!this.responseResizeGestureArmed) return;
+    this.endResponseResizeGesture();
     this.persistViewState({
       responseHeight: this.responseHeight,
       isResponseHidden: this.isResponseHidden,

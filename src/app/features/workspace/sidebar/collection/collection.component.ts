@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { v4 as uuidv4 } from 'uuid';
 import { Subject, takeUntil } from 'rxjs';
@@ -76,7 +76,8 @@ export class CollectionComponent implements OnInit, OnDestroy {
     private importService: ImportService,
     private runnerDialogService: RunnerDialogService,
     private viewState: ViewStateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private hostRef: ElementRef<HTMLElement>
   ) { }
 
   /**
@@ -282,8 +283,32 @@ export class CollectionComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.abandonSidebarNativeDrag();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  @HostListener('document:visibilitychange')
+  onDocumentVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.abandonSidebarNativeDrag();
+    }
+  }
+
+  /** Removes `aw-dragging` and any `.dragging` row chrome (safe if drag already ended). */
+  private endSidebarNativeDragChrome(): void {
+    document.body.classList.remove('aw-dragging');
+    const root = this.hostRef?.nativeElement;
+    if (!root) return;
+    root.querySelectorAll('.dragging').forEach((el) => el.classList.remove('dragging'));
+  }
+
+  /** Clears drag model + UI when the tab is hidden or the component is destroyed. */
+  private abandonSidebarNativeDrag(): void {
+    this.draggedItem = null;
+    this.dragOverId = null;
+    this.dragOverDeniedId = null;
+    this.endSidebarNativeDragChrome();
   }
 
   private loadExpandedState() {
@@ -831,8 +856,8 @@ export class CollectionComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.draggedItem = { id, type, parentId };
 
-    const target = event.target as HTMLElement;
-    target.classList.add('dragging');
+    const row = event.currentTarget as HTMLElement | null;
+    row?.classList.add('dragging');
     document.body.classList.add('aw-dragging');
 
     let label = type === 'request' ? 'Request' : type === 'folder' ? 'Folder' : 'Collection';
@@ -1022,68 +1047,71 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.dragOverId = null;
     this.dragOverDeniedId = null;
 
-    if (!this.draggedItem) return;
-
-    if (!this.isValidDrop(targetId, targetType, event)) {
-      this.triggerDeniedAnimation(targetId);
-      this.draggedItem = null;
+    if (!this.draggedItem) {
+      this.endSidebarNativeDragChrome();
       return;
     }
 
-    this.triggerDropAnimation(targetId);
-
-    const { id, type, parentId } = this.draggedItem;
-
-    if (type === 'folder' && targetType === 'folder' && event.altKey) {
-      const srcCtx = this.findFolderListContext(id);
-      const dstCtx = this.findFolderListContext(targetId);
-      if (srcCtx && dstCtx && srcCtx.siblings === dstCtx.siblings) {
-        if (this.reorderFolderBeforeTarget(srcCtx.siblings, srcCtx.index, dstCtx.index)) {
-          await this.saveCollections();
-        }
-        this.collections = this.collectionService.getCollections();
+    try {
+      if (!this.isValidDrop(targetId, targetType, event)) {
+        this.triggerDeniedAnimation(targetId);
         this.draggedItem = null;
         return;
       }
-    }
 
-    if (parentId === targetId) {
-      this.draggedItem = null;
-      return;
-    }
+      this.triggerDropAnimation(targetId);
 
-    const isTargetCollection = targetType === 'collection';
+      const { id, type, parentId } = this.draggedItem;
 
-    if (type === 'request') {
-      await this.collectionService.moveRequest(id, targetId, isTargetCollection);
-    } else if (type === 'folder') {
-      await this.collectionService.moveFolder(id, targetId, isTargetCollection);
-    } else if (type === 'collection' && isTargetCollection) {
-
-      const collections = this.collectionService.getCollections();
-      const fromIdx = collections.findIndex(c => c.id === id);
-      const toIdx = collections.findIndex(c => c.id === targetId);
-
-      if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-        const item = collections.splice(fromIdx, 1)[0];
-        collections.splice(toIdx, 0, item);
-        await this.collectionService.saveCollections(collections);
+      if (type === 'folder' && targetType === 'folder' && event.altKey) {
+        const srcCtx = this.findFolderListContext(id);
+        const dstCtx = this.findFolderListContext(targetId);
+        if (srcCtx && dstCtx && srcCtx.siblings === dstCtx.siblings) {
+          if (this.reorderFolderBeforeTarget(srcCtx.siblings, srcCtx.index, dstCtx.index)) {
+            await this.saveCollections();
+          }
+          this.collections = this.collectionService.getCollections();
+          this.draggedItem = null;
+          return;
+        }
       }
-    }
 
-    this.collections = this.collectionService.getCollections();
-    this.draggedItem = null;
+      if (parentId === targetId) {
+        this.draggedItem = null;
+        return;
+      }
+
+      const isTargetCollection = targetType === 'collection';
+
+      if (type === 'request') {
+        await this.collectionService.moveRequest(id, targetId, isTargetCollection);
+      } else if (type === 'folder') {
+        await this.collectionService.moveFolder(id, targetId, isTargetCollection);
+      } else if (type === 'collection' && isTargetCollection) {
+
+        const collections = this.collectionService.getCollections();
+        const fromIdx = collections.findIndex(c => c.id === id);
+        const toIdx = collections.findIndex(c => c.id === targetId);
+
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          const item = collections.splice(fromIdx, 1)[0];
+          collections.splice(toIdx, 0, item);
+          await this.collectionService.saveCollections(collections);
+        }
+      }
+
+      this.collections = this.collectionService.getCollections();
+      this.draggedItem = null;
+    } finally {
+      this.endSidebarNativeDragChrome();
+    }
   }
 
-  onDragEnd(event: DragEvent) {
+  onDragEnd(_event: DragEvent) {
     this.draggedItem = null;
     this.dragOverId = null;
     this.dragOverDeniedId = null;
-    document.body.classList.remove('aw-dragging');
-    const target = event.target as HTMLElement;
-    if (target && target.classList) {
-      target.classList.remove('dragging');
-    }
+    this.endSidebarNativeDragChrome();
   }
 }
 
