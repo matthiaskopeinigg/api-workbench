@@ -188,6 +188,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  min-height: 0;
   padding: 10px 12px 14px;
   display: flex;
   flex-direction: column;
@@ -567,10 +568,17 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  /* Required so this grid cell can shrink inside .lt-body; otherwise chart flex + % heights grow without bound (split panes). */
+  min-height: 0;
   padding: 10px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  /* Keep each results block from flex-shrinking to 0 (charts then paint under the next section). */
+  & > * {
+    flex-shrink: 0;
+  }
 
   .empty-result {
     color: color-mix(in srgb, var(--text-color), transparent 40%);
@@ -863,6 +871,9 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  min-height: 0;
+  /* Avoid `container-type` on this wrapper: it applies containment and a stacking context so
+     following sections (status mix, slowest table) can paint over the chart area in the viewport. */
 }
 
 .lt-charts-toolbar {
@@ -878,8 +889,10 @@
 }
 
 .charts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Column flex avoids grid `auto-fit` / `min()` track sizing quirks that can collapse the plot
+     area so the following section (HTTP status mix) stacks on top of the chart in the viewport. */
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   min-width: 0;
   min-height: 0;
@@ -892,8 +905,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-height: 148px;
     min-width: 0;
+    min-height: 280px;
 
     h5 {
       margin: 0;
@@ -910,13 +923,12 @@
       color: color-mix(in srgb, var(--text-color), transparent 38%);
     }
 
-    aw-time-series-chart { flex: 1 1 auto; min-height: 110px; }
-  }
-}
-
-@media (max-width: 900px) {
-  .charts {
-    grid-template-columns: 1fr;
+    aw-time-series-chart {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+      min-height: 240px;
+    }
   }
 }
 

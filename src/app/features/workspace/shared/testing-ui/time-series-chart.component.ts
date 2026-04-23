@@ -34,6 +34,9 @@ export interface TimeSeriesViewRange {
 
 const PAD = { l: 36, r: 12, t: 6, b: 20 };
 
+/** When flex/grid still yields a 0px box, inline sizing recovers on next frame. */
+const CANVAS_FALLBACK_CSS_PX = 220;
+
 /**
  * Dependency-free line chart. Supports an optional time-range “brush”
  * (drag to zoom) and a displayed window via {@link #viewRange}.
@@ -68,6 +71,8 @@ export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDes
 
   private rafHandle: number | null = null;
   private resizeObs?: ResizeObserver;
+  /** One-shot inline sizing when layout still reports 0×0 (avoids infinite RAF). */
+  private canvasLayoutFallbackApplied = false;
 
   private drag:
     | { startIdx: number; curX: number; curIdx: number; active: boolean }
@@ -198,15 +203,48 @@ export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDes
     canvas: HTMLCanvasElement,
   ): number {
     const w = canvas.clientWidth;
-    const innerW = w - PAD.l - PAD.r;
+    const h = canvas.clientHeight;
+    const { padL, innerW } = this.plotPads(w, h);
     if (innerW <= 0 || viewCount < 1) {
       return 0;
     }
-    const t = (offsetX - PAD.l) / innerW;
+    const t = (offsetX - padL) / innerW;
     const clamped = Math.max(0, Math.min(1, t));
     const xLen = Math.max(1, viewCount - 1);
     const local = Math.round(clamped * xLen);
     return Math.max(0, Math.min(fullLen - 1, viewOffset + local));
+  }
+
+  /**
+   * Shrinks default padding when the canvas is squeezed (split panes, two-up grid).
+   * Without this, cssW − padL − padR can be ≤ 0 and {@link #draw} clears then returns → blank plot.
+   */
+  private plotPads(cssW: number, cssH: number): {
+    padL: number;
+    padR: number;
+    padT: number;
+    padB: number;
+    innerW: number;
+    innerH: number;
+  } {
+    let padL = PAD.l;
+    let padR = PAD.r;
+    let padT = PAD.t;
+    let padB = PAD.b;
+    for (let i = 0; i < 16; i++) {
+      const innerW = cssW - padL - padR;
+      const innerH = cssH - padT - padB;
+      if (innerW >= 28 && innerH >= 28) {
+        return { padL, padR, padT, padB, innerW, innerH };
+      }
+      padL = Math.max(4, padL - 3);
+      padR = Math.max(4, padR - 2);
+      padT = Math.max(2, padT - 1);
+      padB = Math.max(6, padB - 2);
+    }
+    const innerW = Math.max(1, cssW - padL - padR);
+    const innerH = Math.max(1, cssH - padT - padB);
+    return { padL, padR, padT, padB, innerW, innerH };
   }
 
   private draw(): void {
@@ -214,9 +252,19 @@ export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDes
     if (!canvas) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.clientWidth;
-    const cssH = canvas.clientHeight;
-    if (cssW < 4 || cssH < 4) return;
+    let cssW = canvas.clientWidth;
+    let cssH = canvas.clientHeight;
+    if (cssW < 4 || cssH < 4) {
+      if (!this.canvasLayoutFallbackApplied) {
+        this.canvasLayoutFallbackApplied = true;
+        canvas.style.boxSizing = 'border-box';
+        canvas.style.width = '100%';
+        canvas.style.minHeight = `${CANVAS_FALLBACK_CSS_PX}px`;
+        canvas.style.height = `${CANVAS_FALLBACK_CSS_PX}px`;
+        requestAnimationFrame(() => this.scheduleDraw());
+      }
+      return;
+    }
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
 
@@ -225,13 +273,15 @@ export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDes
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const padL = PAD.l;
-    const padR = PAD.r;
-    const padT = PAD.t;
-    const padB = PAD.b;
-    const innerW = cssW - padL - padR;
-    const innerH = cssH - padT - padB;
-    if (innerW <= 0 || innerH <= 0) return;
+    const { padL, padR, padT, padB, innerW, innerH } = this.plotPads(cssW, cssH);
+    if (innerW <= 0 || innerH <= 0) {
+      ctx.fillStyle = 'rgba(160,160,160,0.75)';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Chart area too small', cssW / 2, cssH / 2);
+      return;
+    }
 
     const fullXs = this.xs;
     const { offset, count } = this.getViewMeta();
@@ -282,10 +332,11 @@ export class TimeSeriesChartComponent implements AfterViewInit, OnChanges, OnDes
     ctx.font = '10px system-ui';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
+    const yTickX = Math.max(2, padL - 6);
     for (let i = 0; i <= 4; i++) {
       const v = max - ((max - min) * i) / 4;
       const y = padT + (innerH * i) / 4;
-      ctx.fillText(v >= 100 ? v.toFixed(0) : v.toFixed(1), padL - 6, y);
+      ctx.fillText(v >= 100 ? v.toFixed(0) : v.toFixed(1), yTickX, y);
     }
 
     const t0 = sliceXs[0];

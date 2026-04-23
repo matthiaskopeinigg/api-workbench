@@ -149,7 +149,7 @@
     <li *ngFor="let request of parent.requests; trackBy: trackById" class="request"
       [class.selected]="selectedRequestId === request.id" draggable="true"
       (dragstart)="onDragStart($event, request.id, 'request', parent.id)" (dragend)="onDragEnd($event)"
-      (contextmenu)="openRequestMenu($event, request.id)" (click)="selectRequest(request)">
+      (contextmenu)="openRequestMenu($event, request.id)" (click)="selectRequest(request, $event)">
 
       <div class="request-left">
         <span class="request-method-box" *ngIf="!hideRequestMethod" [ngClass]="HttpMethod[request.httpMethod]">{{

@@ -923,6 +923,7 @@
   }
 }
 
+/* Absolute to :host so split panes each get a pill centered in that editor, not the whole window. */
 .btn-show-section {
   display: flex;
   align-items: center;
@@ -939,7 +940,7 @@
     border-color var(--aw-duration-fast, 120ms) ease,
     color var(--aw-duration-fast, 120ms) ease,
     box-shadow var(--aw-duration-fast, 120ms) ease;
-  position: fixed;
+  position: absolute;
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%);

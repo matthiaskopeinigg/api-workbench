@@ -1,0 +1,174 @@
+<div class="pane-shell" [class.is-focused]="isFocused" (mousedown)="onPaneSurfaceMouseDown()">
+  <ng-container class="tab-list">
+    <div class="tabs-bar disable-select" [class.active]="tabs.length > 0">
+
+      <button type="button" class="scroll-button" *ngIf="canScrollLeft" (click)="scrollLeft()" title="Scroll tabs left"
+        aria-label="Scroll tabs left">
+        ‹
+      </button>
+
+      <div class="tabs-container" #tabsContainer (scroll)="updateScrollButtons()"
+        (dragover)="onTabsStripDragOver($event)" (drop)="onTabsStripDrop($event)">
+        <div class="tabs">
+          <div *ngFor="let tab of tabs; let i = index; trackBy: trackByTabId" class="tab"
+            [attr.data-tab-id]="tab.id"
+            [class.active]="selectedTabIndex === i" [class.dragging]="draggedIndex === i" [class.is-pinned]="tab.pinned"
+            draggable="true"
+            (click)="selectTab(i)" (contextmenu)="openContextMenu($event, i)" (dragstart)="onDragStart($event, i)"
+            (dragover)="onDragOver($event, i)" (drop)="onDrop($event)" (dragend)="onDragEnd()">
+            <span class="tab-pin" *ngIf="tab.pinned" title="Pinned" aria-label="Pinned"></span>
+            <span class="tab-title">{{ tab.title }}</span>
+            <span class="tab-dirty-dot" *ngIf="tab.dirty" title="Unsaved changes" aria-hidden="true"></span>
+            <button type="button" class="close-tab" (click)="requestCloseTab(i, $event)" title="Close tab"
+              [attr.aria-label]="'Close tab: ' + tab.title">×</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="scroll-button" *ngIf="canScrollRight" (click)="scrollRight()" title="Scroll tabs right"
+        aria-label="Scroll tabs right">
+        ›
+      </button>
+    </div>
+  </ng-container>
+
+  @if (tabs[selectedTabIndex]; as activeTab) {
+    <div class="tab-content">
+      @if (activeTab.type === TabType.ENVIRONMENT && isEnvironmentTab(activeTab)) {
+        @defer {
+          <app-environment [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+              <div class="defer-skeleton-line defer-shimmer"></div>
+            </div>
+            <span class="defer-label">Loading…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.REQUEST_HISTORY_ENTRY && isRequestHistoryEntryTab(activeTab)) {
+        @defer {
+          <app-history [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+            </div>
+            <span class="defer-label">Loading…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.REQUEST && isRequestTab(activeTab)) {
+        @defer {
+          <app-request
+            [tab]="activeTab"
+            [workspacePaneId]="paneId"
+            [paneEnvironmentOverrideId]="paneEnvironmentOverrideId"
+            (paneEnvironmentOverrideChange)="emitPaneEnvOverride($event)"
+            (tabDirtyChange)="emitTabDirty(activeTab.id, $event)" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer med"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+            </div>
+            <span class="defer-label">Loading editor…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.FOLDER && isFolderTab(activeTab)) {
+        @defer {
+          <app-folder [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+            </div>
+            <span class="defer-label">Loading…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.WEBSOCKET && isWebSocketTab(activeTab)) {
+        @defer {
+          <app-websocket [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+            </div>
+            <span class="defer-label">Loading WebSocket…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.MOCK_SERVER && isMockServerTab(activeTab)) {
+        @defer {
+          <app-mock-server [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <div class="defer-skeleton">
+              <div class="defer-skeleton-line defer-shimmer"></div>
+              <div class="defer-skeleton-line defer-shimmer short"></div>
+            </div>
+            <span class="defer-label">Loading Mock Server…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.LOAD_TEST && isLoadTestTab(activeTab)) {
+        <app-load-test [tab]="activeTab" />
+      } @else if (activeTab.type === TabType.TEST_SUITE && isTestSuiteTab(activeTab)) {
+        @defer {
+          <app-test-suite [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <span class="defer-label">Loading Test Suite…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.CONTRACT_TEST && isContractTestTab(activeTab)) {
+        @defer {
+          <app-contract-test [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <span class="defer-label">Loading Contract Test…</span>
+          </div>
+        }
+      } @else if (activeTab.type === TabType.FLOW && isFlowTab(activeTab)) {
+        @defer {
+          <app-flow [tab]="activeTab" />
+        } @placeholder {
+          <div class="tab-defer-placeholder" role="status" aria-live="polite">
+            <span class="defer-label">Loading Flow…</span>
+          </div>
+        }
+      } @else {
+        <h3>{{ activeTab.title }}</h3>
+        <p>No content defined for this tab type.</p>
+      }
+    </div>
+  }
+</div>
+
+<div class="context-menu-overlay" *ngIf="contextMenuVisible" (click)="closeContextMenu()"
+  (contextmenu)="closeContextMenu(); $event.preventDefault()">
+  <div class="context-menu" [style.left.px]="menuX" [style.top.px]="menuY" (click)="$event.stopPropagation()">
+    <div class="menu-item" *ngIf="contextMenuTabIsRequest()" (click)="emitDuplicateRequest()">Duplicate tab</div>
+    <div class="menu-item" (click)="emitPinToggle()">
+      {{ contextMenuTabPinned() ? 'Unpin tab' : 'Pin tab' }}
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" (click)="emitSplitRight()">Split right</div>
+    <div class="menu-item" (click)="emitSplitLeft()">Split left</div>
+    <div class="menu-divider" *ngIf="splitMode"></div>
+    <div class="menu-item" *ngIf="splitMode" (click)="emitToggleSplitOrientation()">
+      {{ splitOrientation === 'vertical' ? 'Horizontal split' : 'Vertical split' }}
+    </div>
+    <div class="menu-divider" *ngIf="splitMode"></div>
+    <div class="menu-item" *ngIf="splitMode" (click)="emitMergeSplit()">Close split</div>
+    <div class="menu-divider" *ngIf="splitMode"></div>
+    <div class="menu-item" (click)="requestCloseTab(contextMenuIndex)">Close Tab</div>
+    <div class="menu-item" (click)="emitCloseOtherTabs()">Close Other Tabs</div>
+    <div class="menu-item" (click)="emitCloseTabsToRight()">Close Tabs to the Right</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item danger" (click)="emitCloseAllTabs()">Close All Tabs</div>
+  </div>
+</div>

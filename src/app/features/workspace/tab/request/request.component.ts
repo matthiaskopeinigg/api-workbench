@@ -1,4 +1,19 @@
-import { Component, Input, OnChanges, OnInit, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, SecurityContext, SimpleChanges, HostListener } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  OnInit,
+  Output,
+  ViewChild,
+  ElementRef,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  OnDestroy,
+  SecurityContext,
+  SimpleChanges,
+  HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Certificate, RequestEditorSection } from '@models/settings';
@@ -23,7 +38,8 @@ interface ScriptRunResult {
   consoleLogs?: Array<{ level: string; args: string[] }>;
   errors?: Array<{ message: string; stack?: string }>;
 }
-import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { TabItem, tabPayloadId, TabService, TabType } from '@core/tabs/tab.service';
+import type { WorkspacePaneId } from '@core/tabs/workspace-tabs.model';
 import { RequestHistoryService } from '@core/http/request-history.service';
 import { RequestHistoryEntry } from '@models/request-history';
 import { v4 as uuidv4 } from 'uuid';
@@ -61,6 +77,10 @@ const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
 export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   @Input() tab!: TabItem;
+  @Input() workspacePaneId?: WorkspacePaneId;
+  @Input() paneEnvironmentOverrideId: string | null = null;
+  @Output() paneEnvironmentOverrideChange = new EventEmitter<string | null>();
+  @Output() tabDirtyChange = new EventEmitter<boolean>();
 
   request!: Request;
   response?: Response;
@@ -164,6 +184,8 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   @ViewChild('requestArea') requestArea!: ElementRef;
 
   private destroy$ = new Subject<void>();
+  private globalEnvironmentId: string | null = null;
+  private lastDirtyEmitted: boolean | undefined;
 
   constructor(
     private requestService: RequestService,
@@ -199,10 +221,14 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  private requestPayloadId(): string {
+    return tabPayloadId(this.tab);
+  }
+
   private persistViewState(partial: TabViewState) {
     if (!this.tab?.id) return;
     this.viewState.patch(this.tab.id, partial);
-    this.viewState.patchRequestView(this.tab.id, partial);
+    this.viewState.patchRequestView(this.requestPayloadId(), partial);
   }
 
   private applyDefaultActiveRequestTabFromSettings(): void {
@@ -215,7 +241,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   private restoreViewState() {
     if (!this.tab?.id) return;
-    const fromRequest = this.viewState.getRequestView(this.tab.id);
+    const fromRequest = this.viewState.getRequestView(this.requestPayloadId());
     const fromTab = this.viewState.get(this.tab.id);
     const saved: TabViewState = { ...fromRequest, ...fromTab };
 
@@ -248,12 +274,20 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
         this.cdr.markForCheck();
       });
 
-    this.environmentsService.getActiveContextAsObservable()
+    this.environmentsService
+      .getActiveContextAsObservable()
       .pipe(takeUntil(this.destroy$))
       .subscribe(env => {
-        this.selectedEnvironmentId = env?.id || null;
-        this.updateActiveVariables();
-        this.cdr.markForCheck();
+        this.globalEnvironmentId = env?.id ?? null;
+        this.applyWorkspaceEnvironmentSelection();
+      });
+
+    this.collectionService
+      .getRequestUpdatedObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(updated => {
+        if (!this.tab || updated.id !== this.requestPayloadId()) return;
+        this.emitDirtyIfChanged();
       });
 
     this.mockServer.statusChanges()
@@ -273,6 +307,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['paneEnvironmentOverrideId']) {
+      this.applyWorkspaceEnvironmentSelection();
+    }
     const tabChange = changes['tab'];
     const prevId = tabChange?.previousValue?.id;
     const newId = tabChange?.currentValue?.id ?? this.tab?.id;
@@ -284,8 +321,9 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private loadRequest() {
+    this.lastDirtyEmitted = undefined;
     this.request = (undefined as any); 
-    const original = this.collectionService.findRequestById(this.tab.id);
+    const original = this.collectionService.findRequestById(this.requestPayloadId());
     if (!original) return;
 
     this.request = JSON.parse(JSON.stringify(original)); 
@@ -353,8 +391,42 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
     void this.sessionService.load(SESSION_SCRIPT_VARS_KEY).then(() => {
       this.updateActiveVariables();
+      this.emitDirtyIfChanged();
       this.cdr.markForCheck();
     });
+  }
+
+  private applyWorkspaceEnvironmentSelection() {
+    if (this.workspacePaneId) {
+      this.selectedEnvironmentId = this.paneEnvironmentOverrideId ?? this.globalEnvironmentId ?? null;
+    } else {
+      this.selectedEnvironmentId = this.globalEnvironmentId;
+    }
+    this.updateActiveVariables();
+    this.cdr.markForCheck();
+  }
+
+  private requestSnapshotForCompare(r: Request): string {
+    const sanitized: Request = {
+      ...r,
+      httpHeaders: pruneEmptyKv(r.httpHeaders || []),
+      httpParameters: pruneEmptyKv(r.httpParameters || []),
+    };
+    if (sanitized.disabledDefaultHeaders) {
+      sanitized.disabledDefaultHeaders = sanitized.disabledDefaultHeaders.filter(h => h && h.trim() !== '');
+    }
+    return JSON.stringify(sanitized);
+  }
+
+  private emitDirtyIfChanged() {
+    if (!this.request || !this.tab) return;
+    const canonical = this.collectionService.findRequestById(this.requestPayloadId());
+    if (!canonical) return;
+    const dirty =
+      this.requestSnapshotForCompare(this.request) !== this.requestSnapshotForCompare(canonical);
+    if (this.lastDirtyEmitted === dirty) return;
+    this.lastDirtyEmitted = dirty;
+    this.tabDirtyChange.emit(dirty);
   }
 
   /** URL/query segment params only (httpParameters). API key in query is a separate template row; do not push synthetic objects here. */
@@ -530,6 +602,12 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   onEnvironmentChange(envId: any) {
     this.selectedEnvironmentId = envId === 'none' ? null : envId;
+    if (this.workspacePaneId) {
+      this.paneEnvironmentOverrideChange.emit(this.selectedEnvironmentId);
+      this.updateActiveVariables();
+      this.cdr.markForCheck();
+      return;
+    }
     if (this.selectedEnvironmentId) {
       const env = this.environmentsService.getEnvironmentById(this.selectedEnvironmentId);
       this.environmentsService.setActiveContext(env);
@@ -1718,11 +1796,17 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
         sanitized.disabledDefaultHeaders = sanitized.disabledDefaultHeaders.filter(h => h && h.trim() !== '');
       }
       this.collectionService.updateRequest(sanitized);
+      this.emitDirtyIfChanged();
       this.cdr.markForCheck();
     }
   }
 
   private updateActiveVariables() {
+    if (!this.request?.id) {
+      this.activeVariables = {};
+      return;
+    }
+
     this.activeVariables = {};
 
     const parents = this.collectionService.getParentFolders(this.request.id);

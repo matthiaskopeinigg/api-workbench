@@ -1,10 +1,11 @@
-    <div class="ts-wrap">
+<div class="ts-wrap">
       <div class="ts-legend" *ngIf="series.length">
         <span *ngFor="let s of series" class="legend-item">
           <span class="dot" [style.background]="s.color"></span>{{ s.label }}
         </span>
       </div>
       <canvas
+        class="ts-canvas"
         #canvas
         (mousedown)="onDown($event)"
         (mousemove)="onMove($event)"

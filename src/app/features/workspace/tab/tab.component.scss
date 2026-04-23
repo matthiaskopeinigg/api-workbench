@@ -9,335 +9,336 @@
   overflow: hidden;
 }
 
-.tabs-bar {
-  display: flex;
-  align-items: center;
-  background-color: var(--aw-surface-muted, var(--surface-alt));
-  padding: 0 4px;
-  z-index: 5;
-  user-select: none;
-  position: relative;
-  height: var(--aw-tabs-bar-height, 40px);
-  min-height: var(--aw-tabs-bar-height, 40px);
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--aw-border, var(--border-color));
-
-  .tabs-container {
-    flex: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
-    display: flex;
-    align-items: center;
-    scroll-behavior: smooth;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
-
-  .tabs {
-    display: flex;
-    gap: 2px;
-    align-items: center;
-    height: 100%;
-    padding: 0 2px;
-  }
-
-  .scroll-button {
-    background: transparent;
-    border: 0;
-    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 40%);
-    padding: 0;
-    width: 28px;
-    height: 28px;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    border-radius: var(--aw-radius-sm, 6px);
-    transition: background-color var(--aw-duration-fast, 120ms) ease,
-      color var(--aw-duration-fast, 120ms) ease;
-    font-size: 1rem;
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 92%);
-      color: var(--aw-text, var(--text-color));
-    }
-
-    &:focus { outline: none; }
-    &:focus-visible {
-      outline: 2px solid var(--aw-focus-ring, var(--primary-color));
-      outline-offset: -2px;
-    }
-
-    &:disabled {
-      opacity: 0.25;
-      cursor: default;
-    }
-  }
-
-  .tab {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 6px 0 12px;
-    height: 30px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--aw-radius-sm, 6px);
-    cursor: pointer;
-    position: relative;
-    transition: background-color var(--aw-duration-fast, 120ms) ease,
-      color var(--aw-duration-fast, 120ms) ease,
-      border-color var(--aw-duration-fast, 120ms) ease;
-    white-space: nowrap;
-    min-width: 90px;
-    max-width: 200px;
-    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 30%);
-
-    &:hover {
-      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 92%);
-      color: var(--aw-text, var(--text-color));
-
-      .close-tab { opacity: 0.6; }
-    }
-
-    &.active {
-      background: var(--aw-surface, var(--surface));
-      color: var(--aw-text, var(--text-color));
-      font-weight: 600;
-      border-color: var(--aw-border, var(--border-color));
-      box-shadow: var(--aw-shadow-sm);
-
-      &::after {
-        content: '';
-        position: absolute;
-        left: 10px;
-        right: 10px;
-        bottom: -1px;
-        height: 2px;
-        border-radius: 2px 2px 0 0;
-        background: var(--secondary-color);
-      }
-
-      .close-tab { opacity: 0.7; }
-    }
-
-    &.dragging,
-    &.dragging.active {
-      background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 94%);
-      border: 1px dashed color-mix(in srgb, var(--secondary-color), transparent 55%);
-      color: transparent !important;
-      box-shadow: none;
-      transform: scale(0.98);
-      transition:
-        transform var(--aw-duration-fast, 120ms) ease,
-        background-color var(--aw-duration-fast, 120ms) ease,
-        border-color var(--aw-duration-fast, 120ms) ease;
-
-      .close-tab { opacity: 0 !important; pointer-events: none; }
-      &::after { opacity: 0; }
-    }
-
-    .tab-title {
-      font-size: 0.78rem;
-      color: inherit;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      flex: 1;
-      letter-spacing: -0.01em;
-    }
-
-    .close-tab {
-      background: transparent;
-      border: 0;
-      padding: 0;
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-      color: inherit;
-      font-size: 14px;
-      line-height: 1;
-      display: grid;
-      place-items: center;
-      border-radius: 4px;
-      opacity: 0;
-      transition: background-color var(--aw-duration-fast, 120ms) ease,
-        opacity var(--aw-duration-fast, 120ms) ease,
-        color var(--aw-duration-fast, 120ms) ease;
-
-      &:focus { outline: none; }
-      &:focus-visible {
-        outline: 2px solid var(--aw-focus-ring, var(--primary-color));
-        outline-offset: 2px;
-        opacity: 1;
-      }
-
-      &:hover {
-        background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 80%);
-        color: var(--aw-text, var(--text-color));
-        opacity: 1 !important;
-      }
-    }
-  }
-}
-
-.tab-content {
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  z-index: 1;
-  overflow: hidden;
+.tab-workspace-shell {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   position: relative;
 
-  app-request,
-  app-history,
-  app-folder,
-  app-environment {
-    display: flex;
+  &.split-vertical {
     flex-direction: column;
-    flex: 1;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
+  }
+
+  &.is-split.split-opening .pane-wrap {
+    transition: flex-grow 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  &.is-split.split-opening .splitter-strip {
+    animation: aw-split-strip-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  &.split-vertical.is-split.split-opening .splitter-strip {
+    animation-name: aw-split-strip-in-v;
   }
 }
 
-.context-menu-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 9999;
-  background: transparent;
+.split-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  pointer-events: none;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 10px 12px 12px;
+  gap: 0;
+  box-sizing: border-box;
+  animation: aw-split-preview-overlay-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.context-menu {
-  position: fixed;
-  background: var(--aw-surface, var(--surface));
-  border: 1px solid var(--aw-border, var(--border-color));
-  border-radius: var(--aw-radius-md, 8px);
-  box-shadow: var(--aw-shadow-lg);
-  padding: 4px;
-  min-width: 200px;
-  animation: scaleIn 0.12s var(--aw-ease-standard, ease-out);
+.split-preview-zone {
+  flex: 1 1 50%;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px 10px;
+  border-radius: var(--aw-radius-md, 10px);
+  border: 2px dashed color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 25%);
+  background: color-mix(in srgb, var(--aw-surface-muted, var(--surface-alt)), transparent 12%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 94%);
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
 
-  .menu-item {
-    padding: 8px 12px;
-    font-size: 13px;
-    color: var(--aw-text, var(--text-color));
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background-color var(--aw-duration-fast, 120ms) ease,
-      color var(--aw-duration-fast, 120ms) ease;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 88%);
+    opacity: 0.55;
+    transition: opacity 0.16s ease;
+  }
 
-    &:hover {
-      background: color-mix(in srgb, var(--secondary-color), transparent 90%);
-      color: var(--secondary-color);
+  &.is-target {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 8%);
+    background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 91%);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 55%),
+      0 10px 28px color-mix(in srgb, var(--aw-text, #000), transparent 88%);
+    animation: aw-split-preview-target-breathe 1.15s ease-in-out infinite alternate;
+
+    &::before {
+      opacity: 0;
     }
-
-    &.danger {
-      color: var(--aw-status-error, #ef4444);
-
-      &:hover {
-        background: color-mix(in srgb, var(--aw-status-error, #ef4444), transparent 90%);
-        color: var(--aw-status-error, #ef4444);
-      }
-    }
-  }
-
-  .menu-divider {
-    height: 1px;
-    background: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 30%);
-    margin: 4px 6px;
   }
 }
 
-@keyframes scaleIn {
+.split-preview-caption {
+  position: relative;
+  z-index: 1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--aw-text, var(--text-color));
+  line-height: 1.35;
+  max-width: 11rem;
+  text-wrap: balance;
+
+  &.is-muted {
+    font-weight: 600;
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 38%);
+  }
+}
+
+.split-preview-zone.is-target .split-preview-caption {
+  color: var(--secondary-color, var(--primary-color));
+}
+
+.split-preview-gutter {
+  flex: 0 0 12px;
+  width: 12px;
+  align-self: stretch;
+  margin: 0 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 72%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 40%),
+    inset 0 1px 0 color-mix(in srgb, #fff, transparent 92%);
+  animation: aw-split-preview-gutter-glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes aw-split-preview-overlay-in {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.985);
   }
-
   to {
     opacity: 1;
     transform: scale(1);
   }
 }
 
-.tab-defer-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 2rem;
-  font-size: 13px;
-  color: var(--aw-text, var(--text-color));
-  background: var(--aw-surface-muted, var(--surface-alt));
-
-  .defer-label {
-    opacity: 0.7;
+@keyframes aw-split-preview-target-breathe {
+  from {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 55%),
+      0 6px 18px color-mix(in srgb, var(--aw-text, #000), transparent 90%);
+  }
+  to {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 35%),
+      0 12px 32px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 82%);
   }
 }
 
-.defer-skeleton {
-  width: min(420px, 85%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.defer-skeleton-line {
-  height: 10px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 35%);
-  width: 100%;
-
-  &.short {
-    width: 55%;
+@keyframes aw-split-preview-gutter-glow {
+  from {
+    opacity: 0.65;
+    filter: brightness(0.95);
   }
-
-  &.med {
-    width: 72%;
+  to {
+    opacity: 1;
+    filter: brightness(1.08);
   }
-}
-
-.defer-shimmer {
-  position: relative;
-  overflow: hidden;
-}
-
-.defer-shimmer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 88%),
-    transparent
-  );
-  animation: defer-shimmer-slide 1.1s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .defer-shimmer::after {
-    animation: none;
-    opacity: 0.35;
-    transform: none;
+  .workspace.is-split.split-opening .pane-wrap {
+    transition: none !important;
+  }
+
+  .workspace.is-split.split-opening .splitter-strip {
+    animation: none !important;
+  }
+
+  .split-preview-overlay {
+    animation: none !important;
+  }
+
+  .split-preview-zone.is-target {
+    animation: none !important;
+  }
+
+  .split-preview-gutter {
+    animation: none !important;
   }
 }
 
-@keyframes defer-shimmer-slide {
-  100% {
-    transform: translateX(100%);
+@keyframes aw-split-strip-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
   }
 }
 
+@keyframes aw-split-strip-in-v {
+  from {
+    opacity: 0;
+    transform: scaleY(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.split-dock-strip {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: min(44vw, 480px);
+  z-index: 7500;
+  pointer-events: auto;
+  box-sizing: border-box;
+  transition: background 140ms ease;
+
+  &--left {
+    left: 0;
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 88%),
+      transparent
+    );
+  }
+
+  &--right {
+    right: 0;
+    background: linear-gradient(
+      to left,
+      color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 88%),
+      transparent
+    );
+  }
+
+  &--left.is-hot {
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--secondary-color, var(--primary-color)) 24%, transparent),
+      transparent 72%
+    );
+  }
+
+  &--right.is-hot {
+    background: linear-gradient(
+      to left,
+      color-mix(in srgb, var(--secondary-color, var(--primary-color)) 24%, transparent),
+      transparent 72%
+    );
+  }
+}
+
+.pane-wrap {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.splitter-strip {
+  flex: 0 0 16px;
+  width: 16px;
+  position: relative;
+  align-self: stretch;
+  z-index: 6;
+  flex-shrink: 0;
+
+  &.is-vertical-workspace {
+    width: 100%;
+    height: 16px;
+    flex: 0 0 16px;
+    align-self: stretch;
+  }
+}
+
+.splitter-track {
+  position: absolute;
+  inset: 0;
+  cursor: col-resize;
+  background: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 40%);
+  transition: background-color var(--aw-duration-fast, 120ms) ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--secondary-color), transparent 70%);
+  }
+
+  .split-vertical & {
+    cursor: row-resize;
+  }
+}
+
+.join-panes-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--aw-border, var(--border-color));
+  border-radius: 999px;
+  background: var(--aw-surface, var(--surface));
+  color: var(--aw-text, var(--text-color));
+  cursor: pointer;
+  box-shadow: var(--aw-shadow-sm);
+  transition: background-color var(--aw-duration-fast, 120ms) ease,
+    color var(--aw-duration-fast, 120ms) ease,
+    border-color var(--aw-duration-fast, 120ms) ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--secondary-color), transparent 88%);
+    color: var(--secondary-color);
+    border-color: color-mix(in srgb, var(--secondary-color), transparent 55%);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+    outline-offset: 2px;
+  }
+}

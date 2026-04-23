@@ -1,149 +1,126 @@
-<ng-container class="tab-list">
-  <div class="tabs-bar disable-select" [class.active]="tabs.length > 0">
+<div class="tab-workspace-shell">
+  <div class="workspace"
+  [class.is-split]="splitMode"
+  [class.split-opening]="splitOpening"
+  [class.split-horizontal]="splitMode && splitOrientation === 'horizontal'"
+  [class.split-vertical]="splitMode && splitOrientation === 'vertical'">
+  <div class="pane-wrap primary"
+    [style.flex-grow]="splitMode ? splitRatio * 1000 : 1"
+    [style.flex-basis]="'0'">
+    <app-tab-pane
+      paneId="primary"
+      [tabs]="primaryTabs"
+      [selectedTabIndex]="primarySelected"
+      [isFocused]="focusedPane === 'primary'"
+      [splitMode]="splitMode"
+      [splitOrientation]="splitOrientation"
+      [paneEnvironmentOverrideId]="paneEnvironmentIds.primary"
+      (paneMouseDown)="onPaneMouseDown($event)"
+      (selectTabIndex)="onSelectTab('primary', $event)"
+      (tabClose)="onCloseTab('primary', $event)"
+      (tabsReorder)="onTabsReorder('primary', $event)"
+      (persistReorder)="onPersistReorder()"
+      (closeOtherTabs)="onCloseOtherTabs('primary', $event)"
+      (closeTabsToRight)="onCloseTabsToRight('primary', $event)"
+      (closeAllTabsInPane)="onCloseAllTabsInPane('primary')"
+      (splitRight)="onSplitRight('primary', $event)"
+      (splitLeft)="onSplitLeft('primary', $event)"
+      (mergeSplit)="onMergeSplit()"
+      (crossPaneTabMove)="onCrossPaneTabMove($event)"
+      (paneEnvironmentOverrideChange)="onPaneEnvironmentOverride($event)"
+      (tabDirtyChange)="onTabDirtyChange($event)"
+      (duplicateRequestTab)="onDuplicateRequestTab('primary', $event)"
+      (pinToggleTab)="onPinToggleTab('primary', $event)"
+      (toggleSplitOrientation)="toggleSplitOrientation(); onPersistReorder()" />
+  </div>
 
-    <button type="button" class="scroll-button" *ngIf="canScrollLeft" (click)="scrollLeft()" title="Scroll tabs left"
-      aria-label="Scroll tabs left">
-      ‹
-    </button>
-
-    <div class="tabs-container" #tabsContainer (scroll)="updateScrollButtons()">
-      <div class="tabs">
-        <div *ngFor="let tab of tabs; let i = index; trackBy: trackByTabId" class="tab"
-          [attr.data-tab-id]="tab.id"
-          [class.active]="selectedTabIndex === i" [class.dragging]="draggedIndex === i" draggable="true"
-          (click)="selectTab(i)" (contextmenu)="openContextMenu($event, i)" (dragstart)="onDragStart($event, i)"
-          (dragover)="onDragOver($event, i)" (drop)="onDrop($event)" (dragend)="onDragEnd()">
-          <span class="tab-title">{{ tab.title }}</span>
-          <button type="button" class="close-tab" (click)="closeTab(i, $event)" title="Close tab"
-            [attr.aria-label]="'Close tab: ' + tab.title">×</button>
-        </div>
+  @if (!splitMode && splitDropHint) {
+    <div class="split-preview-overlay" aria-hidden="true">
+      <div class="split-preview-zone" [class.is-target]="splitDropHint === 'left'">
+        @if (splitDropHint === 'left') {
+          <span class="split-preview-caption">Focused tab</span>
+        } @else {
+          <span class="split-preview-caption is-muted">Other tabs</span>
+        }
+      </div>
+      <div class="split-preview-gutter" aria-hidden="true"></div>
+      <div class="split-preview-zone" [class.is-target]="splitDropHint === 'right'">
+        @if (splitDropHint === 'right') {
+          <span class="split-preview-caption">Focused tab</span>
+        } @else {
+          <span class="split-preview-caption is-muted">Other tabs</span>
+        }
       </div>
     </div>
+  }
 
-    <button type="button" class="scroll-button" *ngIf="canScrollRight" (click)="scrollRight()" title="Scroll tabs right"
-      aria-label="Scroll tabs right">
-      ›
-    </button>
-  </div>
-</ng-container>
+  @if (!splitMode && tabStripDragActive) {
+    <div
+      class="split-dock-strip split-dock-strip--left"
+      [class.is-hot]="splitDropHint === 'left'"
+      aria-hidden="true"
+      title="Release to split — tab stays in the left pane"
+      (dragover)="onSplitDockStripDragOver($event, 'left')"
+      (drop)="onUnsplitEdgeDrop($event, 'left')"></div>
+    <div
+      class="split-dock-strip split-dock-strip--right"
+      [class.is-hot]="splitDropHint === 'right'"
+      aria-hidden="true"
+      title="Release to split — tab moves to the new right pane"
+      (dragover)="onSplitDockStripDragOver($event, 'right')"
+      (drop)="onUnsplitEdgeDrop($event, 'right')"></div>
+  }
 
-@if (tabs[selectedTabIndex]; as activeTab) {
-  <div class="tab-content">
-    @if (activeTab.type === TabType.ENVIRONMENT && isEnvironmentTab(activeTab)) {
-      @defer {
-        <app-environment [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-            <div class="defer-skeleton-line defer-shimmer"></div>
-          </div>
-          <span class="defer-label">Loading…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.REQUEST_HISTORY_ENTRY && isRequestHistoryEntryTab(activeTab)) {
-      @defer {
-        <app-history [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-          </div>
-          <span class="defer-label">Loading…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.REQUEST && isRequestTab(activeTab)) {
-      @defer {
-        <app-request [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer med"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-          </div>
-          <span class="defer-label">Loading editor…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.FOLDER && isFolderTab(activeTab)) {
-      @defer {
-        <app-folder [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-          </div>
-          <span class="defer-label">Loading…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.WEBSOCKET && isWebSocketTab(activeTab)) {
-      @defer {
-        <app-websocket [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-          </div>
-          <span class="defer-label">Loading WebSocket…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.MOCK_SERVER && isMockServerTab(activeTab)) {
-      @defer {
-        <app-mock-server [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <div class="defer-skeleton">
-            <div class="defer-skeleton-line defer-shimmer"></div>
-            <div class="defer-skeleton-line defer-shimmer short"></div>
-          </div>
-          <span class="defer-label">Loading Mock Server…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.LOAD_TEST && isLoadTestTab(activeTab)) {
-      <app-load-test [tab]="activeTab" />
-    } @else if (activeTab.type === TabType.TEST_SUITE && isTestSuiteTab(activeTab)) {
-      @defer {
-        <app-test-suite [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <span class="defer-label">Loading Test Suite…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.CONTRACT_TEST && isContractTestTab(activeTab)) {
-      @defer {
-        <app-contract-test [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <span class="defer-label">Loading Contract Test…</span>
-        </div>
-      }
-    } @else if (activeTab.type === TabType.FLOW && isFlowTab(activeTab)) {
-      @defer {
-        <app-flow [tab]="activeTab" />
-      } @placeholder {
-        <div class="tab-defer-placeholder" role="status" aria-live="polite">
-          <span class="defer-label">Loading Flow…</span>
-        </div>
-      }
-    } @else {
-      <h3>{{ activeTab.title }}</h3>
-      <p>No content defined for this tab type.</p>
-    }
-  </div>
-}
-
-<div class="context-menu-overlay" *ngIf="contextMenuVisible" (click)="closeContextMenu()"
-  (contextmenu)="closeContextMenu(); $event.preventDefault()">
-  <div class="context-menu" [style.left.px]="menuX" [style.top.px]="menuY" (click)="$event.stopPropagation()">
-    <div class="menu-item" (click)="closeTab(contextMenuIndex)">Close Tab</div>
-    <div class="menu-item" (click)="closeOtherTabs(contextMenuIndex)">Close Other Tabs</div>
-    <div class="menu-item" (click)="closeTabsToRight(contextMenuIndex)">Close Tabs to the Right</div>
-    <div class="menu-divider"></div>
-    <div class="menu-item danger" (click)="closeAllTabs()">Close All Tabs</div>
+  @if (splitMode) {
+    <div class="splitter-strip" [class.is-vertical-workspace]="splitOrientation === 'vertical'">
+      <div class="splitter-track"
+        role="separator"
+        [attr.aria-orientation]="splitOrientation === 'vertical' ? 'horizontal' : 'vertical'"
+        title="Drag to resize panes"
+        (mousedown)="onSplitResizeStart($event)">
+      </div>
+      <button type="button"
+        class="join-panes-btn"
+        title="Join panes (close split)"
+        aria-label="Join panes, close split"
+        (mousedown)="$event.stopPropagation()"
+        (click)="onMergeSplit()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="11 17 6 12 11 7"></polyline>
+          <polyline points="18 17 13 12 18 7"></polyline>
+        </svg>
+      </button>
+    </div>
+    <div class="pane-wrap secondary"
+      [style.flex-grow]="(1 - splitRatio) * 1000"
+      [style.flex-basis]="'0'">
+      <app-tab-pane
+        paneId="secondary"
+        [tabs]="secondaryTabs"
+        [selectedTabIndex]="secondarySelected"
+        [isFocused]="focusedPane === 'secondary'"
+        [splitMode]="splitMode"
+        [splitOrientation]="splitOrientation"
+        [paneEnvironmentOverrideId]="paneEnvironmentIds.secondary"
+        (paneMouseDown)="onPaneMouseDown($event)"
+        (selectTabIndex)="onSelectTab('secondary', $event)"
+        (tabClose)="onCloseTab('secondary', $event)"
+        (tabsReorder)="onTabsReorder('secondary', $event)"
+        (persistReorder)="onPersistReorder()"
+        (closeOtherTabs)="onCloseOtherTabs('secondary', $event)"
+        (closeTabsToRight)="onCloseTabsToRight('secondary', $event)"
+        (closeAllTabsInPane)="onCloseAllTabsInPane('secondary')"
+        (splitRight)="onSplitRight('secondary', $event)"
+        (splitLeft)="onSplitLeft('secondary', $event)"
+        (mergeSplit)="onMergeSplit()"
+        (crossPaneTabMove)="onCrossPaneTabMove($event)"
+        (paneEnvironmentOverrideChange)="onPaneEnvironmentOverride($event)"
+        (tabDirtyChange)="onTabDirtyChange($event)"
+        (duplicateRequestTab)="onDuplicateRequestTab('secondary', $event)"
+        (pinToggleTab)="onPinToggleTab('secondary', $event)"
+        (toggleSplitOrientation)="toggleSplitOrientation(); onPersistReorder()" />
+    </div>
+  }
   </div>
 </div>

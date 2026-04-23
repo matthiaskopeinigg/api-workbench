@@ -1,101 +1,152 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { Subject } from 'rxjs';
 import { TabComponent } from './tab.component';
-import { TabItem, TabType } from '@core/tabs/tab.service';
+import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import type { WorkspaceTabsState } from '@core/tabs/workspace-tabs.model';
+import { ViewStateService } from '@core/session/view-state.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
+import { RequestHistoryService } from '@core/http/request-history.service';
+import { RequestService } from '@core/http/request.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { TestArtifactService } from '@core/testing/test-artifact.service';
 
 describe('TabComponent', () => {
-  let component: TabComponent;
   let fixture: ComponentFixture<TabComponent>;
+  let tabServiceSpy: jasmine.SpyObj<TabService>;
+  let viewStateSpy: jasmine.SpyObj<ViewStateService>;
+  let requestServiceSpy: jasmine.SpyObj<RequestService>;
+  let openTabSubject: Subject<TabItem>;
+
+  const mk = (id: string): TabItem => ({ id, title: id, type: TabType.REQUEST });
 
   beforeEach(async () => {
+    openTabSubject = new Subject<TabItem>();
+
+    tabServiceSpy = jasmine.createSpyObj('TabService', [
+      'getWorkspaceTabsState',
+      'saveWorkspaceTabsState',
+      'saveSelectTab',
+      'saveUnselectTab',
+      'getOpenTabAsObservable',
+      'isEnvironmentTab',
+      'isRequestHistoryEntryTab',
+      'isRequestTab',
+      'isFolderTab',
+    ]);
+    tabServiceSpy.getWorkspaceTabsState.and.resolveTo(null);
+    tabServiceSpy.saveWorkspaceTabsState.and.resolveTo();
+    tabServiceSpy.saveSelectTab.and.resolveTo();
+    tabServiceSpy.saveUnselectTab.and.resolveTo();
+    tabServiceSpy.getOpenTabAsObservable.and.returnValue(openTabSubject.asObservable());
+    tabServiceSpy.isEnvironmentTab.and.returnValue(false);
+    tabServiceSpy.isRequestHistoryEntryTab.and.returnValue(false);
+    tabServiceSpy.isRequestTab.and.returnValue(true);
+    tabServiceSpy.isFolderTab.and.returnValue(false);
+
+    viewStateSpy = jasmine.createSpyObj('ViewStateService', ['load', 'retainOnly', 'clear']);
+    viewStateSpy.load.and.resolveTo();
+
+    requestServiceSpy = jasmine.createSpyObj('RequestService', [
+      'selectRequest',
+      'removeSelectedRequest',
+      'getSelectedRequestAsObservable',
+    ]);
+    requestServiceSpy.getSelectedRequestAsObservable.and.returnValue(
+      new Subject<TabItem | null>().asObservable(),
+    );
+    requestServiceSpy.removeSelectedRequest.and.resolveTo();
+
+    const envSpy = jasmine.createSpyObj('EnvironmentsService', [
+      'getSelectedEnvironmentAsObservable',
+      'removeSelectedEnvironment',
+      'getEnvironmentDeletedObservable',
+    ]);
+    envSpy.getSelectedEnvironmentAsObservable.and.returnValue(new Subject().asObservable());
+    envSpy.removeSelectedEnvironment.and.resolveTo();
+    envSpy.getEnvironmentDeletedObservable.and.returnValue(new Subject().asObservable());
+
+    const histSpy = jasmine.createSpyObj('RequestHistoryService', [
+      'getSelectedHistoryEntryAsObservable',
+      'removeSelectedHistoryEntry',
+    ]);
+    histSpy.getSelectedHistoryEntryAsObservable.and.returnValue(new Subject().asObservable());
+    histSpy.removeSelectedHistoryEntry.and.resolveTo();
+
+    const collSpy = jasmine.createSpyObj('CollectionService', [
+      'getSelectedFolderAsObservable',
+      'selectFolder',
+      'getRequestDeletedObservable',
+      'getRequestUpdatedObservable',
+      'getFolderDeletedObservable',
+      'getFolderUpdatedObservable',
+    ]);
+    collSpy.getSelectedFolderAsObservable.and.returnValue(new Subject().asObservable());
+    collSpy.getRequestDeletedObservable.and.returnValue(new Subject().asObservable());
+    collSpy.getRequestUpdatedObservable.and.returnValue(new Subject().asObservable());
+    collSpy.getFolderDeletedObservable.and.returnValue(new Subject().asObservable());
+    collSpy.getFolderUpdatedObservable.and.returnValue(new Subject().asObservable());
+
+    const testArtSpy = jasmine.createSpyObj('TestArtifactService', ['getTestArtifactDeletedObservable']);
+    testArtSpy.getTestArtifactDeletedObservable.and.returnValue(new Subject().asObservable());
+
     await TestBed.configureTestingModule({
-      imports: [TabComponent]
-    })
-    .compileComponents();
+      imports: [TabComponent],
+      providers: [
+        { provide: TabService, useValue: tabServiceSpy },
+        { provide: ViewStateService, useValue: viewStateSpy },
+        { provide: RequestService, useValue: requestServiceSpy },
+        { provide: EnvironmentsService, useValue: envSpy },
+        { provide: RequestHistoryService, useValue: histSpy },
+        { provide: CollectionService, useValue: collSpy },
+        { provide: TestArtifactService, useValue: testArtSpy },
+      ],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(TabComponent);
-    component = fixture.componentInstance;
+  });
+
+  it('should create with empty workspace', async () => {
     fixture.detectChanges();
+    await fixture.whenStable();
+    const c = fixture.componentInstance;
+    expect(c).toBeTruthy();
+    expect(c.primaryTabs).toEqual([]);
+    expect(c.secondaryTabs).toEqual([]);
+    expect(c.splitMode).toBeFalse();
   });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
-    expect(component.tabs).toEqual([]);
-    expect(component.selectedTabIndex).toBe(0);
+  it('opens ad-hoc tabs into the focused (primary) pane via TabService stream', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const c = fixture.componentInstance;
+    openTabSubject.next(mk('req-1'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(c.primaryTabs.map(t => t.id)).toEqual(['req-1']);
+    expect(c.focusedPane).toBe('primary');
+    expect(requestServiceSpy.selectRequest).toHaveBeenCalled();
+    expect(tabServiceSpy.saveWorkspaceTabsState).toHaveBeenCalled();
   });
 
-  it('trackByTabId should return the tab id for stable ngFor identity', () => {
-    const tab: TabItem = { id: 'tab-42', title: 'x', type: TabType.REQUEST };
-    expect(component.trackByTabId(0, tab)).toBe('tab-42');
-  });
+  it('onMergeSplit flattens panes and disables split', async () => {
+    tabServiceSpy.getWorkspaceTabsState.and.resolveTo({
+      split: true,
+      ratio: 0.5,
+      primary: { tabs: [mk('a')], selectedTabId: 'a' },
+      secondary: { tabs: [mk('b')], selectedTabId: 'b' },
+    } satisfies WorkspaceTabsState);
 
-  it('onDragEnd should reset drag indices and remove the body dragging class', () => {
-    component.draggedIndex = 2;
-    component.overIndex = 3;
-    document.body.classList.add('aw-dragging');
+    fixture = TestBed.createComponent(TabComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
 
-    component.onDragEnd();
+    const c = fixture.componentInstance;
+    expect(c.splitMode).toBeTrue();
 
-    expect(component.draggedIndex).toBeNull();
-    expect(component.overIndex).toBeNull();
-    expect(document.body.classList.contains('aw-dragging')).toBeFalse();
-  });
-
-  it('onDrop should prevent default and clear the drag state', () => {
-    component.draggedIndex = 1;
-    document.body.classList.add('aw-dragging');
-
-    const evt = new DragEvent('drop', { bubbles: true, cancelable: true });
-    const spy = spyOn(evt, 'preventDefault');
-
-    component.onDrop(evt);
-
-    expect(spy).toHaveBeenCalled();
-    expect(component.draggedIndex).toBeNull();
-    expect(document.body.classList.contains('aw-dragging')).toBeFalse();
-  });
-
-  describe('onDragOver reordering', () => {
-    const mkTab = (id: string): TabItem => ({ id, title: id, type: TabType.REQUEST });
-
-    const makeDragOverEvent = (clientX: number): DragEvent => {
-      const host = document.createElement('div');
-      host.getBoundingClientRect = () => ({
-        left: 100, right: 200, top: 0, bottom: 40,
-        width: 100, height: 40, x: 100, y: 0,
-        toJSON: () => ({})
-      } as DOMRect);
-
-      return {
-        preventDefault: () => { },
-        currentTarget: host,
-        clientX,
-        dataTransfer: { dropEffect: '' } as any,
-      } as unknown as DragEvent;
-    };
-
-    it('keeps the previously selected tab selected after another tab is dragged past it', () => {
-      component.tabs = [mkTab('A'), mkTab('B'), mkTab('C'), mkTab('D')];
-      component.selectedTabIndex = 0;
-      component.draggedIndex = 2;
-
-      component.onDragOver(makeDragOverEvent(110), 0);
-
-      expect(component.tabs.map(t => t.id)).toEqual(['C', 'A', 'B', 'D']);
-      expect(component.selectedTabIndex).toBe(1);
-    });
-
-    it('keeps the selected tab selected when the selected tab itself is the one being dragged', () => {
-      component.tabs = [mkTab('A'), mkTab('B'), mkTab('C'), mkTab('D')];
-      component.selectedTabIndex = 1;
-      component.draggedIndex = 1;
-
-      component.onDragOver(makeDragOverEvent(190), 2);
-
-      expect(component.tabs.map(t => t.id)).toEqual(['A', 'C', 'B', 'D']);
-      expect(component.selectedTabIndex).toBe(2);
-      expect(component.tabs[component.selectedTabIndex].id).toBe('B');
-    });
+    await c.onMergeSplit();
+    expect(c.splitMode).toBeFalse();
+    expect(c.primaryTabs.map(t => t.id)).toEqual(['a', 'b']);
+    expect(c.secondaryTabs.length).toBe(0);
+    expect(tabServiceSpy.saveWorkspaceTabsState).toHaveBeenCalled();
   });
 });
-

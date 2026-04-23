@@ -8,7 +8,7 @@ import { CollectionService } from '@core/collection/collection.service';
 import { SessionService } from '@core/session/session.service';
 import { ViewStateService } from '@core/session/view-state.service';
 import { RequestService } from '@core/http/request.service';
-import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { TabItem, tabPayloadId, TabService, TabType } from '@core/tabs/tab.service';
 import { SettingsService } from '@core/settings/settings.service';
 import { ImportService } from '@core/import-pipeline/import.service';
 import { RunnerDialogService } from '@core/testing/runner-dialog.service';
@@ -120,7 +120,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (!selectedTab) return;
 
     if (selectedTab.type === TabType.REQUEST) {
-      this.selectedRequestId = selectedTab.id;
+      this.selectedRequestId = tabPayloadId(selectedTab);
       this.selectedFolderId = null;
     } else if (selectedTab.type === TabType.FOLDER) {
       this.selectedFolderId = selectedTab.id;
@@ -133,7 +133,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(request => {
         if (request) {
-          this.selectedRequestId = request.id;
+          this.selectedRequestId = tabPayloadId(request);
           this.selectedFolderId = null;
         } else {
           this.selectedRequestId = null;
@@ -390,13 +390,14 @@ export class CollectionComponent implements OnInit, OnDestroy {
     set.has(id) ? set.delete(id) : set.add(id);
   }
 
-  async selectRequest(request: Request) {
+  async selectRequest(request: Request, event?: MouseEvent) {
     this.selectedRequestId = request.id;
 
     const tabItem: TabItem = {
       id: request.id,
       title: request.title,
-      type: TabType.REQUEST
+      type: TabType.REQUEST,
+      ...(event?.altKey ? { openInPane: 'unfocused' as const } : {}),
     };
 
     await this.requestService.selectRequest(tabItem);

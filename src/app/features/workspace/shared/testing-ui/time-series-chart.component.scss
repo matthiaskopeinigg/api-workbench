@@ -1,16 +1,55 @@
-    :host { display: block; height: 100%; }
-    .ts-wrap { display: flex; flex-direction: column; gap: 4px; height: 100%; }
-    canvas { width: 100%; height: 100%; display: block; flex: 1 1 auto; touch-action: none; cursor: crosshair; }
-    .ts-legend {
-      display: flex; flex-wrap: wrap; gap: 12px;
-      font-size: 11px; color: color-mix(in srgb, var(--text-color), transparent 45%);
-    }
-    .legend-item { display: inline-flex; align-items: center; gap: 5px; }
-    .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
-    .ts-hint {
-      margin: 0;
-      font-size: 10px;
-      color: color-mix(in srgb, var(--text-color), transparent 45%);
-      flex: 0 0 auto;
-    }
-  
+/**
+ * Plot area uses a fixed pixel height so `draw()` always sees clientHeight ≥ 4.
+ * Parent `.chart-card` / tab chrome often uses column flex + `min-height: 0`; nested
+ * `%` / `flex: 1` chains on `<canvas>` frequently resolve to 0 in Chromium.
+ */
+:host {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  box-sizing: border-box;
+}
+
+.ts-wrap {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.ts-canvas {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 220px;
+  min-height: 220px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.ts-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--text-color), transparent 45%);
+  margin-bottom: 4px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.ts-hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--text-color), transparent 45%);
+}
