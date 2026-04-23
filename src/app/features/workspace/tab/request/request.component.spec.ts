@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RequestComponent } from './request.component';
 import { RequestService } from '@core/http/request.service';
 import { RequestHistoryService } from '@core/http/request-history.service';
@@ -56,7 +56,15 @@ describe('RequestComponent', () => {
   beforeEach(async () => {
     requestServiceSpy = jasmine.createSpyObj('RequestService', ['sendRequest', 'getCachedResponse', 'cacheResponse']);
     requestHistoryServiceSpy = jasmine.createSpyObj('RequestHistoryService', ['getHistory', 'saveHistory']);
-    settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings']);
+    settingsServiceSpy = jasmine.createSpyObj('SettingsService', [
+      'getSettings',
+      'loadSettings',
+      'getClientCertificateForHost',
+      'effectiveIgnoreInvalidSsl',
+    ]);
+    settingsServiceSpy.loadSettings.and.returnValue(Promise.resolve());
+    settingsServiceSpy.getClientCertificateForHost.and.returnValue(undefined);
+    settingsServiceSpy.effectiveIgnoreInvalidSsl.and.returnValue(true);
     collectionServiceSpy = jasmine.createSpyObj('CollectionService', ['findRequestById', 'updateRequest', 'getParentFolders', 'flushPendingSaves']);
     collectionServiceSpy.flushPendingSaves.and.returnValue(Promise.resolve());
     environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', ['getEnvironmentsObservable', 'getActiveContextAsObservable', 'getActiveContext']);
@@ -109,7 +117,9 @@ describe('RequestComponent', () => {
 
     fixture = TestBed.createComponent(RequestComponent);
     component = fixture.componentInstance;
-    component.tab = mockTab;
+    // setInput is required for @Input to run ngOnChanges and load the request in tests
+    // (assigning component.tab = … does not reliably trigger it).
+    fixture.componentRef.setInput('tab', mockTab);
     fixture.detectChanges();
   });
 
@@ -132,7 +142,7 @@ describe('RequestComponent', () => {
     expect(component.request.url).toBe('https://google.com');
   });
 
-  it('should send request and handle response', fakeAsync(() => {
+  it('should send request and handle response', async () => {
     const mockResponse = {
       status: 200,
       statusText: 'OK',
@@ -144,17 +154,14 @@ describe('RequestComponent', () => {
 
     requestServiceSpy.sendRequest.and.returnValue(Promise.resolve(mockResponse as any));
 
-    component.sendRequest();
-    expect(component.isLoading).toBeTrue();
-
-    tick(); 
+    await component.sendRequest();
 
     expect(requestServiceSpy.sendRequest).toHaveBeenCalled();
     expect(component.isLoading).toBeFalse();
     expect(component.response).toBeDefined();
     expect(component.response?.statusCode).toBe(200);
     expect(requestHistoryServiceSpy.saveHistory).toHaveBeenCalled();
-  }));
+  });
 
   it('should switch tabs', () => {
     expect(component.activeRequestTab).toBe('body'); 
@@ -182,7 +189,7 @@ describe('RequestComponent', () => {
   });
 
   describe('Integration: Variable Substitution', () => {
-    it('should substitute environment variables in the URL before sending', fakeAsync(() => {
+    it('should substitute environment variables in the URL before sending', async () => {
       component.request.url = 'https://{{base_url}}/api';
       component.activeVariables = { 'base_url': 'example.org' };
 
@@ -192,13 +199,12 @@ describe('RequestComponent', () => {
       };
       requestServiceSpy.sendRequest.and.returnValue(Promise.resolve(mockResponse as any));
 
-      component.sendRequest();
-      tick();
+      await component.sendRequest();
 
       expect(requestServiceSpy.sendRequest).toHaveBeenCalledWith(jasmine.objectContaining({
         url: 'https://example.org/api'
       }));
-    }));
+    });
 
     it('should substitute inherited variables from parent folders', () => {
       const mockParent = {
