@@ -16,7 +16,7 @@ First off, thank you for considering contributing to API Workbench! It's people 
 - Describe the problem you are trying to solve and how the feature would solve it.
 
 ### Pull Requests
-- Fork the repo and create your branch from `main`.
+- Fork the repo and create your branch from `main` (see [.github/RELEASING.md](.github/RELEASING.md) for how we use branches, tags, and GitHub Releases, similar to [Spring Boot](https://github.com/spring-projects/spring-boot)).
 - Install dependencies with `npm install`.
 - Ensure your code follows the existing style.
 - Make sure all unit tests pass: `npm run test`.
