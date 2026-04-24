@@ -6,6 +6,7 @@ import {
   HostBinding,
   HostListener,
   Input,
+  AfterViewInit,
   OnChanges,
   OnDestroy,
   OnInit,
@@ -97,13 +98,15 @@ const PASTE_OFFSET_Y = 32;
   styleUrls: ['./flow.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlowComponent implements OnInit, OnChanges, OnDestroy {
+export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   /** Lets Ctrl/Cmd+C / V work after clicking the flow without focus jumping to the URL bar. */
   @HostBinding('attr.tabindex') readonly flowHostTabindex = -1;
 
   @Input() tab!: TabItem;
 
   @ViewChild('canvas', { static: false }) canvasEl?: ElementRef<SVGSVGElement>;
+  @ViewChild('canvasWrap', { read: ElementRef, static: false })
+  private canvasWrapEl?: ElementRef<HTMLElement>;
 
   artifact: FlowArtifact | null = null;
   palette = PALETTE;
@@ -129,9 +132,17 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
   private edgeDraft: { fromNodeId: string; fromPort: FlowEdge['fromPort']; x: number; y: number } | null = null;
 
   viewport = { x: 0, y: 0, w: VIEW_DEFAULT_W, h: VIEW_DEFAULT_H };
+  zoom = 1;
   private panStart: { screenX: number; screenY: number; vx: number; vy: number } | null = null;
 
+  isNarrow = false;
+  paletteCollapsed = false;
+  inspectorCollapsed = false;
+
   private destroy$ = new Subject<void>();
+  private canvasResizeObserver?: ResizeObserver;
+  private canvasResizeDebounce?: ReturnType<typeof setTimeout>;
+  private lastCanvasBox = { w: 0, h: 0 };
 
   constructor(
     private artifacts: TestArtifactService,
@@ -165,6 +176,7 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
       this.nodeStatus.clear();
       this.nodeMessages.clear();
       this.cdr.markForCheck();
+      queueMicrotask(() => this.bindCanvasResizeObserver());
       return;
     }
     this.artifact = JSON.parse(JSON.stringify(found)) as FlowArtifact;
@@ -202,9 +214,17 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     if (!sameDocument) {
-      this.resetView();
+      if (this.artifact.viewport) {
+        this.viewport.x = this.artifact.viewport.x;
+        this.viewport.y = this.artifact.viewport.y;
+        this.zoom = this.artifact.viewport.zoom || 1;
+        // The w/h will be computed on the next resize observer tick (queueMicrotask below)
+      } else {
+        this.resetView();
+      }
     }
     this.cdr.markForCheck();
+    queueMicrotask(() => this.bindCanvasResizeObserver());
   }
 
   ngOnInit(): void {
@@ -243,7 +263,78 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
     this.applyFlowFromStore();
   }
 
+  ngAfterViewInit(): void {
+    queueMicrotask(() => this.bindCanvasResizeObserver());
+  }
+
+  /** Canvas host lives under `*ngIf="artifact"`; re-bind whenever the view appears. */
+  private bindCanvasResizeObserver(): void {
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const el = this.canvasWrapEl?.nativeElement;
+    this.canvasResizeObserver?.disconnect();
+    this.canvasResizeObserver = undefined;
+    if (!el) {
+      return;
+    }
+    this.canvasResizeObserver = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        this.scheduleFlowCanvasSizeReact(e.contentRect);
+      }
+    });
+    this.canvasResizeObserver.observe(el);
+    this.lastCanvasBox = { w: 0, h: 0 };
+  }
+
+  /**
+   * Split-pane and sash moves do not fire `window.resize`; the SVG `viewBox` is otherwise
+   * frozen while the on-screen size changes, so nodes look tiny.
+   */
+  private scheduleFlowCanvasSizeReact(contentRect: DOMRectReadOnly): void {
+    const w = Math.round(contentRect.width);
+    const h = Math.round(contentRect.height);
+
+    const hostW = this.hostRef.nativeElement.clientWidth;
+    const wasNarrow = this.isNarrow;
+    this.isNarrow = hostW < 650;
+    if (this.isNarrow && !wasNarrow) {
+      // Auto-collapse sidebars when entering narrow mode to maximize canvas space
+      this.paletteCollapsed = true;
+      this.inspectorCollapsed = true;
+      this.cdr.markForCheck();
+    }
+
+    if (w < 8 || h < 8) {
+      this.lastCanvasBox = { w, h };
+      return;
+    }
+
+    const prevW = this.lastCanvasBox.w;
+    this.lastCanvasBox = { w, h };
+
+    // Maintain zoom level on resize
+    const zoom = this.zoom || 1;
+    this.viewport.w = w / zoom;
+    this.viewport.h = h / zoom;
+
+    // If this is the first real size we've seen, or if the view is currently
+    // microscopic, do a one-time fit-view.
+    const isFirstSize = prevW < 8;
+    const isMicroscopic = this.zoom < 0.4;
+    if (isFirstSize || isMicroscopic) {
+      this.resetView();
+    }
+
+    this.cdr.markForCheck();
+  }
+
   ngOnDestroy(): void {
+    if (this.canvasResizeDebounce) {
+      clearTimeout(this.canvasResizeDebounce);
+    }
+    this.canvasResizeObserver?.disconnect();
+    this.canvasResizeObserver = undefined;
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -365,6 +456,11 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
       this.edgeDraft = null;
       this.cdr.markForCheck();
     }
+    if (this.panStart) {
+      this.panStart = null;
+      this.persistViewport();
+      this.cdr.markForCheck();
+    }
   }
 
   /**
@@ -399,6 +495,8 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
     const newY = svgY - relY * newH;
 
     this.viewport = { x: newX, y: newY, w: newW, h: newH };
+    this.zoom = rect.width / newW;
+    this.persistViewport();
     this.cdr.markForCheck();
   }
 
@@ -423,6 +521,7 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
   resetView(): void {
     if (!this.artifact || this.artifact.nodes.length === 0) {
       this.viewport = { x: 0, y: 0, w: VIEW_DEFAULT_W, h: VIEW_DEFAULT_H };
+      this.zoom = 1;
       this.cdr.markForCheck();
       return;
     }
@@ -436,9 +535,24 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
       if (ny + NODE_H > maxY) maxY = ny + NODE_H;
     }
     const pad = 120;
-    const w = Math.max(VIEW_MIN, maxX - minX + pad * 2);
-    const h = Math.max(VIEW_MIN, maxY - minY + pad * 2);
-    this.viewport = { x: minX - pad, y: minY - pad, w, h };
+    const nodesW = maxX - minX + pad * 2;
+    const nodesH = maxY - minY + pad * 2;
+
+    const canvasW = this.lastCanvasBox.w || 800;
+    const canvasH = this.lastCanvasBox.h || 600;
+
+    // Calculate zoom needed to fit all nodes, but keep a floor for readability.
+    // If they don't fit at 45%, the user can pan.
+    const zoomW = canvasW / nodesW;
+    const zoomH = canvasH / nodesH;
+    this.zoom = Math.max(0.45, Math.min(zoomW, zoomH, 1.5));
+
+    this.viewport.w = canvasW / this.zoom;
+    this.viewport.h = canvasH / this.zoom;
+    this.viewport.x = minX - pad - (this.viewport.w - nodesW) / 2;
+    this.viewport.y = minY - pad - (this.viewport.h - nodesH) / 2;
+
+    this.persistViewport();
     this.cdr.markForCheck();
   }
 
@@ -448,7 +562,7 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get zoomPercent(): number {
-    return Math.round((VIEW_DEFAULT_W / this.viewport.w) * 100);
+    return Math.round(this.zoom * 100);
   }
 
   get copyPasteHint(): string {
@@ -805,7 +919,17 @@ export class FlowComponent implements OnInit, OnChanges, OnDestroy {
 
   private persist(): void {
     if (!this.artifact) return;
-    void this.artifacts.update('flows', { ...this.artifact, updatedAt: Date.now() });
+    void this.artifacts.update('flows', {
+      ...this.artifact,
+      updatedAt: Date.now(),
+      viewport: { x: this.viewport.x, y: this.viewport.y, zoom: this.zoom },
+    });
+  }
+
+  private viewportPersistTimeout?: ReturnType<typeof setTimeout>;
+  private persistViewport(): void {
+    if (this.viewportPersistTimeout) clearTimeout(this.viewportPersistTimeout);
+    this.viewportPersistTimeout = setTimeout(() => this.persist(), 1000);
   }
 }
 

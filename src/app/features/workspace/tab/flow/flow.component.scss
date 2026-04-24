@@ -1,5 +1,8 @@
 :host {
   display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
   background: var(--aw-bg);
@@ -10,6 +13,7 @@
 .flow {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   height: 100%;
   overflow: hidden;
 }
@@ -17,6 +21,7 @@
 .flow-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
@@ -27,7 +32,9 @@
 
 .title-row { display: flex; gap: 12px; align-items: baseline; flex: 1; min-width: 0; }
 .title-input {
-  flex: 0 1 420px;
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
   font-size: 15px;
   font-weight: 600;
   padding: 6px 10px;
@@ -76,26 +83,84 @@
 
 .grid {
   display: grid;
-  grid-template-columns: 200px 1fr 320px;
+  grid-template-columns: auto 1fr auto;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.palette {
-  background: var(--aw-surface);
-  border-right: 1px solid var(--border-color);
-  padding: 14px;
-  overflow: auto;
+.aside-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  height: 24px;
+  min-width: 0;
+  gap: 8px;
 
   h4 {
-    margin: 0 0 10px 0;
+    margin: 0;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: color-mix(in srgb, var(--text-color), transparent 45%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 120ms ease;
   }
+}
+
+.palette-collapsed .palette .aside-header h4,
+.inspector-collapsed .inspector .aside-header h4 {
+  display: none;
+}
+
+.palette-collapsed .palette .aside-header,
+.inspector-collapsed .inspector .aside-header {
+  justify-content: center;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.collapse-toggle {
+  background: transparent;
+  border: 0;
+  color: color-mix(in srgb, var(--text-color), transparent 50%);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+
+  &:hover { background: color-mix(in srgb, var(--text-color), transparent 90%); color: var(--text-color); }
+}
+
+.aside-content {
+  transition: opacity 120ms ease;
+}
+
+.palette-collapsed .palette .aside-content,
+.inspector-collapsed .inspector .aside-content {
+  display: none;
+}
+
+.palette {
+  width: 200px;
+  min-width: 0;
+  background: var(--aw-surface);
+  border-right: 1px solid var(--border-color);
+  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: width var(--aw-duration-fast, 120ms) ease;
+
+  .palette-collapsed & { width: 48px; }
 }
 
 .palette-item {
@@ -129,6 +194,8 @@
 }
 
 .canvas-wrap {
+  min-width: 0;
+  min-height: 0;
   background: var(--aw-surface-muted);
   overflow: hidden;
   position: relative;
@@ -302,19 +369,17 @@
 }
 
 .inspector {
+  width: 320px;
+  min-width: 0;
   background: var(--aw-surface);
   border-left: 1px solid var(--border-color);
-  padding: 14px 16px;
-  overflow: auto;
+  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: width var(--aw-duration-fast, 120ms) ease;
 
-  h4 {
-    margin: 0 0 12px 0;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-color);
-  }
+  .inspector-collapsed & { width: 48px; }
+
   h5 {
     margin: 12px 0 6px 0;
     font-size: 11px;

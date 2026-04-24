@@ -23,10 +23,16 @@
     </div>
   </header>
 
-  <div class="grid">
+  <div class="grid" [class.is-narrow]="isNarrow" [class.palette-collapsed]="paletteCollapsed" [class.inspector-collapsed]="inspectorCollapsed">
     
     <aside class="palette">
-      <h4>Add node</h4>
+      <div class="aside-header">
+        <h4>Add node</h4>
+        <button type="button" class="collapse-toggle" (click)="paletteCollapsed = !paletteCollapsed" [title]="paletteCollapsed ? 'Expand' : 'Collapse'">
+          {{ paletteCollapsed ? '»' : '«' }}
+        </button>
+      </div>
+      <div class="aside-content">
       <button
         type="button"
         class="palette-item"
@@ -45,10 +51,11 @@
         </aw-stat-card>
         <aw-stat-card label="Steps" [value]="runResult.steps.length"></aw-stat-card>
       </div>
+      </div>
     </aside>
 
     
-    <div class="canvas-wrap" (click)="onCanvasClick($event)">
+    <div #canvasWrap class="canvas-wrap" (click)="onCanvasClick($event)">
       <div class="canvas-overlay">
         <span class="canvas-hint">Scroll to zoom · Alt/middle-drag to pan · {{ copyPasteHint }}</span>
         <div class="canvas-tools">
@@ -167,8 +174,14 @@
 
     
     <aside class="inspector">
+      <div class="aside-header">
+        <h4>{{ selectedNode ? selectedNode.kind : 'Inspector' }}</h4>
+        <button type="button" class="collapse-toggle" (click)="inspectorCollapsed = !inspectorCollapsed" [title]="inspectorCollapsed ? 'Expand' : 'Collapse'">
+          {{ inspectorCollapsed ? '«' : '»' }}
+        </button>
+      </div>
+      <div class="aside-content">
       <ng-container *ngIf="selectedNode as n; else noSel">
-        <h4>{{ n.kind }}</h4>
 
         <label class="field">
           <span>Label</span>
@@ -314,6 +327,7 @@
           <p>Click a node on the canvas to inspect it, or add one from the palette.</p>
         </div>
       </ng-template>
+      </div>
     </aside>
   </div>
 </section>
