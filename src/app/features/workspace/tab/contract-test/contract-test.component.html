@@ -1,4 +1,5 @@
-<section class="contract" #contractHost *ngIf="artifact; else loading">
+<div class="contract-host" #contractHost>
+<section class="contract" [class.is-narrow]="isNarrow" *ngIf="artifact; else loading">
   <header class="contract-header">
     <div class="title-row">
       <input
@@ -36,7 +37,7 @@
     </aw-stat-card>
   </div>
 
-  <div class="grid" [class.is-narrow]="isNarrow" [class.config-collapsed]="configCollapsed">
+  <div class="grid" [class.config-collapsed]="configCollapsed">
     
     <aside class="config-pane">
       <div class="aside-header">
@@ -160,6 +161,7 @@
     </main>
   </div>
 </section>
+</div>
 
 <ng-template #loading>
   <div class="loading">Loading contract…</div>

@@ -8,6 +8,13 @@
   background: var(--aw-bg);
 }
 
+.contract-host {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .loading { padding: 24px; color: color-mix(in srgb, var(--text-color), transparent 45%); font-size: 13px; }
 
 .contract {
@@ -28,16 +35,24 @@
   border-bottom: 1px solid var(--border-color);
   background: var(--aw-surface);
   flex-shrink: 0;
+}
 
-  .is-narrow & {
-    padding: 8px 12px;
-    gap: 8px;
-  }
+.contract.is-narrow .contract-header {
+  padding: 8px 12px;
+  gap: 8px;
 }
 
 .title-row {
-  display: flex; gap: 12px; align-items: baseline;
-  flex: 1; min-width: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.contract.is-narrow .title-row {
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .title-input {
@@ -49,11 +64,6 @@
   background: transparent;
   border-radius: 6px;
   color: var(--text-color);
-
-  .is-narrow & {
-    flex: 1;
-    font-size: 14px;
-  }
 
   &:hover { border-color: var(--border-color); }
   &:focus {
@@ -70,14 +80,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
-  margin-left: auto;
+  flex: 1 0 auto;
+}
 
-  .is-narrow & {
-    margin-left: 0;
-    width: 100%;
-    justify-content: space-between;
-  }
+.contract.is-narrow .header-end {
+  margin-left: 0;
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .actions { display: flex; align-items: center; gap: 8px; }
@@ -114,17 +123,17 @@
   border-bottom: 1px solid var(--border-color);
   background: var(--aw-surface-muted);
   flex-shrink: 0;
+}
 
-  .is-narrow & {
-    grid-template-columns: repeat(2, 1fr);
-    padding: 10px;
-    gap: 8px;
+.contract.is-narrow .totals {
+  grid-template-columns: repeat(2, 1fr);
+  padding: 10px;
+  gap: 8px;
 
-    /* Make the last card (Operations) span full width if odd? No, 2 columns is fine. */
-    /* Wait, 5 cards. Last one can span 2 columns. */
-    aw-stat-card:last-child {
-      grid-column: span 2;
-    }
+  /* Make the last card (Operations) span full width if odd? No, 2 columns is fine. */
+  /* Wait, 5 cards. Last one can span 2 columns. */
+  aw-stat-card:last-child {
+    grid-column: span 2;
   }
 }
 
@@ -161,12 +170,12 @@
 }
 
 .config-collapsed .config-pane .aside-header h4,
-.is-narrow .config-pane .aside-header h4 {
+.contract.is-narrow .config-pane .aside-header h4 {
   display: none;
 }
 
 .config-collapsed .config-pane .aside-header,
-.is-narrow .config-pane .aside-header {
+.contract.is-narrow .config-pane .aside-header {
   justify-content: center;
   padding: 12px 0 0 0;
   margin-bottom: 0;
@@ -193,7 +202,7 @@
 }
 
 .config-collapsed .config-pane .aside-content,
-.is-narrow .config-pane .aside-content {
+.contract.is-narrow .config-pane .aside-content {
   display: none;
 }
 
@@ -343,7 +352,7 @@
   min-height: 0;
   overflow: hidden;
 
-  .is-narrow & {
+  .contract.is-narrow & {
     grid-template-columns: 1fr;
     overflow: auto;
   }
