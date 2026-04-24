@@ -12,7 +12,6 @@ Full file-level diff since **v1.0.1**:
 
 ### Added
 
-- **Settings → About → Update channel** — optional pre-releases, allow downgrade to older installs, pin the updater to a specific GitHub release (version picker with refresh), applied to the packaged auto-updater.
 - **Workspace tab layout** — split the tab workspace into panes, with split preview and dock strips for predictable docking.
 - **Tab pane** — dedicated tab strip / pane for workspace tabs, including drag-and-drop reorder within a strip and **moves between panes**.
 - **Keyboard shortcuts** — persisted bindings, central shortcut service with **chord** parsing, and a catalog of default actions.
@@ -22,6 +21,7 @@ Full file-level diff since **v1.0.1**:
 
 ### Changed
 
+- **Auto-update (packaged)** — no background download on discovery; a bottom **banner** offers **Download and install** (About tab matches). After download, the app can restart into the installer in one step; a small **“Installing update…”** window appears while the process hands off so the short pause after the main window closes is not mistaken for a hang.
 - **Workspace `tab` UI** — large layout and styling pass on the tab container to support splits, DnD, and pane model; related **collection** sidebar drag-and-drop adjustments.
 - **Code editor & simple editor** — keyboard shortcuts are honored while focus is in editors (without duplicating fragile per-component listeners everywhere).
 - **Load test** — time-series chart visibility and styling tweaks.
@@ -30,6 +30,8 @@ Full file-level diff since **v1.0.1**:
 ### Fixed
 
 - **Stuck “grab” cursor after tab drag** — drag state is cleared only when the pane that started the drag still owns it; improved edge cases for strip drops, drag start ordering during reorder, and a **`window` `mouseup` fallback** when `dragend` does not run after DOM updates during reorder.
+- **Empty editor after split + close** — closing the last tab in a **split to the right** (or the only tab while the split’s focus was on the right pane) left internal focus on the **secondary** pane even though the UI is unsplit. New tabs were routed to the hidden pane. Focus now resets to the **primary** pane when the workspace is empty, with a guard when opening tabs while unsplit.
+- **Collections sidebar order** — requests and **WebSocket / SSE** entries share one **reorderable** list per folder/collection: drag **between** any row, drop on the **lower half** of a row to insert after it, or use the **strip above folders** to append **last** among leaves. (Avoided duplicate drop-indicator lines for “append as last item”.)
 
 ### Release
 

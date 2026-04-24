@@ -1,5 +1,8 @@
 :host {
   display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
 }
@@ -7,6 +10,7 @@
 .loadtest-tab {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   height: 100%;
   background: var(--aw-bg);
   color: var(--text-color);
@@ -60,8 +64,10 @@
 .lt-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   margin: 0;
   padding: 8px 12px;
@@ -72,6 +78,7 @@
 
   .title-input {
     flex: 1;
+    min-width: 0;
     background: transparent;
     border: 0;
     border-bottom: 1px solid transparent;

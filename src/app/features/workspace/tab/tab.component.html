@@ -54,21 +54,25 @@
     </div>
   }
 
-  @if (!splitMode && tabStripDragActive) {
+  @if (tabStripDragActive) {
     <div
       class="split-dock-strip split-dock-strip--left"
       [class.is-hot]="splitDropHint === 'left'"
       aria-hidden="true"
-      title="Release to split — tab stays in the left pane"
+      [attr.title]="splitMode
+        ? 'Release to move tab to the left pane'
+        : 'Release to split — tab stays in the left pane'"
       (dragover)="onSplitDockStripDragOver($event, 'left')"
-      (drop)="onUnsplitEdgeDrop($event, 'left')"></div>
+      (drop)="onWorkspaceEdgeDrop($event, 'left')"></div>
     <div
       class="split-dock-strip split-dock-strip--right"
       [class.is-hot]="splitDropHint === 'right'"
       aria-hidden="true"
-      title="Release to split — tab moves to the new right pane"
+      [attr.title]="splitMode
+        ? 'Release to move tab to the right pane'
+        : 'Release to split — tab moves to the new right pane'"
       (dragover)="onSplitDockStripDragOver($event, 'right')"
-      (drop)="onUnsplitEdgeDrop($event, 'right')"></div>
+      (drop)="onWorkspaceEdgeDrop($event, 'right')"></div>
   }
 
   @if (splitMode) {

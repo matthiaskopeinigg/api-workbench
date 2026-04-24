@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { TabComponent } from './tab.component';
 import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { WORKBENCH_TAB_DND_MIME } from '@core/tabs/workbench-tab-dnd.mime';
 import type { WorkspaceTabsState } from '@core/tabs/workspace-tabs.model';
 import { ViewStateService } from '@core/session/view-state.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
@@ -191,6 +192,35 @@ describe('TabComponent', () => {
     await c.addNewTabToWorkspace(mk('fresh'));
     expect(c.primaryTabs.map((t) => t.id)).toEqual(['fresh']);
     expect(c.secondaryTabs.length).toBe(0);
+    expect(c.focusedPane).toBe('primary');
+  });
+
+  it('split mode: left edge drop moves a tab from the secondary pane to the primary pane', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const c = fixture.componentInstance;
+    c.splitMode = true;
+    c.primaryTabs = [mk('left-1')];
+    c.primarySelected = 0;
+    c.secondaryTabs = [mk('right-a'), mk('right-b')];
+    c.secondarySelected = 0;
+    c.focusedPane = 'secondary';
+
+    const payload = { paneId: 'secondary' as const, index: 1 };
+    const ev = {
+      preventDefault: jasmine.createSpy('preventDefault'),
+      stopPropagation: jasmine.createSpy('stopPropagation'),
+      dataTransfer: {
+        getData: (mime: string) =>
+          mime === WORKBENCH_TAB_DND_MIME ? JSON.stringify(payload) : '',
+      },
+    } as unknown as DragEvent;
+
+    c.onWorkspaceEdgeDrop(ev, 'left');
+    await fixture.whenStable();
+
+    expect(c.secondaryTabs.map((t) => t.id)).toEqual(['right-a']);
+    expect(c.primaryTabs.map((t) => t.id)).toEqual(['left-1', 'right-b']);
     expect(c.focusedPane).toBe('primary');
   });
 

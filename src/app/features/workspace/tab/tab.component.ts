@@ -54,7 +54,7 @@ export class TabComponent implements OnInit, OnDestroy {
   splitOrientation: SplitOrientation = 'horizontal';
   /** Enables flex-grow + splitter enter transitions when opening a new split. */
   splitOpening = false;
-  /** True while a workbench-tab drag is active (unsplit) — shows wide viewport dock strips. */
+  /** True while a workbench-tab drag is active — shows wide viewport dock strips (split or unsplit). */
   tabStripDragActive = false;
   /** Visual hint for which split edge the pointer is near (unsplit). */
   splitDropHint: 'left' | 'right' | null = null;
@@ -128,10 +128,6 @@ export class TabComponent implements OnInit, OnDestroy {
 
   @HostListener('document:dragover', ['$event'])
   onDocumentWorkbenchTabDragOver(event: DragEvent): void {
-    if (this.splitMode) {
-      this.clearWorkbenchTabDragUi();
-      return;
-    }
     const types = event.dataTransfer?.types;
     if (!types || !Array.from(types).includes(WORKBENCH_TAB_DND_MIME)) {
       this.clearWorkbenchTabDragUi();
@@ -245,11 +241,11 @@ export class TabComponent implements OnInit, OnDestroy {
     }
   }
 
-  onUnsplitEdgeDrop(event: DragEvent, edge: 'left' | 'right'): void {
-    void this.handleUnsplitEdgeDrop(event, edge);
+  onWorkspaceEdgeDrop(event: DragEvent, edge: 'left' | 'right'): void {
+    void this.handleWorkspaceEdgeDrop(event, edge);
   }
 
-  private async handleUnsplitEdgeDrop(event: DragEvent, edge: 'left' | 'right'): Promise<void> {
+  private async handleWorkspaceEdgeDrop(event: DragEvent, edge: 'left' | 'right'): Promise<void> {
     event.preventDefault();
     event.stopPropagation();
     this.clearWorkbenchTabDragUi();
@@ -259,6 +255,25 @@ export class TabComponent implements OnInit, OnDestroy {
     try {
       data = JSON.parse(raw) as { paneId: WorkspacePaneId; index: number };
     } catch {
+      return;
+    }
+    if (this.splitMode) {
+      if (edge === 'left' && data.paneId === 'secondary') {
+        await this.onCrossPaneTabMove({
+          fromPane: 'secondary',
+          fromIndex: data.index,
+          toPane: 'primary',
+        });
+        return;
+      }
+      if (edge === 'right' && data.paneId === 'primary') {
+        await this.onCrossPaneTabMove({
+          fromPane: 'primary',
+          fromIndex: data.index,
+          toPane: 'secondary',
+        });
+        return;
+      }
       return;
     }
     if (data.paneId !== 'primary') return;
