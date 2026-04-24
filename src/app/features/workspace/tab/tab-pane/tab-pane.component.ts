@@ -53,6 +53,13 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
   @Input({ required: true }) paneId!: WorkspacePaneId;
   @Input() tabs: TabItem[] = [];
   @Input() selectedTabIndex = 0;
+
+  /** Clamps parent index so we never read past `tabs.length` (avoids an empty content pane). */
+  get effectiveSelectedTabIndex(): number {
+    const len = this.tabs?.length ?? 0;
+    if (len === 0) return 0;
+    return Math.min(Math.max(0, this.selectedTabIndex), len - 1);
+  }
   /** When true, this pane received the last workspace focus (outline). */
   @Input() isFocused = false;
   @Input() splitMode = false;
@@ -287,12 +294,12 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
     if (!crossed) return;
 
     const firstPositions = this.captureTabPositions();
-    const selectedTabId = this.tabs[this.selectedTabIndex]?.id;
+    const selectedTabId = this.tabs[this.effectiveSelectedTabIndex]?.id;
     const list = [...this.tabs];
     const [moved] = list.splice(this.draggedIndex, 1);
     list.splice(index, 0, moved);
     this.draggedIndex = index;
-    let nextSelected = this.selectedTabIndex;
+    let nextSelected = this.effectiveSelectedTabIndex;
     if (selectedTabId) {
       const newSelectedIndex = list.findIndex(t => t.id === selectedTabId);
       if (newSelectedIndex !== -1) {

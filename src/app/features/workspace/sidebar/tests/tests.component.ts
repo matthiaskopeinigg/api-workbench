@@ -20,9 +20,11 @@ import {
   DEFAULT_LOAD_CONFIG,
   ensureLoadTestProfiles,
   findLoadTestProfileTemplateById,
+  loadTestProfileCoversTemplate,
   LOAD_TEST_PROFILE_PICKER_EMPTY,
   LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX,
   LOAD_TEST_PROFILE_TEMPLATES,
+  type LoadTestProfileTemplate,
 } from '@models/testing/load-test';
 import type { TestSuiteArtifact } from '@models/testing/test-suite';
 import { NEW_TEST_SUITE } from '@models/testing/test-suite';
@@ -58,9 +60,20 @@ export class TestsComponent implements OnInit, OnDestroy {
   sections: Section<ArtifactBase>[] = [];
 
   /** Load test → profile template catalog (sidebar quick-add). */
-  readonly loadTestTemplateList = LOAD_TEST_PROFILE_TEMPLATES;
   readonly loadTestTplPrefix = LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX;
   readonly loadTestEmptyVal = LOAD_TEST_PROFILE_PICKER_EMPTY;
+
+  /** Catalog templates not already represented as a profile on this load test. */
+  loadTestTemplatesAvailable(item: ArtifactBase): LoadTestProfileTemplate[] {
+    const raw = this.artifacts.getById<LoadTestArtifact>('loadTests', item.id);
+    if (!raw) {
+      return LOAD_TEST_PROFILE_TEMPLATES;
+    }
+    const a = ensureLoadTestProfiles(JSON.parse(JSON.stringify(raw)) as LoadTestArtifact);
+    return LOAD_TEST_PROFILE_TEMPLATES.filter(
+      (t) => !(a.profiles || []).some((p) => loadTestProfileCoversTemplate(p, t)),
+    );
+  }
 
   /** Inline rename state. */
   editingId: string | null = null;

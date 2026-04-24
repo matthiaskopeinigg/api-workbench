@@ -19,7 +19,15 @@ import {
   type MockSelectionKind,
 } from '@core/mock-server/mock-server-ui-state.service';
 import { Collection, Folder } from '@models/collection';
-import { HttpMethod, MockVariant, Request as RequestModel } from '@models/request';
+import {
+  HttpMethod,
+  MockVariant,
+  Request as RequestModel,
+  cloneMockVariantMatchRules,
+  isMockVariantServed,
+  syncLegacyPrimaryMockVariantId,
+  toggleVariantServed,
+} from '@models/request';
 import type {
   MockHit,
   MockServerOptions,
@@ -30,6 +38,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
 import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
+import { MockVariantMatchSectionComponent } from '../../shared/mock-variant-match-section/mock-variant-match-section.component';
 
 /** Persisted in sessionStorage for the Mock Server tab (same browser session). */
 interface MockServerSessionSnapshot {
@@ -83,7 +92,7 @@ interface VariantLike {
 @Component({
   selector: 'app-mock-server',
   standalone: true,
-  imports: [CommonModule, FormsModule, DropdownComponent],
+  imports: [CommonModule, FormsModule, DropdownComponent, MockVariantMatchSectionComponent],
   templateUrl: './mock-server.component.html',
   styleUrl: './mock-server.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -430,8 +439,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
         headers: v.headers,
         body: v.body,
         delayMs: v.delayMs,
+        matchOn: v.matchOn,
       })),
       activeVariantId: s.activeVariantId,
+      activeVariantIds: s.activeVariantIds === undefined ? undefined : s.activeVariantIds,
     });
     if (updated) this.selectedStandalone = updated;
     await this.mockUi.refreshStandalonesList();
@@ -471,7 +482,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
       delayMs: 0,
     };
     s.variants = [...s.variants, variant];
-    if (!s.activeVariantId) s.activeVariantId = variant.id;
+    if (Array.isArray(s.activeVariantIds)) {
+      s.activeVariantIds = [...s.activeVariantIds, variant.id];
+    }
+    this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
   }
 
@@ -481,9 +495,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
     const next = s.variants.slice();
     const [removed] = next.splice(index, 1);
     s.variants = next;
-    if (removed && s.activeVariantId === removed.id) {
-      s.activeVariantId = next[0]?.id || null;
+    if (removed && Array.isArray(s.activeVariantIds)) {
+      s.activeVariantIds = s.activeVariantIds.filter((id: string) => id !== removed.id);
     }
+    this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
   }
 
@@ -497,18 +512,59 @@ export class MockServerComponent implements OnInit, OnDestroy {
       id: uuidv4(),
       name: `${original.name || 'Variant'} (copy)`,
       headers: original.headers ? original.headers.map((h) => ({ ...h })) : [],
+      matchOn: cloneMockVariantMatchRules(original.matchOn),
     };
     const next = s.variants.slice();
     next.splice(index + 1, 0, copy);
     s.variants = next;
+    const ids = s.activeVariantIds;
+    if (Array.isArray(ids) && ids.includes(original.id)) {
+      s.activeVariantIds = [...ids, copy.id];
+    }
+    this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
   }
 
-  setActiveStandaloneVariant(id: string): void {
+  onStandaloneVariantServedChange(variantId: string, ev: Event): void {
+    const checked = (ev.target as HTMLInputElement).checked;
     const s = this.selectedStandalone;
     if (!s) return;
-    s.activeVariantId = id;
+    const now = isMockVariantServed(variantId, s.variants as MockVariant[], s.activeVariantIds);
+    if (checked === now) return;
+    toggleVariantServed(
+      s.variants || [],
+      variantId,
+      () => s.activeVariantIds,
+      (next) => {
+        s.activeVariantIds = next;
+      },
+    );
+    this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
+  }
+
+  isStandaloneVariantServed(variantId: string): boolean {
+    const s = this.selectedStandalone;
+    if (!s) return false;
+    return isMockVariantServed(variantId, s.variants as MockVariant[], s.activeVariantIds);
+  }
+
+  private syncStandalonePrimaryActive(s: StandaloneMockEndpoint): void {
+    const list = s.variants || [];
+    const ids = s.activeVariantIds;
+    if (!list.length) {
+      s.activeVariantId = null;
+      return;
+    }
+    if (ids == null) {
+      s.activeVariantId = list[0]?.id ?? null;
+      return;
+    }
+    if (ids.length === 0) {
+      s.activeVariantId = null;
+      return;
+    }
+    s.activeVariantId = list.find((v) => ids.includes(v.id))?.id ?? null;
   }
 
   standaloneUrl(endpoint: StandaloneMockEndpoint | null): string {
@@ -531,9 +587,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
       delayMs: 0,
     };
     this.selectedRequest.mockVariants = [...list, variant];
-    if (!this.selectedRequest.activeMockVariantId) {
-      this.selectedRequest.activeMockVariantId = variant.id;
+    if (Array.isArray(this.selectedRequest.activeMockVariantIds)) {
+      this.selectedRequest.activeMockVariantIds = [...this.selectedRequest.activeMockVariantIds, variant.id];
     }
+    syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
   }
 
@@ -542,9 +599,12 @@ export class MockServerComponent implements OnInit, OnDestroy {
     const next = this.selectedRequest.mockVariants.slice();
     const [removed] = next.splice(index, 1);
     this.selectedRequest.mockVariants = next;
-    if (removed && this.selectedRequest.activeMockVariantId === removed.id) {
-      this.selectedRequest.activeMockVariantId = next[0]?.id;
+    if (removed && Array.isArray(this.selectedRequest.activeMockVariantIds)) {
+      this.selectedRequest.activeMockVariantIds = this.selectedRequest.activeMockVariantIds.filter(
+        (id) => id !== removed.id,
+      );
     }
+    syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
   }
 
@@ -557,18 +617,41 @@ export class MockServerComponent implements OnInit, OnDestroy {
       id: uuidv4(),
       name: `${original.name || 'Variant'} (copy)`,
       headers: original.headers ? original.headers.map((h) => ({ ...h })) : undefined,
-      matchOn: original.matchOn ? { ...original.matchOn } : undefined,
+      matchOn: cloneMockVariantMatchRules(original.matchOn),
     };
     const next = this.selectedRequest.mockVariants.slice();
     next.splice(index + 1, 0, copy);
     this.selectedRequest.mockVariants = next;
+    const ids = this.selectedRequest.activeMockVariantIds;
+    if (Array.isArray(ids) && ids.includes(original.id)) {
+      this.selectedRequest.activeMockVariantIds = [...ids, copy.id];
+    }
+    syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
   }
 
-  setActiveVariant(id: string): void {
-    if (!this.selectedRequest) return;
-    this.selectedRequest.activeMockVariantId = id;
+  onRequestVariantServedChange(variantId: string, ev: Event): void {
+    const checked = (ev.target as HTMLInputElement).checked;
+    const req = this.selectedRequest;
+    if (!req) return;
+    const now = isMockVariantServed(variantId, req.mockVariants, req.activeMockVariantIds);
+    if (checked === now) return;
+    toggleVariantServed(
+      req.mockVariants || [],
+      variantId,
+      () => req.activeMockVariantIds,
+      (next) => {
+        req.activeMockVariantIds = next;
+      },
+    );
+    syncLegacyPrimaryMockVariantId(req);
     void this.persistAndSync();
+  }
+
+  isRequestVariantServed(variantId: string): boolean {
+    const req = this.selectedRequest;
+    if (!req) return false;
+    return isMockVariantServed(variantId, req.mockVariants, req.activeMockVariantIds);
   }
 
   onVariantChanged(): void {
@@ -590,6 +673,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
       id: this.selectedRequest.id,
       mockVariants: this.selectedRequest.mockVariants,
       activeMockVariantId: this.selectedRequest.activeMockVariantId,
+      activeMockVariantIds: this.selectedRequest.activeMockVariantIds,
     });
     this.mockUi.setCollections(this.collections);
     this.cdr.markForCheck();

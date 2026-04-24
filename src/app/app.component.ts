@@ -73,7 +73,7 @@ export class AppComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     this.updateSub = this.updateService.statusStream.subscribe((status) => {
       this.updaterUi = status;
-      if (status.state === 'checking' || status.state === 'available' || status.state === 'downloading') {
+      if (status.state === 'checking' || status.state === 'available') {
         this.updateBannerDismissed = false;
       }
     });
@@ -92,7 +92,12 @@ export class AppComponent implements OnInit, OnDestroy {
   get showGlobalUpdateBanner(): boolean {
     const s = this.updaterUi;
     if (!this.isReady || !s?.supported) return false;
-    if (this.updateBannerDismissed && (s.state === 'downloaded' || s.state === 'error')) return false;
+    if (this.updateBannerDismissed) {
+      if (s.state === 'downloading' || s.state === 'downloaded') {
+        return true;
+      }
+      return false;
+    }
     return (
       s.state === 'available' ||
       s.state === 'downloading' ||
@@ -106,13 +111,13 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!s) return '';
     switch (s.state) {
       case 'available':
-        return `Update ${s.info?.version ?? ''} is available. Downloading in the background…`;
+        return `Update ${s.info?.version ?? ''} is available.`;
       case 'downloading': {
         const p = s.info?.percent ?? 0;
         return `Downloading update… ${p}%`;
       }
       case 'downloaded':
-        return `Update ${s.info?.version ?? ''} is ready. Restart to install.`;
+        return `Update ${s.info?.version ?? ''} is ready. Preparing installer…`;
       case 'error':
         return s.info?.message ? `Update failed: ${s.info.message}` : 'Update check failed.';
       default:
@@ -124,8 +129,14 @@ export class AppComponent implements OnInit, OnDestroy {
     this.updateService.installUpdate();
   }
 
+  startDownloadAndInstall(): void {
+    this.updateBannerDismissed = false;
+    this.updateService.downloadAndInstall();
+  }
+
   dismissUpdateBanner(): void {
     this.updateBannerDismissed = true;
+    this.updateService.cancelChainedInstall();
   }
 
   closeRunnerDialog = () => this.runnerDialogService.close();

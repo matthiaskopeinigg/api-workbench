@@ -58,9 +58,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     { label: 'Expand Only', value: 'expand' }
   ];
 
-  /** GitHub releases for Settings → About → update version picker (first entry is always Latest). */
-  releasePickerOptions: DropdownOption[] = [{ label: 'Latest (default feed)', value: 'latest' }];
-
   defaultRequestEditorSectionOptions: DropdownOption[] = [
     { label: 'Params', value: 'params' as RequestEditorSection },
     { label: 'Headers', value: 'headers' as RequestEditorSection },
@@ -173,7 +170,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.loadSettings();
-    void this.refreshReleasePickerOptions();
     await this.sessionService.load(SESSION_SCRIPT_VARS_KEY);
     await this.environmentsService.loadEnvironments();
     this.rebuildHeaderFieldVariables();
@@ -227,8 +223,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     void this.updateService.checkForUpdates();
   }
 
-  downloadUpdate(): void {
-    void this.updateService.downloadUpdate();
+  downloadAndInstallUpdate(): void {
+    this.updateService.downloadAndInstall();
   }
 
   installUpdate(): void {
@@ -274,12 +270,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
             'Download a packaged installer from the repository releases page to update.'
           );
         }
-        return `Version ${s.info?.version ?? ''} is available. It downloads automatically; you can restart when prompted.`;
+        return `Version ${s.info?.version ?? ''} is available. Use Download and install, or use the banner at the bottom of the window.`;
       case 'downloading': {
         const p = s.info?.percent ?? 0;
         return `Downloading update\u2026 ${p}%`;
       }
-      case 'downloaded': return `Version ${s.info?.version ?? ''} is ready to install.`;
+      case 'downloaded':
+        return `Version ${s.info?.version ?? ''} is ready. The app will restart for the installer, or use Restart & install.`;
       case 'error': {
         const m = s.info?.message ?? '';
         if (/CHANNEL_FILE_NOT_FOUND|Cannot find .*\.yml|latest\.yml|beta\.yml/i.test(m)) {
@@ -354,12 +351,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
         user: [settings?.proxy?.user ?? ''],
         password: [settings?.proxy?.password ?? ''],
         noProxy: [settings?.proxy?.noProxy ?? []]
-      }),
-
-      updates: this.fb.group({
-        allowPrerelease: [settings?.updates?.allowPrerelease ?? false],
-        allowDowngrade: [settings?.updates?.allowDowngrade ?? false],
-        targetRelease: [settings?.updates?.targetRelease ?? 'latest'],
       }),
     });
 
@@ -954,28 +945,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (tab === 'data') {
       void this.refreshStorageInfo();
     }
-    if (tab === 'about') {
-      void this.refreshReleasePickerOptions();
-    }
-  }
-
-  async refreshReleasePickerOptions(): Promise<void> {
-    const base: DropdownOption[] = [{ label: 'Latest (default feed)', value: 'latest' }];
-    try {
-      const rows = await this.updateService.listUpdaterReleases();
-      for (const r of rows) {
-        const label = r.prerelease ? `${r.tag} (pre-release)` : r.tag;
-        base.push({ label, value: r.version });
-      }
-      const cur = this.settingsForm?.get('updates.targetRelease')?.value as string | undefined;
-      if (cur && cur !== 'latest' && !base.some((o) => o.value === cur)) {
-        base.push({ label: `Pinned: ${cur}`, value: cur });
-      }
-      this.releasePickerOptions = base;
-    } catch {
-      this.releasePickerOptions = base;
-    }
-    this.cdr.markForCheck();
   }
 
   async refreshStorageInfo(): Promise<void> {

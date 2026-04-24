@@ -42,7 +42,6 @@ describe('SettingsComponent', () => {
     dns: {},
     proxy: {},
     logging: {},
-    updates: { allowPrerelease: false, allowDowngrade: false, targetRelease: 'latest' },
   };
 
   beforeEach(async () => {
@@ -67,9 +66,8 @@ describe('SettingsComponent', () => {
     batchImportDialogSpy.finished$ = finished$;
     updateServiceSpy = jasmine.createSpyObj('UpdateService', [
       'checkForUpdates',
-      'downloadUpdate',
+      'downloadAndInstall',
       'installUpdate',
-      'listUpdaterReleases',
     ]) as jasmine.SpyObj<UpdateService> & { statusStream: unknown };
     (updateServiceSpy as { statusStream: unknown }).statusStream = of({
       state: 'idle',
@@ -77,8 +75,6 @@ describe('SettingsComponent', () => {
       supported: false,
       info: null,
     } as any);
-    updateServiceSpy.listUpdaterReleases.and.resolveTo([]);
-
     environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', [
       'loadEnvironments',
       'getActiveContext',

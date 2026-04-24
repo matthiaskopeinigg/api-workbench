@@ -3,8 +3,11 @@ import { BehaviorSubject } from 'rxjs';
 import { SimpleChange } from '@angular/core';
 import { WebSocketComponent } from './websocket.component';
 import { WebSocketService } from '@core/websocket/websocket.service';
+import { CollectionService } from '@core/collection/collection.service';
+import { EnvironmentsService } from '@core/environments/environments.service';
 import { TabType } from '@core/tabs/tab.service';
 import type { TabItem } from '@core/tabs/tab.service';
+import { AuthType } from '@models/request';
 
 describe('WebSocketComponent', () => {
   let fixture: ComponentFixture<WebSocketComponent>;
@@ -12,6 +15,8 @@ describe('WebSocketComponent', () => {
 
   let state$: BehaviorSubject<any>;
   let wsSpy: jasmine.SpyObj<WebSocketService>;
+  let collectionSpy: jasmine.SpyObj<CollectionService>;
+  let environmentsSpy: jasmine.SpyObj<EnvironmentsService>;
 
   const tab: TabItem = { id: 'ws-1', title: 'Socket', type: TabType.WEBSOCKET };
 
@@ -21,20 +26,31 @@ describe('WebSocketComponent', () => {
       tab: {
         id: 'ws-1', title: 'Socket', mode: 'ws', url: '',
         protocols: [], headers: [], messageDraft: '', messageHistory: [],
+        auth: { type: AuthType.NONE },
       },
       frames: [],
     });
     wsSpy = jasmine.createSpyObj('WebSocketService',
-      ['ensure', 'state$', 'updateTab', 'connect', 'disconnect', 'send', 'clearFrames']);
+      ['ensure', 'state$', 'updateTab', 'connect', 'disconnect', 'send', 'clearFrames', 'getSnapshot']);
     wsSpy.ensure.and.returnValue(state$ as any);
     wsSpy.state$.and.returnValue(state$.asObservable());
+    wsSpy.getSnapshot.and.returnValue(state$.value);
     wsSpy.connect.and.resolveTo();
     wsSpy.disconnect.and.resolveTo();
     wsSpy.send.and.resolveTo();
+    collectionSpy = jasmine.createSpyObj('CollectionService', ['findWebSocketRequestById', 'updateWebSocketRequest', 'getParentFolders']);
+    collectionSpy.findWebSocketRequestById.and.returnValue(null);
+    collectionSpy.getParentFolders.and.returnValue([]);
+    environmentsSpy = jasmine.createSpyObj('EnvironmentsService', ['getActiveContext']);
+    environmentsSpy.getActiveContext.and.returnValue(null);
 
     await TestBed.configureTestingModule({
       imports: [WebSocketComponent],
-      providers: [{ provide: WebSocketService, useValue: wsSpy }],
+      providers: [
+        { provide: WebSocketService, useValue: wsSpy },
+        { provide: CollectionService, useValue: collectionSpy },
+        { provide: EnvironmentsService, useValue: environmentsSpy },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(WebSocketComponent);
@@ -117,10 +133,40 @@ describe('WebSocketComponent', () => {
   });
 
   it('connect / disconnect delegate to the service for the bound tab', async () => {
+    state$.next({
+      ...state$.value,
+      tab: { ...state$.value.tab, url: 'wss://example.com/socket' },
+    });
+    wsSpy.getSnapshot.and.returnValue(state$.value);
     await component.connect();
-    expect(wsSpy.connect).toHaveBeenCalledWith('ws-1');
+    expect(wsSpy.connect).toHaveBeenCalledWith(
+      'ws-1',
+      jasmine.objectContaining({
+        url: 'wss://example.com/socket',
+        headers: jasmine.any(Object),
+      }),
+    );
     await component.disconnect();
     expect(wsSpy.disconnect).toHaveBeenCalledWith('ws-1');
+  });
+
+  it('hydrates from collection when findWebSocketRequestById returns an entry', () => {
+    collectionSpy.findWebSocketRequestById.and.returnValue({
+      id: 'saved-1',
+      title: 'Saved',
+      mode: 'sse',
+      url: 'https://ex/events',
+      protocols: ['p1'],
+      headers: [{ key: 'X', value: '1', enabled: true }],
+      messageDraft: 'x',
+      auth: { type: AuthType.BEARER, bearer: { token: 't' } },
+    } as any);
+    component.tab = { id: 'saved-1', title: 'Saved', type: TabType.WEBSOCKET };
+    component.ngOnChanges({ tab: new SimpleChange(tab, component.tab, false) });
+    expect(wsSpy.ensure).toHaveBeenCalledWith(
+      'saved-1',
+      jasmine.objectContaining({ mode: 'sse', url: 'https://ex/events' }),
+    );
   });
 
   it('send is a no-op when the draft is empty', async () => {

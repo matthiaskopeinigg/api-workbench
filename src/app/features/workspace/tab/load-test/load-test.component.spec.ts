@@ -9,7 +9,13 @@ import { SessionService } from '@core/session/session.service';
 import { EnvironmentsService } from '@core/environments/environments.service';
 import type { TabItem } from '@core/tabs/tab.service';
 import { TabType } from '@core/tabs/tab.service';
-import { DEFAULT_LOAD_CONFIG, LOAD_TEST_PROFILE_TEMPLATES, ensureLoadTestProfiles } from '@models/testing/load-test';
+import {
+  DEFAULT_LOAD_CONFIG,
+  LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX,
+  LOAD_TEST_PROFILE_TEMPLATES,
+  ensureLoadTestProfiles,
+  loadTestTemplateProfileName,
+} from '@models/testing/load-test';
 import type { LoadTestArtifact, LoadProgressEvent, LoadRunResult } from '@models/testing/load-test';
 
 describe('LoadTestComponent', () => {
@@ -123,6 +129,30 @@ describe('LoadTestComponent', () => {
     component.setStopMode('duration');
     expect(component.artifact!.config.iterations).toBeNull();
     expect(component.artifact!.config.durationSec).toBe(30);
+  });
+
+  it('picking the same catalog template twice does not add a second profile', () => {
+    const a = component.artifact!;
+    ensureLoadTestProfiles(a);
+    const tpl = LOAD_TEST_PROFILE_TEMPLATES[0];
+    const prefix = LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX;
+    component.onProfileHeaderPick(a, `${prefix}${tpl.id}`);
+    const n1 = a.profiles?.length ?? 0;
+    expect(n1).toBeGreaterThan(0);
+    expect(component.activeProfile(a)?.name).toBe(loadTestTemplateProfileName(tpl));
+    component.onProfileHeaderPick(a, `${prefix}${tpl.id}`);
+    expect(a.profiles?.length).toBe(n1);
+  });
+
+  it('headerProfileOptions omits catalog entry when that template is already a profile', () => {
+    const a = component.artifact!;
+    ensureLoadTestProfiles(a);
+    const tpl = LOAD_TEST_PROFILE_TEMPLATES[0];
+    const prefix = LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX;
+    component.onProfileHeaderPick(a, `${prefix}${tpl.id}`);
+    const opts = component.headerProfileOptions(a);
+    expect(opts.some((o) => o.value === `${prefix}${tpl.id}`)).toBeFalse();
+    expect(opts.some((o) => o.value === a.activeProfileId)).toBeTrue();
   });
 
   it('does not fork a new profile when load settings change on a preset; edits the active profile', () => {

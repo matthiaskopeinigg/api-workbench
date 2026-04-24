@@ -150,6 +150,7 @@ function getStatus() {
       requestId: id,
       variantCount: Array.isArray(entry.variants) ? entry.variants.length : 0,
       activeVariantId: entry.activeVariantId || null,
+      activeVariantIds: Array.isArray(entry.activeVariantIds) ? entry.activeVariantIds : null,
     })),
     standalone: [
       ...Array.from(standalone.values()).map((e) => ({
@@ -159,6 +160,7 @@ function getStatus() {
         path: e.path,
         variantCount: e.variants.length,
         activeVariantId: e.activeVariantId || null,
+        activeVariantIds: Array.isArray(e.activeVariantIds) ? e.activeVariantIds : null,
       })),
       ...standaloneWildcards.map((e) => ({
         id: e.id,
@@ -167,6 +169,7 @@ function getStatus() {
         path: e.path,
         variantCount: e.variants.length,
         activeVariantId: e.activeVariantId || null,
+        activeVariantIds: Array.isArray(e.activeVariantIds) ? e.activeVariantIds : null,
       })),
     ],
   };
@@ -186,17 +189,185 @@ function parseRequestPath(urlPath) {
   }
 }
 
-function pickVariant(entry, preferredVariantId) {
+function hasMatcherRules(m) {
+  if (!m || typeof m !== 'object') return false;
+  if (Array.isArray(m.methods) && m.methods.length > 0) return true;
+  if (m.method && String(m.method).trim()) return true;
+  if (m.methodRegex && String(m.methodRegex).trim()) return true;
+  if (m.pathContains && String(m.pathContains).trim()) return true;
+  if (m.pathRegex && String(m.pathRegex).trim()) return true;
+  if (Array.isArray(m.headers) && m.headers.some((h) => h && String(h.name || '').trim())) return true;
+  if (m.bodyContains != null && String(m.bodyContains).length > 0) return true;
+  if (m.bodyRegex && String(m.bodyRegex).trim()) return true;
+  if (Array.isArray(m.queryParams) && m.queryParams.some((p) => p && String(p.name || '').trim())) return true;
+  if (m.bodyJsonPath && String(m.bodyJsonPath).trim()) return true;
+  return false;
+}
+
+function getSearchString(pathNoQuery, rawUrl) {
+  let q = '';
+  try {
+    q = new URL(rawUrl || '/', 'http://internal').search || '';
+  } catch {
+    q = '';
+  }
+  return `${pathNoQuery}${q}`;
+}
+
+function variantMatchesRequest(variant, req, pathNoQuery, rawUrl, capturedBody) {
+  const m = variant && variant.matchOn;
+  if (!hasMatcherRules(m)) return false;
+  if (Array.isArray(m.methods) && m.methods.length > 0) {
+    const up = String(req.method || 'GET').toUpperCase();
+    if (!m.methods.some((x) => String(x || '').trim().toUpperCase() === up)) return false;
+  } else {
+    if (m.method && String(m.method).trim()) {
+      if (String(req.method || 'GET').toUpperCase() !== String(m.method).trim().toUpperCase()) return false;
+    }
+    if (m.methodRegex && String(m.methodRegex).trim()) {
+      try {
+        if (!new RegExp(String(m.methodRegex).trim(), 'i').test(String(req.method || 'GET'))) return false;
+      } catch {
+        return false;
+      }
+    }
+  }
+  if (m.pathContains && String(m.pathContains).trim()) {
+    const hay = getSearchString(pathNoQuery, rawUrl);
+    if (!hay.includes(String(m.pathContains))) return false;
+  }
+  if (m.pathRegex && String(m.pathRegex).trim()) {
+    const hay = getSearchString(pathNoQuery, rawUrl);
+    try {
+      if (!new RegExp(String(m.pathRegex).trim(), 's').test(hay)) return false;
+    } catch {
+      return false;
+    }
+  }
+  if (Array.isArray(m.headers)) {
+    for (const rule of m.headers) {
+      if (!rule || !String(rule.name || '').trim()) continue;
+      const val = getHeaderInsensitive(req.headers, rule.name);
+      if (rule.equals !== undefined && rule.equals !== null && String(rule.equals).length > 0) {
+        if (String(val) !== String(rule.equals)) return false;
+      } else if (rule.matches !== undefined && rule.matches !== null && String(rule.matches).trim()) {
+        try {
+          if (!new RegExp(String(rule.matches).trim()).test(String(val ?? ''))) return false;
+        } catch {
+          return false;
+        }
+      } else if (rule.contains !== undefined && rule.contains !== null && String(rule.contains).length > 0) {
+        if (!String(val).includes(String(rule.contains))) return false;
+      } else {
+        if (!val || !String(val).trim()) return false;
+      }
+    }
+  }
+  if (m.bodyContains != null && String(m.bodyContains).length > 0) {
+    const b = capturedBody == null ? '' : String(capturedBody);
+    if (!b.includes(String(m.bodyContains))) return false;
+  }
+  if (m.bodyRegex && String(m.bodyRegex).trim()) {
+    try {
+      if (!new RegExp(String(m.bodyRegex), 's').test(String(capturedBody || ''))) return false;
+    } catch {
+      return false;
+    }
+  }
+  if (Array.isArray(m.queryParams)) {
+    let u;
+    try {
+      u = new URL(rawUrl || '/', 'http://internal');
+    } catch {
+      return false;
+    }
+    for (const p of m.queryParams) {
+      if (!p || !String(p.name || '').trim()) continue;
+      const rawVal = u.searchParams.get(p.name);
+      if (p.valueRegex && String(p.valueRegex).trim()) {
+        try {
+          if (!new RegExp(String(p.valueRegex).trim()).test(String(rawVal ?? ''))) return false;
+        } catch {
+          return false;
+        }
+      } else if (rawVal !== String(p.value ?? '')) {
+        return false;
+      }
+    }
+  }
+  if (m.bodyJsonPath && String(m.bodyJsonPath).trim()) {
+    const json = parseRequestBodyJson(capturedBody);
+    const got = getJsonPath(json, m.bodyJsonPath);
+    if (m.bodyJsonEquals !== undefined && String(m.bodyJsonEquals).trim()) {
+      let want;
+      try {
+        want = JSON.parse(String(m.bodyJsonEquals));
+      } catch {
+        return false;
+      }
+      if (JSON.stringify(got) !== JSON.stringify(want)) return false;
+    } else if (m.bodyJsonMatches && String(m.bodyJsonMatches).trim()) {
+      const s = got === undefined || got === null
+        ? ''
+        : (typeof got === 'object' ? JSON.stringify(got) : String(got));
+      try {
+        if (!new RegExp(String(m.bodyJsonMatches).trim()).test(s)) return false;
+      } catch {
+        return false;
+      }
+    } else if (got === undefined) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Variants eligible for unpinned `/mock/<id>` resolution, in saved list order. */
+function eligibleVariantsInOrder(entry) {
+  const all = (entry.variants || []).filter((v) => v && v.id);
+  const idsRaw = entry.activeVariantIds;
+  if (!Array.isArray(idsRaw)) {
+    return all;
+  }
+  if (idsRaw.length === 0) {
+    return [];
+  }
+  const set = new Set(idsRaw.map(String));
+  const picked = all.filter((v) => set.has(String(v.id)));
+  return picked.length ? picked : all;
+}
+
+/**
+ * @param {object} entry registry or standalone entry
+ * @param {string|null} preferredVariantId from URL segment (explicit variant)
+ */
+function pickVariant(entry, preferredVariantId, req, pathNoQuery, rawUrl, capturedBody) {
   if (!entry || !Array.isArray(entry.variants) || entry.variants.length === 0) return null;
   if (preferredVariantId) {
     const hit = entry.variants.find((v) => v && v.id === preferredVariantId);
     if (hit) return hit;
   }
+  const ordered = eligibleVariantsInOrder(entry);
+  if (!ordered.length) return null;
+  for (const v of ordered) {
+    if (v && hasMatcherRules(v.matchOn) && variantMatchesRequest(v, req, pathNoQuery, rawUrl, capturedBody)) {
+      return v;
+    }
+  }
+  for (const v of ordered) {
+    if (v && !hasMatcherRules(v.matchOn)) return v;
+  }
   if (entry.activeVariantId) {
-    const hit = entry.variants.find((v) => v && v.id === entry.activeVariantId);
+    const hit = ordered.find((x) => x && x.id === entry.activeVariantId);
     if (hit) return hit;
   }
-  return entry.variants[0];
+  if (Array.isArray(entry.activeVariantIds) && entry.activeVariantIds.length > 0) {
+    for (const id of entry.activeVariantIds) {
+      const hit = ordered.find((x) => x && x.id === id);
+      if (hit) return hit;
+    }
+  }
+  return ordered[0];
 }
 
 function getHeaderInsensitive(headers, rawName) {
@@ -344,7 +515,7 @@ function truncate(body) {
 
 function readRequestBody(req) {
   return new Promise((resolve) => {
-    if (!options.captureBodies) { resolve(null); return; }
+    /** Always read up to MAX_BODY_BYTES so matchers and response templates can use the body. */
     const chunks = [];
     let total = 0;
     req.on('data', (chunk) => {
@@ -386,7 +557,7 @@ async function handleRequest(req, res) {
     standaloneEntry = findWildcardStandalone(method, pathNoQuery);
   }
   if (standaloneEntry) {
-    const variant = pickVariant(standaloneEntry, null);
+    const variant = pickVariant(standaloneEntry, null, req, pathNoQuery, req.url || '/', capturedReqBody);
     if (variant) {
       const delay = Math.max(0, Math.min(Number(variant.delayMs) || options.defaultDelayMs || 0, 30000));
       const send = () => writeResponse(req, res, variant, {
@@ -419,7 +590,7 @@ async function handleRequest(req, res) {
     return;
   }
   const entry = registry.get(parsed.requestId);
-  const variant = pickVariant(entry, parsed.variantId);
+  const variant = pickVariant(entry, parsed.variantId, req, pathNoQuery, req.url || '/', capturedReqBody);
   if (!variant) {
     const headers = { 'Content-Type': 'application/json; charset=utf-8' };
     applyCorsHeaders(req, headers);
@@ -545,12 +716,13 @@ function getOptions() {
   return { ...options };
 }
 
-function registerVariants(requestId, variants, activeVariantId) {
+function registerVariants(requestId, variants, activeVariantId, activeVariantIds) {
   if (!requestId) return;
   if (!Array.isArray(variants) || variants.length === 0) {
     registry.delete(requestId);
     return;
   }
+  const normalizedIds = Array.isArray(activeVariantIds) ? activeVariantIds.map(String) : null;
   registry.set(requestId, {
     variants: variants.map((v) => ({
       id: String(v.id || ''),
@@ -563,6 +735,7 @@ function registerVariants(requestId, variants, activeVariantId) {
       matchOn: v.matchOn,
     })),
     activeVariantId: activeVariantId || null,
+    activeVariantIds: normalizedIds,
   });
 }
 
@@ -602,8 +775,10 @@ function registerStandalone(endpoint) {
       headers: Array.isArray(v.headers) ? v.headers : [],
       body: typeof v.body === 'string' ? v.body : '',
       delayMs: Number(v.delayMs) || 0,
+      matchOn: v.matchOn,
     })),
     activeVariantId: endpoint.activeVariantId || null,
+    activeVariantIds: Array.isArray(endpoint.activeVariantIds) ? endpoint.activeVariantIds.map(String) : null,
   };
   if (wild && wild.basePath) {
     Object.assign(value, {

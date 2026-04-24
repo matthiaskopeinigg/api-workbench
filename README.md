@@ -70,7 +70,7 @@ Everything stays on your machine. No cloud sync, no account sign-up, no telemetr
 - `cURL` import, snippet export (Fetch, axios, Python `requests`, Go `net/http`, and more).
 
 ### Collections, history, environments
-- Nested folders and collections with drag-and-drop (max depth 7).
+- Nested folders and collections with drag-and-drop (max depth 7), including a **unified order** of HTTP **requests** and **WebSocket / SSE** items per folder (reorder and move across types).
 - Environment and variable management with per-request overrides.
 - Full request history with diffing between any two saved responses.
 
@@ -87,6 +87,7 @@ Everything stays on your machine. No cloud sync, no account sign-up, no telemetr
 - Local persistence via **SQLite** (`better-sqlite3`) in the Electron main process.
 - HTTP/2 support with ALPN probing, SOCKS proxy support, and manual cookie jar.
 - Command palette (`Ctrl/Cmd+K`), keyboard shortcuts panel, and theme picker (light, dark, Dracula, Monokai, Night Owl, Solarized, Ayu).
+- **Tab workspace** — optional **split** into two panes (horizontal or vertical) with a merge control; per-pane tab strips, reorder, and cross-pane moves. Closing the last tab after a split correctly returns to a single visible pane.
 
 ## Tech stack
 

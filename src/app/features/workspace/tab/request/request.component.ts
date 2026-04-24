@@ -19,7 +19,20 @@ import { Certificate, RequestEditorSection } from '@models/settings';
 import { SettingsService } from '@core/settings/settings.service';
 import { RequestService } from '@core/http/request.service';
 import { CollectionService } from '@core/collection/collection.service';
-import { HttpMethod, Request, AuthType, RequestBodyMode, RequestBody, FormDataField, UrlencodedField, MockVariant } from '@models/request';
+import {
+  HttpMethod,
+  Request,
+  AuthType,
+  RequestBodyMode,
+  RequestBody,
+  FormDataField,
+  UrlencodedField,
+  MockVariant,
+  cloneMockVariantMatchRules,
+  isMockVariantServed,
+  syncLegacyPrimaryMockVariantId,
+  toggleVariantServed,
+} from '@models/request';
 import type { IpcStructuredBody } from '@models/ipc-http-request';
 import { Response, TestResult } from '@models/response';
 
@@ -59,6 +72,7 @@ import { AuthSignerService } from '@core/http/auth-signer.service';
 import { ResponseHistoryService } from '@core/http/response-history.service';
 import { ResponseDiffComponent } from './response-diff/response-diff.component';
 import { MockServerService } from '@core/mock-server/mock-server.service';
+import { MockVariantMatchSectionComponent } from '../../shared/mock-variant-match-section/mock-variant-match-section.component';
 import type { MockServerStatus } from '@models/electron';
 import { SessionService } from '@core/session/session.service';
 import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
@@ -68,7 +82,17 @@ const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
 
 @Component({
   selector: 'app-request',
-  imports: [CommonModule, CodeEditorComponent, VariableInputComponent, FormsModule, CodeSnippetsDialogComponent, DropdownComponent, ResponseSearchComponent, ResponseDiffComponent],
+  imports: [
+    CommonModule,
+    CodeEditorComponent,
+    VariableInputComponent,
+    FormsModule,
+    CodeSnippetsDialogComponent,
+    DropdownComponent,
+    ResponseSearchComponent,
+    ResponseDiffComponent,
+    MockVariantMatchSectionComponent,
+  ],
   templateUrl: './request.component.html',
   styleUrl: './request.component.scss',
   standalone: true,
@@ -1875,9 +1899,10 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       delayMs: 0,
     };
     this.request.mockVariants.push(variant);
-    if (!this.request.activeMockVariantId) {
-      this.request.activeMockVariantId = nextId;
+    if (Array.isArray(this.request.activeMockVariantIds)) {
+      this.request.activeMockVariantIds = [...this.request.activeMockVariantIds, nextId];
     }
+    syncLegacyPrimaryMockVariantId(this.request);
     this.saveRequest();
     void this.syncActiveMockVariants();
     this.cdr.markForCheck();
@@ -1886,9 +1911,10 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
   removeMockVariant(index: number): void {
     if (!this.request?.mockVariants) return;
     const [removed] = this.request.mockVariants.splice(index, 1);
-    if (removed && this.request.activeMockVariantId === removed.id) {
-      this.request.activeMockVariantId = this.request.mockVariants[0]?.id;
+    if (removed && Array.isArray(this.request.activeMockVariantIds)) {
+      this.request.activeMockVariantIds = this.request.activeMockVariantIds.filter((id) => id !== removed.id);
     }
+    syncLegacyPrimaryMockVariantId(this.request);
     this.saveRequest();
     void this.syncActiveMockVariants();
     this.cdr.markForCheck();
@@ -1903,9 +1929,14 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       id: uuidv4(),
       name: `${original.name || 'Variant'} (copy)`,
       headers: original.headers ? original.headers.map(h => ({ ...h })) : undefined,
-      matchOn: original.matchOn ? { ...original.matchOn } : undefined,
+      matchOn: cloneMockVariantMatchRules(original.matchOn),
     };
     this.request.mockVariants.splice(index + 1, 0, copy);
+    const ids = this.request.activeMockVariantIds;
+    if (Array.isArray(ids) && ids.includes(original.id)) {
+      this.request.activeMockVariantIds = [...ids, copy.id];
+    }
+    syncLegacyPrimaryMockVariantId(this.request);
     this.saveRequest();
     void this.syncActiveMockVariants();
     this.cdr.markForCheck();
@@ -1920,11 +1951,28 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     return 'is-neutral';
   }
 
-  setActiveMockVariant(id: string): void {
+  mockVariantIsServed(variantId: string): boolean {
+    if (!this.request) return false;
+    return isMockVariantServed(variantId, this.request.mockVariants, this.request.activeMockVariantIds);
+  }
+
+  onMockVariantServedChange(variantId: string, ev: Event): void {
     if (!this.request) return;
-    this.request.activeMockVariantId = id;
+    const checked = (ev.target as HTMLInputElement).checked;
+    const now = isMockVariantServed(variantId, this.request.mockVariants, this.request.activeMockVariantIds);
+    if (checked === now) return;
+    toggleVariantServed(
+      this.request.mockVariants || [],
+      variantId,
+      () => this.request!.activeMockVariantIds,
+      (next) => {
+        this.request!.activeMockVariantIds = next;
+      },
+    );
+    syncLegacyPrimaryMockVariantId(this.request);
     this.saveRequest();
     void this.syncActiveMockVariants();
+    this.cdr.markForCheck();
   }
 
   onMockVariantChanged(): void {
@@ -1953,6 +2001,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
       id: this.request.id,
       mockVariants: this.request.mockVariants,
       activeMockVariantId: this.request.activeMockVariantId,
+      activeMockVariantIds: this.request.activeMockVariantIds,
     });
   }
 }

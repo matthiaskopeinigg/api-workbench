@@ -32,7 +32,7 @@
           {{ standalonePrimaryLabel(endpoint) }}
         </span>
         <span class="entry-meta">
-          <span class="entry-badge" [class.has-active]="!!endpoint.activeVariantId">
+          <span class="entry-badge" [class.has-active]="standaloneHasServedMocks(endpoint)">
             {{ endpoint.variants.length }}
           </span>
           <button type="button" class="entry-remove" title="Delete"
@@ -74,7 +74,7 @@
           {{ entry.request.title || entry.request.url || 'Untitled' }}
         </span>
         <span class="entry-meta">
-          <span class="entry-badge" [class.has-active]="!!entry.activeVariantId">
+          <span class="entry-badge" [class.has-active]="entry.hasServedMocks">
             {{ entry.variantCount }}
           </span>
         </span>

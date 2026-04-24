@@ -27,6 +27,11 @@ export interface LoadTestProfile {
    * test (e.g. sample defaults and “Add from template” rows). Omitted = false.
    */
   isTemplate?: boolean;
+  /**
+   * When set, this row was created from (or back-filled to) {@link LOAD_TEST_PROFILE_TEMPLATES}
+   * with this id — used to avoid duplicating the same catalog preset in the profile picker.
+   */
+  templateCatalogId?: string;
   config: LoadTestConfig;
 }
 
@@ -301,6 +306,12 @@ export function ensureLoadTestProfiles(a: LoadTestArtifact): LoadTestArtifact {
       if (p.config) {
         normalizeLoadTestConfigTargets(p.config);
       }
+      if (p.isTemplate && p.templateCatalogId) {
+        const t = findLoadTestProfileTemplateById(p.templateCatalogId);
+        if (t && p.name === t.name) {
+          p.name = loadTestTemplateProfileName(t);
+        }
+      }
     }
   }
   const active = a.profiles.find((p) => p.id === a.activeProfileId) ?? a.profiles[0];
@@ -321,23 +332,62 @@ export function findLoadTestProfileTemplateById(
   return LOAD_TEST_PROFILE_TEMPLATES.find((t) => t.id === id);
 }
 
+/** Display name for a row created from (or matching) a catalog load template. */
+export function loadTestTemplateProfileName(template: LoadTestProfileTemplate): string {
+  return `${template.name} (template)`;
+}
+
 /**
- * Appends a profile copied from a catalog template; activates it. Mutates the artifact.
+ * True when profile `p` already represents catalog template `t` (same preset row in the UI).
+ */
+export function loadTestProfileCoversTemplate(
+  p: LoadTestProfile,
+  t: LoadTestProfileTemplate,
+): boolean {
+  if (p.templateCatalogId === t.id) {
+    return true;
+  }
+  const titled = loadTestTemplateProfileName(t);
+  return !!(
+    p.isTemplate &&
+    !p.templateCatalogId &&
+    (p.name === t.name || p.name === titled) &&
+    (p.description ?? '') === (t.description ?? '')
+  );
+}
+
+/**
+ * Ensures a profile exists for this catalog template: reuses an existing matching row and
+ * activates it, otherwise appends a new row. Mutates the artifact.
  */
 export function appendLoadTestProfileFromTemplate(
   a: LoadTestArtifact,
   template: LoadTestProfileTemplate,
 ): string {
   ensureLoadTestProfiles(a);
+  const existing = (a.profiles || []).find((p) => loadTestProfileCoversTemplate(p, template));
+  if (existing) {
+    if (!existing.templateCatalogId) {
+      existing.templateCatalogId = template.id;
+    }
+    const titled = loadTestTemplateProfileName(template);
+    if (existing.isTemplate && existing.name === template.name) {
+      existing.name = titled;
+    }
+    a.activeProfileId = existing.id;
+    a.config = existing.config;
+    return existing.id;
+  }
   const id = `p-${uuidv4()}`;
   const cfg = template.factory();
   normalizeLoadTestConfigTargets(cfg);
   const prof: LoadTestProfile = {
     id,
-    name: template.name,
+    name: loadTestTemplateProfileName(template),
     description: template.description,
     userCustom: false,
     isTemplate: true,
+    templateCatalogId: template.id,
     config: cfg,
   };
   a.profiles = [...(a.profiles || []), prof];

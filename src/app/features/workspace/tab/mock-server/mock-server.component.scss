@@ -583,6 +583,32 @@
   }
 }
 
+.variant-served {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-color), transparent 92%);
+  border: 1px solid transparent;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+
+  input {
+    margin: 0;
+    accent-color: var(--primary-color, #4f8df9);
+  }
+
+  &:has(input:checked) {
+    background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 80%);
+    border-color: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 55%);
+    color: var(--primary-color, #4f8df9);
+  }
+}
+
 .variant-name {
   flex: 1;
   min-width: 160px;

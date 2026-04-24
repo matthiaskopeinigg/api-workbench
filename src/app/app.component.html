@@ -33,11 +33,16 @@
         <div class="update-banner-progress-bar" [style.width.%]="updaterUi?.info?.percent || 0"></div>
       </div>
       <div class="update-banner-actions">
+        <button *ngIf="updaterUi?.state === 'available'" type="button" class="update-banner-primary"
+                (click)="startDownloadAndInstall()">
+          Download and install
+        </button>
         <button *ngIf="updaterUi?.state === 'downloaded'" type="button" class="update-banner-primary"
                 (click)="installAppUpdate()">
           Restart &amp; update
         </button>
-        <button type="button" class="update-banner-secondary" (click)="dismissUpdateBanner()">
+        <button type="button" class="update-banner-secondary" (click)="dismissUpdateBanner()"
+                [disabled]="updaterUi?.state === 'downloading'">
           {{ updaterUi?.state === 'downloaded' ? 'Later' : 'Dismiss' }}
         </button>
       </div>

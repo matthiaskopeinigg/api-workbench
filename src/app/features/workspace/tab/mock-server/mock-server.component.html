@@ -188,17 +188,15 @@
           <div class="variant-list" *ngIf="req.mockVariants && req.mockVariants.length > 0">
             <div class="variant-card"
                  *ngFor="let variant of req.mockVariants; let i = index; trackBy: trackByVariant"
-                 [class.is-active]="req.activeMockVariantId === variant.id">
+                 [class.is-active]="isRequestVariantServed(variant.id)">
               <div class="variant-head">
-                <button type="button"
-                        class="variant-pin"
-                        [class.active]="req.activeMockVariantId === variant.id"
-                        (click)="setActiveVariant(variant.id)">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <circle cx="12" cy="12" r="6"></circle>
-                  </svg>
-                  Active
-                </button>
+                <label class="variant-served"
+                       title="When checked, this variant participates in unpinned /mock/… URLs (matchers + fallbacks). Uncheck to keep it saved but excluded.">
+                  <input type="checkbox"
+                         [checked]="isRequestVariantServed(variant.id)"
+                         (change)="onRequestVariantServedChange(variant.id, $event)" />
+                  <span>Served</span>
+                </label>
 
                 <input class="variant-name" [(ngModel)]="variant.name"
                        (ngModelChange)="onVariantChanged()" placeholder="Variant name" />
@@ -241,7 +239,7 @@
 
               <div class="variant-url"
                    *ngIf="status.status === 'running'"
-                   [class.is-active]="req.activeMockVariantId === variant.id">
+                   [class.is-active]="isRequestVariantServed(variant.id)">
                 <span class="url-label">URL</span>
                 <code class="url-code">{{ variantUrl(variant.id) }}</code>
                 <button type="button" class="copy-btn"
@@ -254,6 +252,9 @@
                   {{ copied === variant.id ? 'Copied' : 'Copy' }}
                 </button>
               </div>
+
+              <app-mock-variant-match-section [variant]="variant"
+                                              (changed)="onVariantChanged()" />
 
               <div class="variant-body-wrap">
                 <div class="variant-body-row">
@@ -312,7 +313,7 @@
                           [(ngModel)]="variant.body"
                           (ngModelChange)="onVariantChanged()"
                           [placeholder]="bodyPlaceholder(variant)"></textarea>
-                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} echo the request body when capture is on; {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe).</span></p>
+                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Activity log body capture is controlled separately in Advanced.</span></p>
               </div>
             </div>
           </div>
@@ -398,17 +399,15 @@
           <div class="variant-list" *ngIf="endpoint.variants && endpoint.variants.length > 0">
             <div class="variant-card"
                  *ngFor="let variant of endpoint.variants; let i = index; trackBy: trackByVariant"
-                 [class.is-active]="endpoint.activeVariantId === variant.id">
+                 [class.is-active]="isStandaloneVariantServed(variant.id)">
               <div class="variant-head">
-                <button type="button"
-                        class="variant-pin"
-                        [class.active]="endpoint.activeVariantId === variant.id"
-                        (click)="setActiveStandaloneVariant(variant.id)">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <circle cx="12" cy="12" r="6"></circle>
-                  </svg>
-                  Active
-                </button>
+                <label class="variant-served"
+                       title="When checked, this variant is used for this standalone path without a variant id in the URL.">
+                  <input type="checkbox"
+                         [checked]="isStandaloneVariantServed(variant.id)"
+                         (change)="onStandaloneVariantServedChange(variant.id, $event)" />
+                  <span>Served</span>
+                </label>
 
                 <input class="variant-name" [(ngModel)]="variant.name"
                        (ngModelChange)="onStandaloneFieldChange()" placeholder="Variant name" />
@@ -450,6 +449,9 @@
                   </button>
                 </div>
               </div>
+
+              <app-mock-variant-match-section [variant]="variant"
+                                              (changed)="onStandaloneFieldChange()" />
 
               <div class="variant-body-wrap">
                 <div class="variant-body-row">
@@ -508,7 +510,7 @@
                           [(ngModel)]="variant.body"
                           (ngModelChange)="onStandaloneFieldChange()"
                           [placeholder]="bodyPlaceholder(variant)"></textarea>
-                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} echo the request body when capture is on; {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe).</span></p>
+                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Activity log body capture is controlled separately in Advanced.</span></p>
               </div>
             </div>
           </div>

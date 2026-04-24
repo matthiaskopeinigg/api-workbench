@@ -33,7 +33,7 @@ describe('AppComponent', () => {
     settingsSpy = jasmine.createSpyObj('SettingsService', ['loadSettings']);
     tabSpy = jasmine.createSpyObj('TabService', ['loadSettings']);
     themeSpy = jasmine.createSpyObj('ThemeService', ['loadTheme']);
-    updateSpy = jasmine.createSpyObj('UpdateService', ['installUpdate']);
+    updateSpy = jasmine.createSpyObj('UpdateService', ['installUpdate', 'downloadAndInstall', 'cancelChainedInstall']);
     const idleStatus: UpdaterStatus = {
       state: 'idle',
       currentVersion: '',

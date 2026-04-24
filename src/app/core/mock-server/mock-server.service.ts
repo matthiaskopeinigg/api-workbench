@@ -184,7 +184,9 @@ export class MockServerService {
    * the server isn't running — registrations are kept in-memory and served
    * once start() succeeds.
    */
-  async syncRequest(request: Pick<RequestModel, 'id' | 'mockVariants' | 'activeMockVariantId'>): Promise<void> {
+  async syncRequest(
+    request: Pick<RequestModel, 'id' | 'mockVariants' | 'activeMockVariantId' | 'activeMockVariantIds'>,
+  ): Promise<void> {
     if (!this.api?.mockRegister) return;
     if (!request || !request.id) return;
     const variants = request.mockVariants || [];
@@ -205,6 +207,7 @@ export class MockServerService {
             matchOn: v.matchOn,
           })),
           activeVariantId: request.activeMockVariantId,
+          activeVariantIds: request.activeMockVariantIds,
         });
       }
     } catch {

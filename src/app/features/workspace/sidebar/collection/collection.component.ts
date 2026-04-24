@@ -3,8 +3,10 @@ import { CommonModule } from '@angular/common';
 import { v4 as uuidv4 } from 'uuid';
 import { Subject, takeUntil } from 'rxjs';
 import { Collection, Folder } from '@models/collection';
-import { HttpMethod, Request } from '@models/request';
-import { CollectionService } from '@core/collection/collection.service';
+import { AuthType, HttpMethod, Request } from '@models/request';
+import type { WebSocketCollectionEntry } from '@models/websocket';
+import { CollectionService, MIXED_LEAF_ORDER_APPEND_SENTINEL } from '@core/collection/collection.service';
+import { CollectionWebSocketTabService } from '@core/collection/collection-websocket-tab.service';
 import { SessionService } from '@core/session/session.service';
 import { ViewStateService } from '@core/session/view-state.service';
 import { RequestService } from '@core/http/request.service';
@@ -12,7 +14,13 @@ import { TabItem, tabPayloadId, TabService, TabType } from '@core/tabs/tab.servi
 import { SettingsService } from '@core/settings/settings.service';
 import { ImportService } from '@core/import-pipeline/import.service';
 import { RunnerDialogService } from '@core/testing/runner-dialog.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { FormsModule } from '@angular/forms';
+
+/** Drop target for reordering request/WebSocket rows (before a row, or at end of leaf list). */
+type SidebarMixedLeafDragOver =
+  | { mode: 'before'; beforeId: string; beforeKind: 'request' | 'websocket' }
+  | { mode: 'append' };
 
 const DEFAULT_HEADERS = [
   { key: 'Content-Type', value: 'application/json', description: '' },
@@ -51,14 +59,17 @@ export class CollectionComponent implements OnInit, OnDestroy {
   expandedFolders = new Set<string>();
   selectedRequestId: string | null = null;
   selectedFolderId: string | null = null;
+  selectedWebSocketId: string | null = null;
 
   activeMenu: string | null = null;
   activeFolderMenu: string | null = null;
   activeRequestMenu: string | null = null;
+  activeWebSocketMenu: string | null = null;
 
   editingCollectionId: string | null = null;
   editingFolderId: string | null = null;
   editingRequestId: string | null = null;
+  editingWebSocketId: string | null = null;
 
   menuPositions: Record<string, { top: string; left: string }> = {};
   HttpMethod = HttpMethod;
@@ -69,6 +80,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
   constructor(
     private collectionService: CollectionService,
+    private collectionWebSocketTabService: CollectionWebSocketTabService,
     private sessionService: SessionService,
     private requestService: RequestService,
     private tabService: TabService,
@@ -76,6 +88,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     private importService: ImportService,
     private runnerDialogService: RunnerDialogService,
     private viewState: ViewStateService,
+    private confirmDialog: ConfirmDialogService,
     private cdr: ChangeDetectorRef,
     private hostRef: ElementRef<HTMLElement>
   ) { }
@@ -122,9 +135,15 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (selectedTab.type === TabType.REQUEST) {
       this.selectedRequestId = tabPayloadId(selectedTab);
       this.selectedFolderId = null;
+      this.selectedWebSocketId = null;
     } else if (selectedTab.type === TabType.FOLDER) {
       this.selectedFolderId = selectedTab.id;
       this.selectedRequestId = null;
+      this.selectedWebSocketId = null;
+    } else if (selectedTab.type === TabType.WEBSOCKET) {
+      this.selectedWebSocketId = selectedTab.id;
+      this.selectedRequestId = null;
+      this.selectedFolderId = null;
     }
   }
 
@@ -135,6 +154,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
         if (request) {
           this.selectedRequestId = tabPayloadId(request);
           this.selectedFolderId = null;
+          this.selectedWebSocketId = null;
         } else {
           this.selectedRequestId = null;
         }
@@ -147,8 +167,23 @@ export class CollectionComponent implements OnInit, OnDestroy {
         if (folderTab) {
           this.selectedFolderId = folderTab.id;
           this.selectedRequestId = null;
+          this.selectedWebSocketId = null;
         } else {
           this.selectedFolderId = null;
+        }
+        this.cdr.markForCheck();
+      });
+
+    this.collectionWebSocketTabService
+      .getSelectedWebSocketTabAsObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((wsTab) => {
+        if (wsTab) {
+          this.selectedWebSocketId = wsTab.id;
+          this.selectedRequestId = null;
+          this.selectedFolderId = null;
+        } else {
+          this.selectedWebSocketId = null;
         }
         this.cdr.markForCheck();
       });
@@ -173,6 +208,61 @@ export class CollectionComponent implements OnInit, OnDestroy {
     return item.id;
   }
 
+  /** Request + WebSocket rows in sidebar order (`order` when set; else requests then WebSockets). */
+  orderedLeaves(parent: Collection | Folder): Array<
+    { kind: 'request'; item: Request } | { kind: 'websocket'; item: WebSocketCollectionEntry }
+  > {
+    return this.collectionService.buildMergedRequestWebSocketLeaves(parent).map((l) =>
+      l.isWs
+        ? { kind: 'websocket' as const, item: l.item as WebSocketCollectionEntry }
+        : { kind: 'request' as const, item: l.item as Request },
+    );
+  }
+
+  trackSidebarLeaf = (
+    _i: number,
+    row: { kind: 'request'; item: Request } | { kind: 'websocket'; item: WebSocketCollectionEntry },
+  ): string => `${row.kind}:${row.item.id}`;
+
+  /** Top half of row = insert before this row; bottom half = insert before next row or append at end. */
+  private resolveMixedLeafDropTarget(
+    event: DragEvent,
+    parent: Collection | Folder,
+    rowKind: 'request' | 'websocket',
+    rowId: string,
+  ): SidebarMixedLeafDragOver | null {
+    const leaves = this.orderedLeaves(parent);
+    const idx = leaves.findIndex((l) => l.kind === rowKind && l.item.id === rowId);
+    if (idx < 0) return null;
+    const el = event.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const after = event.clientY >= rect.top + rect.height / 2;
+    if (!after) {
+      return { mode: 'before', beforeId: rowId, beforeKind: rowKind };
+    }
+    if (idx < leaves.length - 1) {
+      const next = leaves[idx + 1];
+      return { mode: 'before', beforeId: next.item.id, beforeKind: next.kind };
+    }
+    return { mode: 'append' };
+  }
+
+  isMixedLeafDragInsertBeforeTarget(kind: 'request' | 'websocket', rowId: string): boolean {
+    const o = this.dragOverOrder;
+    return o?.mode === 'before' && o.beforeId === rowId && o.beforeKind === kind;
+  }
+
+  private isMixedLeafAppendNoop(parent: Collection | Folder): boolean {
+    if (!this.draggedItem || (this.draggedItem.type !== 'request' && this.draggedItem.type !== 'websocket')) {
+      return false;
+    }
+    const leaves = this.orderedLeaves(parent);
+    if (leaves.length === 0) return true;
+    const last = leaves[leaves.length - 1];
+    const dragWs = this.draggedItem.type === 'websocket';
+    return last.item.id === this.draggedItem.id && (last.kind === 'websocket') === dragWs;
+  }
+
   updateFilteredCollections() {
     if (!this.searchTerm) {
       this.filteredCollections = this.collections;
@@ -180,12 +270,21 @@ export class CollectionComponent implements OnInit, OnDestroy {
       const term = this.searchTerm.toLowerCase();
       this.filteredCollections = this.collections.map(c => {
         const filteredRequests = c.requests.filter(r => r.title.toLowerCase().includes(term) || r.url.toLowerCase().includes(term));
+        const filteredWs = (c.websocketRequests || []).filter(
+          (w) => w.title.toLowerCase().includes(term) || (w.url || '').toLowerCase().includes(term),
+        );
         const filteredFolders = this.filterFolders(c.folders, term);
 
-        if (filteredRequests.length > 0 || filteredFolders.length > 0 || c.title.toLowerCase().includes(term)) {
+        if (
+          filteredRequests.length > 0 ||
+          filteredWs.length > 0 ||
+          filteredFolders.length > 0 ||
+          c.title.toLowerCase().includes(term)
+        ) {
           return {
             ...c,
             requests: filteredRequests,
+            websocketRequests: filteredWs,
             folders: filteredFolders
           };
         }
@@ -205,12 +304,21 @@ export class CollectionComponent implements OnInit, OnDestroy {
   private filterFolders(folders: Folder[], term: string): Folder[] {
     return folders.map(f => {
       const filteredRequests = f.requests.filter(r => r.title.toLowerCase().includes(term) || r.url.toLowerCase().includes(term));
+      const filteredWs = (f.websocketRequests || []).filter(
+        (w) => w.title.toLowerCase().includes(term) || (w.url || '').toLowerCase().includes(term),
+      );
       const filteredSubFolders = this.filterFolders(f.folders, term);
 
-      if (filteredRequests.length > 0 || filteredSubFolders.length > 0 || f.title.toLowerCase().includes(term)) {
+      if (
+        filteredRequests.length > 0 ||
+        filteredWs.length > 0 ||
+        filteredSubFolders.length > 0 ||
+        f.title.toLowerCase().includes(term)
+      ) {
         return {
           ...f,
           requests: filteredRequests,
+          websocketRequests: filteredWs,
           folders: filteredSubFolders
         };
       }
@@ -306,6 +414,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
   /** Clears drag model + UI when the tab is hidden or the component is destroyed. */
   private abandonSidebarNativeDrag(): void {
     this.draggedItem = null;
+    this.dragOverOrder = null;
     this.dragOverId = null;
     this.dragOverDeniedId = null;
     this.endSidebarNativeDragChrome();
@@ -358,7 +467,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     const shouldExpand = (behavior === 'both' || behavior === 'expand') && triggerExpansion;
 
-    if (shouldExpand && (folder.folders.length > 0 || folder.requests.length > 0)) {
+    if (
+      shouldExpand &&
+      (folder.folders.length > 0 ||
+        folder.requests.length > 0 ||
+        (folder.websocketRequests || []).length > 0)
+    ) {
       this.toggleSet(this.expandedFolders, folder.id);
       await this.saveExpandedState();
     }
@@ -404,12 +518,25 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  async selectWebSocket(ws: WebSocketCollectionEntry, event?: MouseEvent) {
+    this.selectedWebSocketId = ws.id;
+    const tabItem: TabItem = {
+      id: ws.id,
+      title: ws.title,
+      type: TabType.WEBSOCKET,
+      ...(event?.altKey ? { openInPane: 'unfocused' as const } : {}),
+    };
+    this.collectionWebSocketTabService.selectWebSocketTab(tabItem);
+    this.cdr.markForCheck();
+  }
+
   @HostListener('document:click', ['$event'])
   @HostListener('document:contextmenu', ['$event'])
   closeMenu() {
     this.activeMenu = null;
     this.activeFolderMenu = null;
     this.activeRequestMenu = null;
+    this.activeWebSocketMenu = null;
     this.cdr.markForCheck();
   }
 
@@ -421,7 +548,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.preventEvent(event);
     this.activeMenu = this.toggleMenuState(this.activeMenu, collectionId);
     if (this.activeMenu) {
-      this.activeFolderMenu = this.activeRequestMenu = null;
+      this.activeFolderMenu = this.activeRequestMenu = this.activeWebSocketMenu = null;
       this.setPosition(collectionId, event);
     }
     this.cdr.markForCheck();
@@ -430,7 +557,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
   openMenu(event: MouseEvent, collectionId: string) {
     this.preventEvent(event);
     this.activeMenu = collectionId;
-    this.activeFolderMenu = this.activeRequestMenu = null;
+    this.activeFolderMenu = this.activeRequestMenu = this.activeWebSocketMenu = null;
     this.setPosition(collectionId, event);
     this.cdr.markForCheck();
   }
@@ -439,7 +566,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.preventEvent(event, false);
     this.activeFolderMenu = this.toggleMenuState(this.activeFolderMenu, folderId);
     if (this.activeFolderMenu) {
-      this.activeMenu = this.activeRequestMenu = null;
+      this.activeMenu = this.activeRequestMenu = this.activeWebSocketMenu = null;
       this.setPosition(folderId, event);
     }
     this.cdr.markForCheck();
@@ -449,7 +576,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.preventEvent(event, false);
     this.activeRequestMenu = this.toggleMenuState(this.activeRequestMenu, requestId);
     if (this.activeRequestMenu) {
-      this.activeMenu = this.activeFolderMenu = null;
+      this.activeMenu = this.activeFolderMenu = this.activeWebSocketMenu = null;
       this.setPosition(requestId, event);
     }
     this.cdr.markForCheck();
@@ -461,7 +588,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.preventEvent(event);
     this.activeFolderDepth = this.collectionService.getFolderDepth(folderId);
     this.activeFolderMenu = folderId;
-    this.activeMenu = this.activeRequestMenu = null;
+    this.activeMenu = this.activeRequestMenu = this.activeWebSocketMenu = null;
     this.setPosition(folderId, event);
     this.cdr.markForCheck();
   }
@@ -469,8 +596,26 @@ export class CollectionComponent implements OnInit, OnDestroy {
   openRequestMenu(event: MouseEvent, requestId: string) {
     this.preventEvent(event);
     this.activeRequestMenu = requestId;
-    this.activeMenu = this.activeFolderMenu = null;
+    this.activeMenu = this.activeFolderMenu = this.activeWebSocketMenu = null;
     this.setPosition(requestId, event);
+    this.cdr.markForCheck();
+  }
+
+  toggleWebSocketMenu(event: MouseEvent, wsId: string) {
+    this.preventEvent(event, false);
+    this.activeWebSocketMenu = this.toggleMenuState(this.activeWebSocketMenu, wsId);
+    if (this.activeWebSocketMenu) {
+      this.activeMenu = this.activeFolderMenu = this.activeRequestMenu = null;
+      this.setPosition(wsId, event);
+    }
+    this.cdr.markForCheck();
+  }
+
+  openWebSocketMenu(event: MouseEvent, wsId: string) {
+    this.preventEvent(event);
+    this.activeWebSocketMenu = wsId;
+    this.activeMenu = this.activeFolderMenu = this.activeRequestMenu = null;
+    this.setPosition(wsId, event);
     this.cdr.markForCheck();
   }
 
@@ -506,6 +651,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  startRenameWebSocket(wsId: string) {
+    this.editingWebSocketId = wsId;
+    this.activeWebSocketMenu = null;
+    this.cdr.markForCheck();
+  }
+
   async finishRenameCollection(collection: Collection, newName: string) {
     collection.title = newName;
     this.editingCollectionId = null;
@@ -525,21 +676,42 @@ export class CollectionComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  async finishRenameWebSocket(ws: WebSocketCollectionEntry, newName: string) {
+    const title = (newName || '').trim() || ws.title;
+    ws.title = title;
+    this.editingWebSocketId = null;
+    this.collectionService.updateWebSocketRequest({ ...ws, title });
+    this.cdr.markForCheck();
+  }
+
   private async saveCollections() { await this.collectionService.saveCollections(this.collections); }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    if (target.closest('.menu-button') || target.closest('.request-menu') || target.closest('.folder-menu') || target.closest('.collection-menu')) return;
+    if (
+      target.closest('.menu-button') ||
+      target.closest('.request-menu') ||
+      target.closest('.websocket-menu') ||
+      target.closest('.folder-menu') ||
+      target.closest('.collection-menu')
+    ) {
+      return;
+    }
 
     this.autoFinishRename('collection', this.editingCollectionId, target);
     this.autoFinishRename('folder', this.editingFolderId, target);
     this.autoFinishRename('request', this.editingRequestId, target);
+    this.autoFinishRename('websocket', this.editingWebSocketId, target);
 
     this.closeMenu();
   }
 
-  private autoFinishRename(type: 'collection' | 'folder' | 'request', editingId: string | null, target: HTMLElement) {
+  private autoFinishRename(
+    type: 'collection' | 'folder' | 'request' | 'websocket',
+    editingId: string | null,
+    target: HTMLElement,
+  ) {
     if (!editingId) return;
     const input = document.querySelector<HTMLInputElement>(`input#${type}-${editingId}`);
     if (input && !input.contains(target)) {
@@ -552,6 +724,9 @@ export class CollectionComponent implements OnInit, OnDestroy {
       } else if (type === 'request') {
         const req = this.findRequestById(editingId);
         if (req) this.finishRenameRequest(req, input.value);
+      } else if (type === 'websocket') {
+        const ws = this.findWebSocketById(editingId);
+        if (ws) this.finishRenameWebSocket(ws, input.value);
       }
     }
   }
@@ -586,6 +761,26 @@ export class CollectionComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  findWebSocketById(wsId: string): WebSocketCollectionEntry | null {
+    for (const c of this.collections) {
+      const w = (c.websocketRequests || []).find((x) => x.id === wsId);
+      if (w) return w;
+      const nested = this.findWebSocketInFolders(wsId, c.folders);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  private findWebSocketInFolders(wsId: string, folders: Folder[]): WebSocketCollectionEntry | null {
+    for (const f of folders) {
+      const w = (f.websocketRequests || []).find((x) => x.id === wsId);
+      if (w) return w;
+      const nested = this.findWebSocketInFolders(wsId, f.folders);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
   async createRequestAtRoot() {
     if (this.root) {
       await this.createRequest(this.root.id);
@@ -614,6 +809,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
         ...f,
         id: uuidv4(), // new unique folder ID
         requests: f.requests.map(r => ({ ...r, id: uuidv4() })),
+        websocketRequests: (f.websocketRequests || []).map((w) => ({ ...w, id: uuidv4() })),
         folders: cloneFolders(f.folders)
       }));
     };
@@ -623,7 +819,8 @@ export class CollectionComponent implements OnInit, OnDestroy {
       id: uuidv4(),
       title: original.title + ' Copy',
       folders: cloneFolders(original.folders),
-      requests: original.requests.map(r => ({ ...r, id: uuidv4() }))
+      requests: original.requests.map(r => ({ ...r, id: uuidv4() })),
+      websocketRequests: (original.websocketRequests || []).map((w) => ({ ...w, id: uuidv4() })),
     };
 
     this.collections.push(clone);
@@ -645,7 +842,14 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (depth >= 7) return console.warn('Cannot create folder: maximum depth reached');
 
     const maxOrder = parentFolder.folders.length ? Math.max(...parentFolder.folders.map(f => f.order)) : 0;
-    const folder: Folder = { id: uuidv4(), order: maxOrder + 1, title: 'New Folder', folders: [], requests: [] };
+    const folder: Folder = {
+      id: uuidv4(),
+      order: maxOrder + 1,
+      title: 'New Folder',
+      folders: [],
+      requests: [],
+      websocketRequests: [],
+    };
 
     parentFolder.folders.push(folder);
     this.editingFolderId = folder.id;
@@ -668,6 +872,27 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (!inserted) console.warn('Parent not found for request', parentId);
 
     console.warn('Parent found for request', parentId);
+
+    this.collections = [...this.collections];
+    await this.saveCollections();
+  }
+
+  async createWebSocketRequest(parentId: string) {
+    const entry: WebSocketCollectionEntry = {
+      id: uuidv4(),
+      title: 'New WebSocket',
+      mode: 'ws',
+      url: '',
+      protocols: [],
+      headers: [],
+      messageDraft: '',
+      auth: { type: AuthType.NONE },
+    };
+    this.closeMenu();
+
+    const inserted =
+      this.insertWebSocketInFolders(entry, parentId) || this.insertWebSocketInCollections(entry, parentId);
+    if (!inserted) console.warn('Parent not found for WebSocket entry', parentId);
 
     this.collections = [...this.collections];
     await this.saveCollections();
@@ -734,22 +959,90 @@ export class CollectionComponent implements OnInit, OnDestroy {
     return false;
   }
 
-  async deleteFolder(folderId: string) {
-    const folder = this.findFolderById(folderId);
-
-    let requestIds: string[] = [];
-    let childFolderIds: string[] = [folderId];
-
-    if (folder) {
-      requestIds = this.getAllRequestIdsInFolder(folder);
-      childFolderIds = this.getAllFolderIdsRecursive(folder);
-    } else {
-      const serviceFolder = this.collectionService.findFolderById(folderId);
-      if (serviceFolder) {
-        requestIds = this.getAllRequestIdsInFolder(serviceFolder);
-        childFolderIds = this.getAllFolderIdsRecursive(serviceFolder);
-      }
+  private insertWebSocketInCollections(entry: WebSocketCollectionEntry, collectionId: string): boolean {
+    const collection = this.collections.find(c => c.id === collectionId);
+    if (collection) {
+      if (!collection.websocketRequests) collection.websocketRequests = [];
+      collection.websocketRequests.push(entry);
+      this.expandedCollections.add(collection.id);
+      return true;
     }
+    return false;
+  }
+
+  private insertWebSocketInFolders(entry: WebSocketCollectionEntry, parentId: string, folders?: Folder[]): boolean {
+    const list = folders ?? this.collections.flatMap(c => c.folders);
+    for (const folder of list) {
+      if (folder.id === parentId) {
+        if (!folder.websocketRequests) folder.websocketRequests = [];
+        folder.websocketRequests.push(entry);
+        this.expandedFolders.add(folder.id);
+        return true;
+      }
+      if (this.insertWebSocketInFolders(entry, parentId, folder.folders)) return true;
+    }
+    return false;
+  }
+
+  async duplicateWebSocketEntry(wsId: string, parentId: string) {
+    this.closeMenu();
+
+    const original = this.findWebSocketById(wsId);
+    if (!original) return;
+
+    const copy: WebSocketCollectionEntry = {
+      ...original,
+      id: uuidv4(),
+      title: original.title + ' Copy',
+    };
+
+    const collection = this.collections.find(c => c.id === parentId);
+    if (collection) {
+      if (!collection.websocketRequests) collection.websocketRequests = [];
+      collection.websocketRequests.push(copy);
+      this.expandedCollections.add(collection.id);
+    } else {
+      const inserted = (folders: Folder[]): boolean => {
+        for (const f of folders) {
+          if (f.id === parentId) {
+            if (!f.websocketRequests) f.websocketRequests = [];
+            f.websocketRequests.push(copy);
+            this.expandedFolders.add(f.id);
+            return true;
+          }
+          if (inserted(f.folders)) return true;
+        }
+        return false;
+      };
+      inserted(this.collections.flatMap(c => c.folders));
+    }
+
+    this.editingWebSocketId = copy.id;
+    this.collections = [...this.collections];
+    await this.collectionService.saveCollections(this.collections);
+  }
+
+  async deleteFolder(folderId: string) {
+    const folder = this.findFolderById(folderId) ?? this.collectionService.findFolderById(folderId);
+    if (!folder) {
+      this.closeMenu();
+      return;
+    }
+    const label = folder.title || 'this folder';
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete folder',
+      message: `Delete "${label}" and everything inside it (requests, WebSockets, and subfolders)? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) {
+      this.closeMenu();
+      return;
+    }
+
+    const requestIds = this.getAllRequestIdsInFolder(folder);
+    const websocketIds = this.getAllWebSocketIdsInFolder(folder);
+    const childFolderIds = this.getAllFolderIdsRecursive(folder);
 
     this.collections.forEach(c => c.folders = this.removeFolderRecursive(c.folders, folderId));
     this.collections = [...this.collections];
@@ -759,6 +1052,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
       this.viewState.clearRequestView(id);
       this.collectionService.triggerRequestDeleted(id);
     });
+    websocketIds.forEach((id) => this.collectionService.triggerWebSocketEntryDeleted(id));
     childFolderIds.forEach(id => {
       this.viewState.clearFolderView(id);
       this.collectionService.triggerFolderDeleted(id);
@@ -783,10 +1077,26 @@ export class CollectionComponent implements OnInit, OnDestroy {
     return ids;
   }
 
+  private getAllWebSocketIdsInFolder(folder: Folder): string[] {
+    let ids: string[] = (folder.websocketRequests || []).map((w) => w.id);
+    for (const sub of folder.folders) {
+      ids = [...ids, ...this.getAllWebSocketIdsInFolder(sub)];
+    }
+    return ids;
+  }
+
   private getAllRequestIdsInCollection(c: Collection): string[] {
     const ids: string[] = c.requests.map(r => r.id);
     for (const f of c.folders) {
       ids.push(...this.getAllRequestIdsInFolder(f));
+    }
+    return ids;
+  }
+
+  private getAllWebSocketIdsInCollection(c: Collection): string[] {
+    const ids: string[] = (c.websocketRequests || []).map((w) => w.id);
+    for (const f of c.folders) {
+      ids.push(...this.getAllWebSocketIdsInFolder(f));
     }
     return ids;
   }
@@ -799,6 +1109,23 @@ export class CollectionComponent implements OnInit, OnDestroy {
   }
 
   async deleteRequest(requestId: string) {
+    const req = this.findRequestById(requestId);
+    if (!req) {
+      this.activeRequestMenu = null;
+      return;
+    }
+    const label = req.title || req.url || 'this request';
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete request',
+      message: `Delete "${label}"? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) {
+      this.activeRequestMenu = null;
+      return;
+    }
+
     this.collections.forEach(c => {
       c.requests = c.requests.filter(r => r.id !== requestId);
       this.removeRequestRecursive(c.folders, requestId);
@@ -817,19 +1144,75 @@ export class CollectionComponent implements OnInit, OnDestroy {
     });
   }
 
+  private removeWebSocketRecursive(folders: Folder[], wsId: string) {
+    folders.forEach((f) => {
+      f.websocketRequests = (f.websocketRequests || []).filter((w) => w.id !== wsId);
+      this.removeWebSocketRecursive(f.folders, wsId);
+    });
+  }
+
+  async deleteWebSocketEntry(wsId: string) {
+    const ws = this.findWebSocketById(wsId);
+    if (!ws) {
+      this.activeWebSocketMenu = null;
+      return;
+    }
+    const label = ws.title || ws.url || 'this WebSocket';
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete WebSocket',
+      message: `Delete "${label}"? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) {
+      this.activeWebSocketMenu = null;
+      return;
+    }
+
+    this.collections.forEach((c) => {
+      c.websocketRequests = (c.websocketRequests || []).filter((w) => w.id !== wsId);
+      this.removeWebSocketRecursive(c.folders, wsId);
+    });
+
+    this.collections = [...this.collections];
+    await this.saveCollections();
+    this.collectionService.triggerWebSocketEntryDeleted(wsId);
+    this.activeWebSocketMenu = null;
+  }
+
   async deleteCollection(collectionId: string) {
     const col = this.collections.find(c => c.id === collectionId);
-    if (col) {
-      for (const id of this.getAllRequestIdsInCollection(col)) {
-        this.viewState.clearRequestView(id);
-      }
+    if (!col) {
+      this.closeMenu();
+      return;
+    }
+    const label = col.title || 'this collection';
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete collection',
+      message: `Delete "${label}" and all folders and saved requests/WebSockets inside? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) {
+      this.closeMenu();
+      return;
+    }
+
+    for (const id of this.getAllRequestIdsInCollection(col)) {
+      this.viewState.clearRequestView(id);
+      this.collectionService.triggerRequestDeleted(id);
+    }
+    for (const id of this.getAllWebSocketIdsInCollection(col)) {
+      this.collectionService.triggerWebSocketEntryDeleted(id);
     }
     this.collections = this.collections.filter(c => c.id !== collectionId);
     await this.saveCollections();
     this.closeMenu();
   }
 
-  draggedItem: { id: string; type: 'request' | 'folder' | 'collection'; parentId?: string } | null = null;
+  draggedItem: { id: string; type: 'request' | 'websocket' | 'folder' | 'collection'; parentId?: string } | null = null;
+  /** Drop target: insert before this row (request or WebSocket) in merged sidebar order. */
+  dragOverOrder: SidebarMixedLeafDragOver | null = null;
   dragOverDeniedId: string | null = null;
   dragOverId: string | null = null;
   recentlyDroppedId: string | null = null;
@@ -853,7 +1236,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
     }, 500); 
   }
 
-  onDragStart(event: DragEvent, id: string, type: 'request' | 'folder' | 'collection', parentId?: string) {
+  onDragStart(
+    event: DragEvent,
+    id: string,
+    type: 'request' | 'websocket' | 'folder' | 'collection',
+    parentId?: string,
+  ) {
     event.stopPropagation();
     this.draggedItem = { id, type, parentId };
 
@@ -861,10 +1249,20 @@ export class CollectionComponent implements OnInit, OnDestroy {
     row?.classList.add('dragging');
     document.body.classList.add('aw-dragging');
 
-    let label = type === 'request' ? 'Request' : type === 'folder' ? 'Folder' : 'Collection';
+    let label =
+      type === 'request'
+        ? 'Request'
+        : type === 'websocket'
+          ? 'WebSocket'
+          : type === 'folder'
+            ? 'Folder'
+            : 'Collection';
     if (type === 'request') {
       const req = this.findRequestById(id);
       if (req?.title) label = req.title;
+    } else if (type === 'websocket') {
+      const ws = this.findWebSocketById(id);
+      if (ws?.title) label = ws.title;
     } else if (type === 'folder') {
       const folder = this.findFolderById(id);
       if (folder?.title) label = folder.title;
@@ -877,9 +1275,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
       const ghost = document.createElement('div');
       ghost.classList.add('aw-drag-ghost');
       ghost.classList.add(`is-${type}`);
-      const iconSvg = type === 'request'
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`
-        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"></path></svg>`;
+      const iconSvg =
+        type === 'request'
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`
+          : type === 'websocket'
+            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"></path></svg>`
+            : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"></path></svg>`;
       ghost.innerHTML = `
         <span class="aw-drag-icon">${iconSvg}</span>
         <span class="aw-drag-label">${this.escapeHtml(label)}</span>
@@ -904,6 +1305,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
 
+    this.dragOverOrder = null;
     if (!this.draggedItem) return;
 
     if (this.isValidDrop(targetId, targetType, event)) {
@@ -915,6 +1317,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
       this.dragOverDeniedId = targetId;
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
     }
+    this.cdr.markForCheck();
   }
 
   private isValidDrop(targetId: string, targetType: 'collection' | 'folder', event?: DragEvent): boolean {
@@ -925,8 +1328,12 @@ export class CollectionComponent implements OnInit, OnDestroy {
     if (id === targetId) return false;
 
     if (type === 'folder') {
-      // Alt+drop on a sibling reorders only; a normal drop nests into the target (even if siblings).
-      if (targetType === 'folder' && this.areSameFolderSiblings(id, targetId) && !!event?.altKey) {
+      // Alt or Shift + drop on a sibling reorders only; a normal drop nests into the target (even if siblings).
+      if (
+        targetType === 'folder' &&
+        this.areSameFolderSiblings(id, targetId) &&
+        !!(event?.altKey || event?.shiftKey)
+      ) {
         return true;
       }
 
@@ -1040,11 +1447,198 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
     this.dragOverId = null;
     this.dragOverDeniedId = null;
+    this.dragOverOrder = null;
+    this.cdr.markForCheck();
+  }
+
+  onDragOverOrderableRow(
+    event: DragEvent,
+    rowKind: 'request' | 'websocket',
+    rowId: string,
+    parent: Collection | Folder,
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.draggedItem) return;
+    if (this.draggedItem.type !== 'request' && this.draggedItem.type !== 'websocket') {
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+      return;
+    }
+    const target = this.resolveMixedLeafDropTarget(event, parent, rowKind, rowId);
+    if (!target) {
+      this.dragOverOrder = null;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (
+      target.mode === 'before' &&
+      this.draggedItem.id === target.beforeId &&
+      (this.draggedItem.type === 'websocket') === (target.beforeKind === 'websocket')
+    ) {
+      this.dragOverOrder = null;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (target.mode === 'append' && this.isMixedLeafAppendNoop(parent)) {
+      this.dragOverOrder = null;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      this.cdr.markForCheck();
+      return;
+    }
+    this.dragOverOrder = target;
+    this.dragOverId = null;
+    this.dragOverDeniedId = null;
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.cdr.markForCheck();
+  }
+
+  onDragOverLeafTail(event: DragEvent, parent: Collection | Folder): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.draggedItem) return;
+    if (this.draggedItem.type !== 'request' && this.draggedItem.type !== 'websocket') {
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+      return;
+    }
+    if (this.isMixedLeafAppendNoop(parent)) {
+      this.dragOverOrder = null;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      this.cdr.markForCheck();
+      return;
+    }
+    this.dragOverOrder = { mode: 'append' };
+    this.dragOverId = null;
+    this.dragOverDeniedId = null;
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.cdr.markForCheck();
+  }
+
+  onDragLeaveOrderableRow(event: DragEvent): void {
+    event.stopPropagation();
+    const related = event.relatedTarget as Node | null;
+    const current = event.currentTarget as HTMLElement;
+    if (related && current.contains(related)) return;
+    this.dragOverOrder = null;
+    this.cdr.markForCheck();
+  }
+
+  async onDropOrderableRow(
+    event: DragEvent,
+    rowKind: 'request' | 'websocket',
+    rowId: string,
+    parent: Collection | Folder,
+    parentType: 'collection' | 'folder',
+  ): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    const orderTarget =
+      this.dragOverOrder ?? this.resolveMixedLeafDropTarget(event, parent, rowKind, rowId);
+    this.dragOverOrder = null;
+    this.dragOverId = null;
+    this.dragOverDeniedId = null;
+    if (!this.draggedItem || (this.draggedItem.type !== 'request' && this.draggedItem.type !== 'websocket')) {
+      this.endSidebarNativeDragChrome();
+      return;
+    }
+    const draggedId = this.draggedItem.id;
+    const draggedIsWs = this.draggedItem.type === 'websocket';
+    if (!orderTarget) {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+      return;
+    }
+    if (
+      orderTarget.mode === 'before' &&
+      draggedId === orderTarget.beforeId &&
+      draggedIsWs === (orderTarget.beforeKind === 'websocket')
+    ) {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+      return;
+    }
+    if (orderTarget.mode === 'append' && this.isMixedLeafAppendNoop(parent)) {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+      return;
+    }
+    const parentId = parent.id;
+    try {
+      this.triggerDropAnimation(orderTarget.mode === 'before' ? orderTarget.beforeId : parentId);
+      const isCol = parentType === 'collection';
+      if (orderTarget.mode === 'append') {
+        await this.collectionService.moveRequestOrWebSocketBeforeInMixedOrder(
+          draggedId,
+          draggedIsWs,
+          parentId,
+          isCol,
+          MIXED_LEAF_ORDER_APPEND_SENTINEL,
+          false,
+        );
+      } else {
+        await this.collectionService.moveRequestOrWebSocketBeforeInMixedOrder(
+          draggedId,
+          draggedIsWs,
+          parentId,
+          isCol,
+          orderTarget.beforeId,
+          orderTarget.beforeKind === 'websocket',
+        );
+      }
+      this.collections = this.collectionService.getCollections();
+    } finally {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+    }
+  }
+
+  async onDropLeafTail(event: DragEvent, parent: Collection | Folder, parentType: 'collection' | 'folder'): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOverOrder = null;
+    this.dragOverId = null;
+    this.dragOverDeniedId = null;
+    if (!this.draggedItem || (this.draggedItem.type !== 'request' && this.draggedItem.type !== 'websocket')) {
+      this.endSidebarNativeDragChrome();
+      return;
+    }
+    if (this.isMixedLeafAppendNoop(parent)) {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+      return;
+    }
+    const draggedId = this.draggedItem.id;
+    const draggedIsWs = this.draggedItem.type === 'websocket';
+    const parentId = parent.id;
+    try {
+      this.triggerDropAnimation(parentId);
+      const isCol = parentType === 'collection';
+      await this.collectionService.moveRequestOrWebSocketBeforeInMixedOrder(
+        draggedId,
+        draggedIsWs,
+        parentId,
+        isCol,
+        MIXED_LEAF_ORDER_APPEND_SENTINEL,
+        false,
+      );
+      this.collections = this.collectionService.getCollections();
+    } finally {
+      this.draggedItem = null;
+      this.endSidebarNativeDragChrome();
+      this.cdr.markForCheck();
+    }
   }
 
   async onDrop(event: DragEvent, targetId: string, targetType: 'collection' | 'folder') {
     event.preventDefault();
     event.stopPropagation();
+    this.dragOverOrder = null;
     this.dragOverId = null;
     this.dragOverDeniedId = null;
 
@@ -1064,7 +1658,7 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
       const { id, type, parentId } = this.draggedItem;
 
-      if (type === 'folder' && targetType === 'folder' && event.altKey) {
+      if (type === 'folder' && targetType === 'folder' && (event.altKey || event.shiftKey)) {
         const srcCtx = this.findFolderListContext(id);
         const dstCtx = this.findFolderListContext(targetId);
         if (srcCtx && dstCtx && srcCtx.siblings === dstCtx.siblings) {
@@ -1086,6 +1680,8 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
       if (type === 'request') {
         await this.collectionService.moveRequest(id, targetId, isTargetCollection);
+      } else if (type === 'websocket') {
+        await this.collectionService.moveWebSocketRequest(id, targetId, isTargetCollection);
       } else if (type === 'folder') {
         await this.collectionService.moveFolder(id, targetId, isTargetCollection);
       } else if (type === 'collection' && isTargetCollection) {
@@ -1110,9 +1706,124 @@ export class CollectionComponent implements OnInit, OnDestroy {
 
   onDragEnd(_event: DragEvent) {
     this.draggedItem = null;
+    this.dragOverOrder = null;
     this.dragOverId = null;
     this.dragOverDeniedId = null;
     this.endSidebarNativeDragChrome();
+    this.cdr.markForCheck();
+  }
+
+  private findMixedLeafContextInTree(
+    leafId: string,
+    leafIsWs: boolean,
+  ): { parentId: string; isCollection: boolean; index: number; length: number } | null {
+    for (const col of this.collections) {
+      const leaves = this.collectionService.buildMergedRequestWebSocketLeaves(col);
+      const idx = leaves.findIndex((l) => l.item.id === leafId && l.isWs === leafIsWs);
+      if (idx !== -1) {
+        return { parentId: col.id, isCollection: true, index: idx, length: leaves.length };
+      }
+      const nested = this.findMixedLeafContextInFolders(col.folders, leafId, leafIsWs);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  private findMixedLeafContextInFolders(
+    folders: Folder[],
+    leafId: string,
+    leafIsWs: boolean,
+  ): { parentId: string; isCollection: boolean; index: number; length: number } | null {
+    for (const f of folders) {
+      const leaves = this.collectionService.buildMergedRequestWebSocketLeaves(f);
+      const idx = leaves.findIndex((l) => l.item.id === leafId && l.isWs === leafIsWs);
+      if (idx !== -1) {
+        return { parentId: f.id, isCollection: false, index: idx, length: leaves.length };
+      }
+      const nested = this.findMixedLeafContextInFolders(f.folders, leafId, leafIsWs);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  canReorderRequestUp(requestId: string): boolean {
+    const ctx = this.findMixedLeafContextInTree(requestId, false);
+    return !!ctx && ctx.index > 0;
+  }
+
+  canReorderRequestDown(requestId: string): boolean {
+    const ctx = this.findMixedLeafContextInTree(requestId, false);
+    return !!ctx && ctx.index < ctx.length - 1;
+  }
+
+  async moveRequestUpInList(requestId: string): Promise<void> {
+    const ctx = this.findMixedLeafContextInTree(requestId, false);
+    if (!ctx || ctx.index <= 0) return;
+    this.closeMenu();
+    await this.collectionService.moveSidebarLeafStepInMixedOrder(
+      requestId,
+      false,
+      ctx.parentId,
+      ctx.isCollection,
+      -1,
+    );
+    this.collections = this.collectionService.getCollections();
+    this.cdr.markForCheck();
+  }
+
+  async moveRequestDownInList(requestId: string): Promise<void> {
+    const ctx = this.findMixedLeafContextInTree(requestId, false);
+    if (!ctx || ctx.index >= ctx.length - 1) return;
+    this.closeMenu();
+    await this.collectionService.moveSidebarLeafStepInMixedOrder(
+      requestId,
+      false,
+      ctx.parentId,
+      ctx.isCollection,
+      1,
+    );
+    this.collections = this.collectionService.getCollections();
+    this.cdr.markForCheck();
+  }
+
+  canReorderWebSocketUp(wsId: string): boolean {
+    const ctx = this.findMixedLeafContextInTree(wsId, true);
+    return !!ctx && ctx.index > 0;
+  }
+
+  canReorderWebSocketDown(wsId: string): boolean {
+    const ctx = this.findMixedLeafContextInTree(wsId, true);
+    return !!ctx && ctx.index < ctx.length - 1;
+  }
+
+  async moveWebSocketUpInList(wsId: string): Promise<void> {
+    const ctx = this.findMixedLeafContextInTree(wsId, true);
+    if (!ctx || ctx.index <= 0) return;
+    this.closeMenu();
+    await this.collectionService.moveSidebarLeafStepInMixedOrder(
+      wsId,
+      true,
+      ctx.parentId,
+      ctx.isCollection,
+      -1,
+    );
+    this.collections = this.collectionService.getCollections();
+    this.cdr.markForCheck();
+  }
+
+  async moveWebSocketDownInList(wsId: string): Promise<void> {
+    const ctx = this.findMixedLeafContextInTree(wsId, true);
+    if (!ctx || ctx.index >= ctx.length - 1) return;
+    this.closeMenu();
+    await this.collectionService.moveSidebarLeafStepInMixedOrder(
+      wsId,
+      true,
+      ctx.parentId,
+      ctx.isCollection,
+      1,
+    );
+    this.collections = this.collectionService.getCollections();
+    this.cdr.markForCheck();
   }
 }
 

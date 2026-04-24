@@ -111,4 +111,13 @@ export class MockServerEndpointsSidebarComponent implements OnInit, OnDestroy {
     }
     await this.mockUi.removeStandalone(endpoint);
   }
+
+  /** Badge: at least one variant participates in unpinned mock resolution. */
+  standaloneHasServedMocks(e: StandaloneMockEndpoint): boolean {
+    const v = e.variants || [];
+    if (!v.length) return false;
+    const ids = e.activeVariantIds;
+    if (ids == null) return true;
+    return ids.length > 0;
+  }
 }

@@ -717,20 +717,16 @@
           <div class="mock-variant-list" *ngIf="request.mockVariants && request.mockVariants.length > 0">
             <div class="mock-variant"
                  *ngFor="let variant of request.mockVariants; let i = index; trackBy: trackByMockId"
-                 [class.is-active]="request.activeMockVariantId === variant.id">
+                 [class.is-active]="mockVariantIsServed(variant.id)">
 
               <div class="mock-variant-head">
-                <button type="button"
-                        class="mock-variant-pin"
-                        [class.active]="request.activeMockVariantId === variant.id"
-                        [attr.aria-pressed]="request.activeMockVariantId === variant.id"
-                        [title]="request.activeMockVariantId === variant.id ? 'Active variant' : 'Set as active'"
-                        (click)="setActiveMockVariant(variant.id)">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <circle cx="12" cy="12" r="6"></circle>
-                  </svg>
-                  <span class="mock-variant-pin-label">Active</span>
-                </button>
+                <label class="mock-variant-served"
+                       title="When checked, this variant participates in unpinned /mock/… URLs.">
+                  <input type="checkbox"
+                         [checked]="mockVariantIsServed(variant.id)"
+                         (change)="onMockVariantServedChange(variant.id, $event)" />
+                  <span>Served</span>
+                </label>
 
                 <div class="mock-variant-name-wrap">
                   <input class="mock-variant-name" [(ngModel)]="variant.name"
@@ -781,7 +777,7 @@
 
               <div class="mock-variant-url"
                    *ngIf="mockStatus.status === 'running'"
-                   [class.is-active]="request.activeMockVariantId === variant.id">
+                   [class.is-active]="mockVariantIsServed(variant.id)">
                 <span class="mock-variant-url-label">URL</span>
                 <code class="mock-variant-url-code">{{ mockUrlFor(variant.id) }}</code>
                 <button type="button" class="mock-copy" (click)="copyMockUrl(variant.id)" title="Copy URL">
@@ -796,6 +792,9 @@
               <div class="mock-variant-url offline" *ngIf="mockStatus.status !== 'running'">
                 <span class="mock-variant-url-hint">Start the server to get a shareable URL.</span>
               </div>
+
+              <app-mock-variant-match-section [variant]="variant"
+                                              (changed)="onMockVariantChanged()" />
 
               <div class="mock-variant-body-wrap">
                 <div class="mock-variant-body-label">Response body</div>

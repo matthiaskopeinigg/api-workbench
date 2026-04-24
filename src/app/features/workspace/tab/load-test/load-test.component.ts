@@ -27,6 +27,8 @@ import {
   DEFAULT_LOAD_CONFIG,
   ensureLoadTestProfiles,
   findLoadTestProfileTemplateById,
+  loadTestProfileCoversTemplate,
+  loadTestTemplateProfileName,
   LOAD_TEST_PROFILE_PICKER_EMPTY,
   LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX,
   LOAD_TEST_PROFILE_TEMPLATES,
@@ -801,13 +803,15 @@ export class LoadTestComponent implements OnInit, OnDestroy {
   headerProfileOptions(a: LoadTestArtifact): DropdownOption[] {
     const existing: DropdownOption[] = (a.profiles || []).map((p) => ({
       value: p.id,
-      label: p.isTemplate ? `${p.name} (template)` : p.name,
+      label: p.name,
       title: p.description,
       description: p.description,
     }));
-    const fromCatalog: DropdownOption[] = LOAD_TEST_PROFILE_TEMPLATES.map((t) => ({
+    const fromCatalog: DropdownOption[] = LOAD_TEST_PROFILE_TEMPLATES.filter(
+      (t) => !(a.profiles || []).some((p) => loadTestProfileCoversTemplate(p, t)),
+    ).map((t) => ({
       value: LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX + t.id,
-      label: t.name,
+      label: loadTestTemplateProfileName(t),
       title: t.description,
       description: t.description,
     }));

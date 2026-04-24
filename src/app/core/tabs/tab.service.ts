@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
+import { v4 as uuidv4 } from 'uuid';
 import { SessionService } from '@core/session/session.service';
 import { SettingsService } from '@core/settings/settings.service';
 import type { TestingArtifactKind } from '@models/electron';
@@ -175,6 +176,24 @@ export class TabService {
       id: MOCK_SERVER_TAB_ID,
       title: 'Mock Server',
       type: TabType.MOCK_SERVER,
+    });
+  }
+
+  /** Opens a new WebSocket / SSE playground tab (same as the command palette entry). */
+  openNewWebSocketTab(): void {
+    this.openTab({
+      id: `ws-${uuidv4()}`,
+      title: 'WebSocket',
+      type: TabType.WEBSOCKET,
+    });
+  }
+
+  /** Opens a new tab titled for SSE; mode defaults to WebSocket until changed in the tab. */
+  openNewSseTab(): void {
+    this.openTab({
+      id: `ws-${uuidv4()}`,
+      title: 'SSE',
+      type: TabType.WEBSOCKET,
     });
   }
 

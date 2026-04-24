@@ -58,11 +58,6 @@ const DEFAULT_SETTINGS: Settings = {
     logFilePath: '',
     maxLogFileSizeKb: 1024
   },
-  updates: {
-    allowPrerelease: false,
-    allowDowngrade: false,
-    targetRelease: 'latest',
-  },
   keyboard: {
     bindings: {},
   },

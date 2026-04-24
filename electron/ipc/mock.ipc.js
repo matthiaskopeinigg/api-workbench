@@ -69,7 +69,12 @@ function registerMockIpcHandlers() {
   ipcMain.handle('mock:register', async (_event, payload) => {
     try {
       if (!payload || typeof payload !== 'object') return { ok: false };
-      mock.registerVariants(payload.requestId, payload.variants || [], payload.activeVariantId);
+      mock.registerVariants(
+        payload.requestId,
+        payload.variants || [],
+        payload.activeVariantId,
+        payload.activeVariantIds,
+      );
       return { ok: true, status: mock.getStatus() };
     } catch (err) {
       logError('mock:register failed', err);

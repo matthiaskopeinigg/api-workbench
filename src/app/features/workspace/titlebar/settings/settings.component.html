@@ -548,36 +548,6 @@
           </div>
         </section>
 
-        <section class="settings-section update-policy-section" formGroupName="updates">
-          <h3 class="settings-section">Update channel</h3>
-          <p class="tab-description">
-            Packaged installs only. Controls which GitHub release the auto-updater uses (requires a valid
-            <code>latest.yml</code> on that release).
-          </p>
-          <label class="checkbox-label">
-            <input type="checkbox" formControlName="allowPrerelease" />
-            Include pre-releases (for example SNAPSHOT or beta) when resolving the newest version
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" formControlName="allowDowngrade" />
-            Allow installing an older version than the one you are running (use when going back after trying a newer build)
-          </label>
-          <div class="form-group">
-            <label>Release to follow</label>
-            <app-dropdown
-              [options]="releasePickerOptions"
-              [value]="settingsForm.get('updates.targetRelease')?.value"
-              (valueChange)="settingsForm.get('updates.targetRelease')?.setValue($event)">
-            </app-dropdown>
-            <p class="form-hint">
-              Pick a specific version to pin the updater to that tag's artifacts, or <strong>Latest</strong> for the default feed.
-            </p>
-          </div>
-          <button type="button" class="fancy-button cancel" (click)="refreshReleasePickerOptions()">
-            Refresh release list
-          </button>
-        </section>
-
         <section class="update-card" *ngIf="updaterStatus">
           <div class="update-state" [attr.data-state]="updaterStatus.state">
             <div class="update-state-dot"></div>
@@ -605,8 +575,8 @@
                     *ngIf="updaterStatus.state === 'available'"
                     type="button"
                     [disabled]="!updaterStatus.supported"
-                    (click)="downloadUpdate()">
-              Download update
+                    (click)="downloadAndInstallUpdate()">
+              Download and install
             </button>
 
             <button class="fancy-button"

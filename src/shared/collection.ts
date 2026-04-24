@@ -1,4 +1,5 @@
 import { HttpHeader, Request, Script, RequestAuth, AuthType } from "./request";
+import type { WebSocketCollectionEntry } from './websocket';
 
 
 export interface Collection {
@@ -6,6 +7,8 @@ export interface Collection {
   order: number;
   title: string;
   requests: Request[];
+  /** Saved WebSocket / SSE endpoints (parallel to `requests`). */
+  websocketRequests?: WebSocketCollectionEntry[];
   folders: Folder[];
   auth?: RequestAuth;
   settings?: Request['settings'];
@@ -18,6 +21,7 @@ export interface Folder {
   order: number;
   title: string;
   requests: Request[];
+  websocketRequests?: WebSocketCollectionEntry[];
   folders: Folder[];
 
   variables?: {

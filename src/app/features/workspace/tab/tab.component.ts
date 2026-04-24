@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, takeUntil } from 'rxjs';
-import { distinctUntilChanged, filter } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 import {
   duplicateRequestTabSurface,
   sanitizeTabForStorage,
@@ -33,6 +33,7 @@ import { EnvironmentsService } from '@core/environments/environments.service';
 import { RequestHistoryService } from '@core/http/request-history.service';
 import { RequestService } from '@core/http/request.service';
 import { CollectionService } from '@core/collection/collection.service';
+import { CollectionWebSocketTabService } from '@core/collection/collection-websocket-tab.service';
 import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
 
 @Component({
@@ -77,7 +78,7 @@ export class TabComponent implements OnInit, OnDestroy {
 
   /**
    * While > 0, `select*` is pushing into BehaviorSubjects; `addNewTabToWorkspace` must ignore
-   * "tab already open" replays or we recurse (distinctUntilChanged is not enough if emissions reorder).
+   * "tab already open" replays or we recurse if emissions reorder.
    */
   private syncingGlobalSelectionDepth = 0;
   private readonly keyboardShortcutUnreg: Array<() => void> = [];
@@ -87,6 +88,7 @@ export class TabComponent implements OnInit, OnDestroy {
     private tabService: TabService,
     private requestHistoryService: RequestHistoryService,
     private requestService: RequestService,
+    private collectionWebSocketTabService: CollectionWebSocketTabService,
     private collectionService: CollectionService,
     private testArtifacts: TestArtifactService,
     private viewState: ViewStateService,
@@ -326,6 +328,7 @@ export class TabComponent implements OnInit, OnDestroy {
       this.secondarySelected = 0;
     }
     this.focusedPane = 'primary';
+    this.clampPaneSelections();
     this.emitTabSize();
   }
 
@@ -348,9 +351,24 @@ export class TabComponent implements OnInit, OnDestroy {
   }
 
   private getSelectedTabInPane(pane: WorkspacePaneId): TabItem | null {
+    this.clampPaneSelections();
     const tabs = pane === 'primary' ? this.primaryTabs : this.secondaryTabs;
     const idx = pane === 'primary' ? this.primarySelected : this.secondarySelected;
     return tabs[idx] ?? null;
+  }
+
+  /** Keeps selected indices within tab array bounds (stale workspace state / race paths). */
+  private clampPaneSelections(): void {
+    if (this.primaryTabs.length === 0) {
+      this.primarySelected = 0;
+    } else {
+      this.primarySelected = Math.min(Math.max(0, this.primarySelected), this.primaryTabs.length - 1);
+    }
+    if (this.secondaryTabs.length === 0) {
+      this.secondarySelected = 0;
+    } else {
+      this.secondarySelected = Math.min(Math.max(0, this.secondarySelected), this.secondaryTabs.length - 1);
+    }
   }
 
   private sortPaneTabs(tabs: TabItem[]): TabItem[] {
@@ -360,6 +378,7 @@ export class TabComponent implements OnInit, OnDestroy {
   }
 
   private async persistWorkspace() {
+    this.clampPaneSelections();
     const primarySelId = this.primaryTabs[this.primarySelected]?.id ?? null;
     const secondarySelId = this.secondaryTabs[this.secondarySelected]?.id ?? null;
     const primarySorted = this.sortPaneTabs(this.primaryTabs).map(sanitizeTabForStorage);
@@ -415,6 +434,7 @@ export class TabComponent implements OnInit, OnDestroy {
       if (!newSelectedTab) {
         await this.tabService.saveUnselectTab();
         await this.requestService.removeSelectedRequest();
+        this.collectionWebSocketTabService.clearSelectedWebSocketTab();
         await this.environmentsService.removeSelectedEnvironment();
         await this.requestHistoryService.removeSelectedHistoryEntry();
         this.collectionService.selectFolder(null as any);
@@ -439,6 +459,12 @@ export class TabComponent implements OnInit, OnDestroy {
         this.requestService.removeSelectedRequest();
       }
 
+      if (this.tabService.isWebSocketTab(newSelectedTab)) {
+        this.collectionWebSocketTabService.selectWebSocketTab(newSelectedTab);
+      } else {
+        this.collectionWebSocketTabService.clearSelectedWebSocketTab();
+      }
+
       if (this.tabService.isFolderTab(newSelectedTab)) {
         this.collectionService.selectFolder(newSelectedTab);
       } else {
@@ -452,11 +478,17 @@ export class TabComponent implements OnInit, OnDestroy {
   }
 
   private async startListeners() {
-    /** Dedupe by surface tab id: syncGlobalSelection calls select* which replays BehaviorSubjects and would otherwise recurse. */
+    /**
+     * Sidebar / palette selection streams must not use `distinctUntilChanged` by tab id:
+     * after closing all tabs, `removeSelectedRequest()` emits `null` (filtered here), so the
+     * previous request id would still be "last distinct" and re-clicking the same row would
+     * never call `addNewTabToWorkspace`. Recursion from `syncGlobalSelection` → `select*`
+     * is already suppressed via `syncingGlobalSelectionDepth` and early returns in
+     * `addNewTabToWorkspace` when the tab already exists.
+     */
     const selectionOpensTab = (source: Observable<TabItem | null>) =>
       source.pipe(
         filter((t: TabItem | null): t is TabItem => t != null),
-        distinctUntilChanged((a, b) => a.id === b.id),
         takeUntil(this.destroy$),
       );
 
@@ -478,6 +510,13 @@ export class TabComponent implements OnInit, OnDestroy {
       void this.addNewTabToWorkspace(newRequestTab);
       this.cdr.markForCheck();
     });
+
+    selectionOpensTab(this.collectionWebSocketTabService.getSelectedWebSocketTabAsObservable()).subscribe(
+      wsTab => {
+        void this.addNewTabToWorkspace(wsTab);
+        this.cdr.markForCheck();
+      },
+    );
 
     this.collectionService
       .getSelectedFolderAsObservable()
@@ -506,10 +545,26 @@ export class TabComponent implements OnInit, OnDestroy {
       });
 
     this.collectionService
+      .getWebSocketEntryDeletedObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(deletedWsId => {
+        void this.removeTabByIdEverywhere(deletedWsId);
+        this.cdr.markForCheck();
+      });
+
+    this.collectionService
       .getRequestUpdatedObservable()
       .pipe(takeUntil(this.destroy$))
       .subscribe(updatedRequest => {
         void this.applyTitlePatchEverywhere(updatedRequest.id, updatedRequest.title);
+        this.cdr.markForCheck();
+      });
+
+    this.collectionService
+      .getWebSocketEntryUpdatedObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((updated) => {
+        void this.applyTitlePatchEverywhere(updated.id, updated.title);
         this.cdr.markForCheck();
       });
 
@@ -602,10 +657,17 @@ export class TabComponent implements OnInit, OnDestroy {
 
   async addNewTabToWorkspace(newTab: TabItem) {
     const incoming = this.normalizeIncomingTab(newTab);
+    if (!this.splitMode && this.focusedPane === 'secondary') {
+      this.focusedPane = 'primary';
+    }
     const inPrimary = this.primaryTabs.findIndex(t => t.id === incoming.id);
     const inSecondary = this.secondaryTabs.findIndex(t => t.id === incoming.id);
     if (inPrimary !== -1) {
       if (this.syncingGlobalSelectionDepth > 0) {
+        this.focusedPane = 'primary';
+        this.primarySelected = inPrimary;
+        this.clampPaneSelections();
+        this.cdr.markForCheck();
         return;
       }
       this.focusedPane = 'primary';
@@ -629,10 +691,12 @@ export class TabComponent implements OnInit, OnDestroy {
     this.focusedPane = pane;
     if (pane === 'primary') {
       this.primaryTabs = this.sortPaneTabs([...this.primaryTabs, incoming]);
-      this.primarySelected = Math.max(0, this.primaryTabs.findIndex(t => t.id === incoming.id));
+      const pi = this.primaryTabs.findIndex(t => t.id === incoming.id);
+      this.primarySelected = pi >= 0 ? pi : Math.max(0, this.primaryTabs.length - 1);
     } else {
       this.secondaryTabs = this.sortPaneTabs([...this.secondaryTabs, incoming]);
-      this.secondarySelected = Math.max(0, this.secondaryTabs.findIndex(t => t.id === incoming.id));
+      const si = this.secondaryTabs.findIndex(t => t.id === incoming.id);
+      this.secondarySelected = si >= 0 ? si : Math.max(0, this.secondaryTabs.length - 1);
     }
     await this.syncGlobalSelection(incoming);
     await this.persistWorkspace();
@@ -696,6 +760,8 @@ export class TabComponent implements OnInit, OnDestroy {
     const total = this.primaryTabs.length + this.secondaryTabs.length;
     if (total === 0) {
       this.splitMode = false;
+      /** Without split, only the primary pane exists; keep routing new tabs there. */
+      this.focusedPane = 'primary';
       await this.syncGlobalSelection(null);
       await this.persistWorkspace();
       return;

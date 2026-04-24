@@ -13,6 +13,7 @@ import { Collection } from '@models/collection';
 import { v4 as uuidv4 } from 'uuid';
 import { SidebarComponent } from './sidebar/sidebar.component';
 import { TitlebarComponent } from './titlebar/titlebar.component';
+import { TabService } from '@core/tabs/tab.service';
 
 type ToastTone = 'success' | 'error';
 
@@ -55,6 +56,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     private batchImportDialog: BatchImportDialogService,
     private fileDialogService: FileDialogService,
     private importIntents: ImportIntentsService,
+    private tabService: TabService,
     private cdr: ChangeDetectorRef,
   ) { }
 
@@ -77,6 +79,11 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   createCollection() {
     this.collectionService.triggerCreateNewCollection();
+  }
+
+  openWebSocketPlayground(): void {
+    this.tabService.openNewWebSocketTab();
+    this.cdr.markForCheck();
   }
 
   async importPostman(): Promise<void> {

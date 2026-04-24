@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { CommandRegistryService } from './command-registry.service';
 import { CookieService } from '@core/http/cookie.service';
@@ -68,22 +68,14 @@ export class CommandSeedsService {
         label: 'New WebSocket tab',
         category: 'Workspace',
         hint: 'Open a scratch WebSocket / SSE playground',
-        run: () => this.tabService.openTab({
-          id: `ws-${uuidv4()}`,
-          title: 'WebSocket',
-          type: TabType.WEBSOCKET,
-        }),
+        run: () => this.tabService.openNewWebSocketTab(),
       },
       {
         id: 'workbench.newSse',
         label: 'New SSE tab',
         category: 'Workspace',
         hint: 'Open a server-sent events stream viewer',
-        run: () => this.tabService.openTab({
-          id: `ws-${uuidv4()}`,
-          title: 'SSE',
-          type: TabType.WEBSOCKET,
-        }),
+        run: () => this.tabService.openNewSseTab(),
       },
       {
         id: 'workbench.showShortcuts',

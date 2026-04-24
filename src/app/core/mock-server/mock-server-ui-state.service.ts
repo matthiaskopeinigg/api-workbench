@@ -4,6 +4,14 @@ import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import { Collection, Folder } from '@models/collection';
 import { Request as RequestModel } from '@models/request';
+
+function requestHasServedMocks(req: RequestModel): boolean {
+  const mv = req.mockVariants || [];
+  if (!mv.length) return false;
+  const ids = req.activeMockVariantIds;
+  if (ids == null) return true;
+  return ids.length > 0;
+}
 import type { MockServerStatus, StandaloneMockEndpoint } from '@models/electron';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,6 +20,8 @@ export interface MockEndpointEntry {
   parentLabel: string;
   variantCount: number;
   activeVariantId: string | null;
+  /** True when at least one variant is served on unpinned /mock/… URLs. */
+  hasServedMocks: boolean;
   isRegistered: boolean;
 }
 
@@ -152,6 +162,7 @@ export class MockServerUiStateService {
         },
       ],
       activeVariantId: variantId,
+      activeVariantIds: [variantId],
     });
     await this.refreshStandalonesList();
     if (created) {
@@ -187,6 +198,7 @@ export class MockServerUiStateService {
             parentLabel: parentPath || collection.title,
             variantCount,
             activeVariantId: req.activeMockVariantId || null,
+            hasServedMocks: requestHasServedMocks(req),
             isRegistered: registeredIds.has(req.id),
           });
         }

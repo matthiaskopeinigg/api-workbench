@@ -1,6 +1,6 @@
 import { Injectable, NgZone, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import type { UpdaterReleaseSummary, UpdaterStatus } from '../../../shared/electron';
+import type { UpdaterStatus } from '../../../shared/electron';
 
 /**
  * Bridges the Electron `updater:*` IPC surface to the Angular world as a single
@@ -17,6 +17,8 @@ export class UpdateService implements OnDestroy {
   });
 
   private unsubscribe?: () => void;
+  /** When true, after `downloaded` we immediately invoke quit-and-install (one-shot). */
+  private installAfterDownload = false;
 
   constructor(private zone: NgZone) {
     this.start();
@@ -42,19 +44,30 @@ export class UpdateService implements OnDestroy {
     }
 
     this.unsubscribe = api.onUpdaterStatus((status) => {
-      this.zone.run(() => this.status$.next(status));
+      this.zone.run(() => {
+        if (status.state === 'downloaded' && this.installAfterDownload && status.supported) {
+          this.installAfterDownload = false;
+          this.status$.next(status);
+          queueMicrotask(() => window.awElectron?.installUpdate?.());
+          return;
+        }
+        if (status.state === 'error') {
+          this.installAfterDownload = false;
+        }
+        this.status$.next(status);
+      });
     });
   }
 
-  async listUpdaterReleases(): Promise<UpdaterReleaseSummary[]> {
-    const api = window.awElectron;
-    if (!api?.listUpdaterReleases) return [];
-    try {
-      return await api.listUpdaterReleases();
-    } catch (err) {
-      console.error('Failed to list updater releases', err);
-      return [];
-    }
+  /** Clear chained install (e.g. user dismissed banner mid-download). */
+  cancelChainedInstall(): void {
+    this.installAfterDownload = false;
+  }
+
+  /** Download then automatically quit and install once the package is ready. */
+  downloadAndInstall(): void {
+    this.installAfterDownload = true;
+    void this.downloadUpdate();
   }
 
   async checkForUpdates(): Promise<void> {

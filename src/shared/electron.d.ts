@@ -4,6 +4,7 @@ import { Environment } from './environment';
 import { FileDialogResult, OpenFilesDialogResult, ReadImportFolderOptions, SaveFileOptions, WriteFilesToDirectoryResult } from './file-dialog';
 import type { IpcHttpRequest } from './ipc-http-request';
 import type { IpcHttpResponse } from './ipc-http-response';
+import type { MockVariantMatchRules } from './request';
 
 export interface OAuth2AuthConfig {
   authUrl: string;
@@ -36,14 +37,6 @@ export type UpdaterState =
   | 'downloaded'
   | 'error'
   | 'disabled';
-
-/** One row from GitHub releases (for the update version picker). */
-export interface UpdaterReleaseSummary {
-  tag: string;
-  version: string;
-  prerelease: boolean;
-  name: string;
-}
 
 export interface UpdaterStatus {
   state: UpdaterState;
@@ -134,7 +127,6 @@ export interface AwElectronApi {
   getOAuth2ClientCredentials: (config: OAuth2ClientCredentialsConfig) => Promise<Record<string, unknown>>;
 
   getUpdaterStatus: () => Promise<UpdaterStatus>;
-  listUpdaterReleases: () => Promise<UpdaterReleaseSummary[]>;
   checkForUpdates: () => Promise<UpdaterStatus>;
   downloadUpdate: () => Promise<UpdaterStatus>;
   installUpdate: () => void;
@@ -234,7 +226,13 @@ export interface MockServerStatus {
   baseUrl: string;
   /** Currently-effective server options. */
   options?: MockServerOptions;
-  registered: Array<{ requestId: string; variantCount: number; activeVariantId: string | null }>;
+  registered: Array<{
+    requestId: string;
+    variantCount: number;
+    activeVariantId: string | null;
+    /** Present when the main process supports multi-active filtering. */
+    activeVariantIds?: string[] | null;
+  }>;
   standalone?: Array<{
     id: string;
     name?: string;
@@ -242,6 +240,7 @@ export interface MockServerStatus {
     path: string;
     variantCount: number;
     activeVariantId: string | null;
+    activeVariantIds?: string[] | null;
   }>;
 }
 
@@ -282,6 +281,8 @@ export interface StandaloneMockEndpointInput {
     delayMs?: number;
   }>;
   activeVariantId?: string | null;
+  /** When set, only these variant ids participate in unpinned URL resolution (see app docs). */
+  activeVariantIds?: string[] | null;
 }
 
 export interface StandaloneMockEndpoint {
@@ -298,8 +299,11 @@ export interface StandaloneMockEndpoint {
     headers: Array<{ key: string; value: string }>;
     body: string;
     delayMs: number;
+    matchOn?: MockVariantMatchRules;
   }>;
   activeVariantId: string | null;
+  /** When set, only these variant ids participate in unpinned URL resolution. */
+  activeVariantIds?: string[] | null;
 }
 
 export interface MockRegisterPayload {
@@ -312,9 +316,10 @@ export interface MockRegisterPayload {
     headers?: Array<{ key: string; value: string }>;
     body?: string;
     delayMs?: number;
-    matchOn?: { method?: string; pathContains?: string };
+    matchOn?: MockVariantMatchRules;
   }>;
   activeVariantId?: string;
+  activeVariantIds?: string[] | null;
 }
 
 export interface ResponseHistoryEntryInput {

@@ -4,7 +4,12 @@ import { TestsComponent } from './tests.component';
 import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabService } from '@core/tabs/tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
-import { DEFAULT_LOAD_CONFIG, ensureLoadTestProfiles, LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX } from '@models/testing/load-test';
+import {
+  DEFAULT_LOAD_CONFIG,
+  ensureLoadTestProfiles,
+  LOAD_TEST_PROFILE_PICKER_TEMPLATE_PREFIX,
+  LOAD_TEST_PROFILE_TEMPLATES,
+} from '@models/testing/load-test';
 import type { LoadTestArtifact } from '@models/testing/load-test';
 
 describe('TestsComponent (sidebar)', () => {
@@ -163,6 +168,29 @@ describe('TestsComponent (sidebar)', () => {
     confirmDialogSpy.confirm.and.resolveTo(true);
     await component.deleteItem(component.sections[0], { id: 'lt-1', title: 't', updatedAt: 0 });
     expect(artifactsSpy.remove).toHaveBeenCalledWith('loadTests', 'lt-1');
+  });
+
+  it('loadTestTemplatesAvailable hides catalog rows already represented on the load test', () => {
+    const base = ensureLoadTestProfiles({
+      id: 'lt-99',
+      title: 'My LT',
+      updatedAt: 1,
+      config: { ...DEFAULT_LOAD_CONFIG, targets: [] },
+    } as LoadTestArtifact);
+    const smoke = LOAD_TEST_PROFILE_TEMPLATES.find((t) => t.id === 'tpl-smoke')!;
+    base.profiles!.push({
+      id: 'p-smoke',
+      name: smoke.name,
+      description: smoke.description,
+      isTemplate: true,
+      templateCatalogId: smoke.id,
+      config: smoke.factory(),
+    });
+    artifactsSpy.getById.and.returnValue(base);
+    const item = { id: 'lt-99', title: 'My LT', updatedAt: 1 };
+    const avail = component.loadTestTemplatesAvailable(item);
+    expect(avail.some((t) => t.id === 'tpl-smoke')).toBeFalse();
+    expect(avail.length).toBe(LOAD_TEST_PROFILE_TEMPLATES.length - 1);
   });
 
   it('onAddLoadTestProfile appends a template and opens the load test tab', async () => {

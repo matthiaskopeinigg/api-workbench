@@ -12,7 +12,7 @@
         <div class="tabs">
           <div *ngFor="let tab of tabs; let i = index; trackBy: trackByTabId" class="tab"
             [attr.data-tab-id]="tab.id"
-            [class.active]="selectedTabIndex === i" [class.dragging]="draggedIndex === i" [class.is-pinned]="tab.pinned"
+            [class.active]="effectiveSelectedTabIndex === i" [class.dragging]="draggedIndex === i" [class.is-pinned]="tab.pinned"
             draggable="true"
             (click)="selectTab(i)" (contextmenu)="openContextMenu($event, i)" (dragstart)="onDragStart($event, i)"
             (dragover)="onDragOver($event, i)" (drop)="onDrop($event)" (dragend)="onDragEnd()">
@@ -32,7 +32,7 @@
     </div>
   </ng-container>
 
-  @if (tabs[selectedTabIndex]; as activeTab) {
+  @if (tabs[effectiveSelectedTabIndex]; as activeTab) {
     <div class="tab-content">
       @if (activeTab.type === TabType.ENVIRONMENT && isEnvironmentTab(activeTab)) {
         @defer {
@@ -60,7 +60,7 @@
           </div>
         }
       } @else if (activeTab.type === TabType.REQUEST && isRequestTab(activeTab)) {
-        @defer {
+        @defer (on immediate) {
           <app-request
             [tab]="activeTab"
             [workspacePaneId]="paneId"
@@ -91,7 +91,7 @@
           </div>
         }
       } @else if (activeTab.type === TabType.WEBSOCKET && isWebSocketTab(activeTab)) {
-        @defer {
+        @defer (on immediate) {
           <app-websocket [tab]="activeTab" />
         } @placeholder {
           <div class="tab-defer-placeholder" role="status" aria-live="polite">

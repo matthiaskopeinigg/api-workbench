@@ -22,8 +22,11 @@ export class DropdownComponent {
     @Input() value: any;
     @Input() placeholder: string = '';
     @Input() align: 'left' | 'right' = 'left';
-    /** Max width for the menu panel (long labels). */
-    @Input() menuMaxWidth = 'min(100%, 20rem)';
+    /**
+     * Max width for the menu panel. Must not use `100%` of the trigger — that caps the menu
+     * to the button width and truncates long options (e.g. WebSocket mode selector).
+     */
+    @Input() menuMaxWidth = 'min(100vw - 24px, 24rem)';
     /** Accessible name for the trigger (e.g. filter role). */
     @Input() ariaLabel = '';
     @Output() valueChange = new EventEmitter<any>();

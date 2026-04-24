@@ -1,0 +1,170 @@
+<div class="mock-match">
+  <div class="mock-match-head">
+    <span class="mock-match-title">Match incoming request</span>
+    <span class="mock-match-hint">
+      Optional. All set rules must pass (AND). Variant list order = first match wins. Empty matchers = default variant.
+    </span>
+    <div class="mock-match-head-actions" *ngIf="variant.matchOn">
+      <button type="button"
+              class="btn-toggle-match"
+              (click)="toggleMatchingPanel()"
+              [attr.aria-expanded]="matchingExpanded">
+        {{ matchingExpanded ? 'Hide matching' : 'Show matching' }}
+      </button>
+      <button type="button" class="btn-clear-match" (click)="clearMatchers()">Clear all</button>
+    </div>
+  </div>
+
+  <div class="mock-match-body" *ngIf="variant.matchOn && matchingExpanded; else collapsedOrEmpty">
+    <section class="mock-match-section">
+      <h4 class="mock-match-section-title">Parameters</h4>
+      <p class="mock-match-section-desc">Method, URL path / query, and query string rules.</p>
+
+      <div class="mock-match-field span-flow">
+        <span class="mock-match-label">HTTP methods</span>
+        <p class="mock-match-micro mock-match-micro--tight">Select one or more. Request must use one of the selected methods.</p>
+        <div class="mock-method-chips" role="group" aria-label="HTTP methods for this variant">
+          <button type="button"
+                  class="mock-method-chip"
+                  *ngFor="let m of httpMethods"
+                  [class.is-on]="methodChipActive(m)"
+                  (click)="toggleMethodChip(m)">
+            {{ m }}
+          </button>
+        </div>
+      </div>
+
+      <label class="mock-match-field span-flow">
+        <span class="mock-match-label">Path contains</span>
+        <input type="text" class="mock-match-input" placeholder="Substring in path + query, e.g. ?tier=paid"
+               [(ngModel)]="variant.matchOn.pathContains"
+               (ngModelChange)="onScalarChange()" />
+      </label>
+      <label class="mock-match-field span-flow">
+        <span class="mock-match-label">Path + query (regex)</span>
+        <input type="text" class="mock-match-input" placeholder="Regex over same haystack as “contains”; dotAll (s)"
+               [(ngModel)]="variant.matchOn.pathRegex"
+               (ngModelChange)="onScalarChange()" />
+      </label>
+
+      <div class="mock-match-subblock">
+        <div class="mock-match-block-head">
+          <span class="mock-match-label">Query parameters</span>
+          <button type="button" class="add-row-btn" (click)="addQueryRule()">+ Param</button>
+        </div>
+        <table class="mock-match-table" *ngIf="variant.matchOn.queryParams?.length">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Value (exact)</th>
+              <th>Value (regex)</th>
+              <th class="mock-match-table-actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let q of variant.matchOn.queryParams; let i = index; trackBy: trackByIndex">
+              <td><input class="mock-match-input" placeholder="name" [(ngModel)]="q.name" (ngModelChange)="onScalarChange()" /></td>
+              <td><input class="mock-match-input" placeholder="exact" [(ngModel)]="q.value" (ngModelChange)="onScalarChange()" /></td>
+              <td><input class="mock-match-input" placeholder="regex" [(ngModel)]="q.valueRegex" (ngModelChange)="onScalarChange()" /></td>
+              <td class="mock-match-table-actions">
+                <button type="button" class="icon-button danger sm" title="Remove" (click)="removeQueryRule(i)">×</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="mock-match-micro" *ngIf="!variant.matchOn.queryParams?.length">
+          No query rules. Regex column overrides exact value when set.
+        </p>
+      </div>
+    </section>
+
+    <section class="mock-match-section">
+      <h4 class="mock-match-section-title">Headers</h4>
+      <p class="mock-match-section-desc">Match on incoming request headers (name is case-insensitive on the wire).</p>
+
+      <div class="mock-match-subblock">
+        <div class="mock-match-block-head">
+          <span class="mock-match-label">Header rules</span>
+          <button type="button" class="add-row-btn" (click)="addHeaderRule()">+ Rule</button>
+        </div>
+        <table class="mock-match-table" *ngIf="variant.matchOn.headers?.length">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Equals</th>
+              <th>Regex</th>
+              <th>Contains</th>
+              <th class="mock-match-table-actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let h of variant.matchOn.headers; let i = index; trackBy: trackByIndex">
+              <td><input class="mock-match-input" placeholder="Name" [(ngModel)]="h.name" (ngModelChange)="onScalarChange()" /></td>
+              <td><input class="mock-match-input" placeholder="Exact value" [(ngModel)]="h.equals" (ngModelChange)="onScalarChange()" /></td>
+              <td><input class="mock-match-input" placeholder="Regex" [(ngModel)]="h.matches" (ngModelChange)="onScalarChange()" /></td>
+              <td><input class="mock-match-input" placeholder="Substring" [(ngModel)]="h.contains" (ngModelChange)="onScalarChange()" /></td>
+              <td class="mock-match-table-actions">
+                <button type="button" class="icon-button danger sm" title="Remove" (click)="removeHeaderRule(i)">×</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="mock-match-micro" *ngIf="!variant.matchOn.headers?.length">
+          Precedence per header: <strong>equals</strong> → <strong>regex</strong> → <strong>contains</strong> → header must exist and be non-empty.
+        </p>
+      </div>
+    </section>
+
+    <section class="mock-match-section">
+      <h4 class="mock-match-section-title">Body</h4>
+      <p class="mock-match-section-desc">Raw body substring / regex and optional JSON path checks.</p>
+
+      <label class="mock-match-field span-flow">
+        <span class="mock-match-label">Body contains</span>
+        <input type="text" class="mock-match-input" placeholder="Substring in UTF-8 body"
+               [(ngModel)]="variant.matchOn.bodyContains"
+               (ngModelChange)="onScalarChange()" />
+      </label>
+      <label class="mock-match-field span-flow">
+        <span class="mock-match-label">Body regex</span>
+        <input type="text" class="mock-match-input" placeholder="JavaScript regex (s flag)"
+               [(ngModel)]="variant.matchOn.bodyRegex"
+               (ngModelChange)="onScalarChange()" />
+      </label>
+
+      <div class="mock-match-field span-flow mock-match-jsonblock">
+        <span class="mock-match-label">JSON body</span>
+        <label class="mock-match-field span-flow">
+          <span class="mock-match-label mock-match-label--sub">Path</span>
+          <input type="text" class="mock-match-input" placeholder="e.g. user.plan"
+                 [(ngModel)]="variant.matchOn.bodyJsonPath"
+                 (ngModelChange)="onScalarChange()" />
+        </label>
+        <div class="mock-match-jsonpair">
+          <label>
+            <span class="mock-match-label mock-match-label--sub">Equals (JSON)</span>
+            <input type="text" class="mock-match-input" placeholder='"premium" or true'
+                   [(ngModel)]="variant.matchOn.bodyJsonEquals"
+                   (ngModelChange)="onScalarChange()" />
+          </label>
+          <label>
+            <span class="mock-match-label mock-match-label--sub">Value (regex)</span>
+            <input type="text" class="mock-match-input" placeholder="On stringified value at path"
+                   [(ngModel)]="variant.matchOn.bodyJsonMatches"
+                   (ngModelChange)="onScalarChange()" />
+          </label>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <ng-template #collapsedOrEmpty>
+    <div class="mock-match-collapsed-hint" *ngIf="variant.matchOn && !matchingExpanded">
+      <span>Matching rules are hidden.</span>
+      <button type="button" class="btn-linkish" (click)="toggleMatchingPanel()">Show matching</button>
+    </div>
+    <button type="button" class="btn-add-matchers" *ngIf="!variant.matchOn" (click)="ensureMatchOn()">
+      + Add request matchers
+    </button>
+  </ng-template>
+</div>

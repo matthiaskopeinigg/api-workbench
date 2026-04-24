@@ -7,7 +7,7 @@
         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
       </svg>
       <input type="text" [(ngModel)]="searchTerm" (input)="updateFilteredCollections()"
-             placeholder="Search collections, folders, requests…">
+             placeholder="Search collections, folders, requests, WebSockets…">
       <button type="button" class="search-clear" *ngIf="searchTerm"
               (click)="searchTerm=''; updateFilteredCollections()" aria-label="Clear search">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -54,7 +54,7 @@
       </ng-container>
     </ng-container>
 
-    <div class="empty-state-msg" *ngIf="root.folders.length === 0 && root.requests.length === 0">
+    <div class="empty-state-msg" *ngIf="root.folders.length === 0 && root.requests.length === 0 && !(root.websocketRequests || []).length">
       <div class="empty-icon" aria-hidden="true">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -92,6 +92,13 @@
         <line x1="9" y1="15" x2="15" y2="15"></line>
       </svg>
       Create request
+    </div>
+    <div class="menu-item" (click)="createWebSocketRequest(parentId); $event.stopPropagation()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"></path>
+      </svg>
+      Create WebSocket
     </div>
     <div class="menu-item" (click)="runCollectionOrFolder(parentId); $event.stopPropagation()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -146,30 +153,34 @@
   <ul class="folder-list" (drop)="onDrop($event, parent.id, parentType)"
     (dragover)="onDragOver($event, parent.id, parentType)" (dragleave)="onDragLeave($event)">
 
-    <li *ngFor="let request of parent.requests; trackBy: trackById" class="request"
-      [class.selected]="selectedRequestId === request.id" draggable="true"
-      (dragstart)="onDragStart($event, request.id, 'request', parent.id)" (dragend)="onDragEnd($event)"
-      (contextmenu)="openRequestMenu($event, request.id)" (click)="selectRequest(request, $event)">
+    <ng-container *ngFor="let row of orderedLeaves(parent); trackBy: trackSidebarLeaf">
+      <li *ngIf="row.kind === 'request'" class="request"
+      [class.selected]="selectedRequestId === row.item.id"
+      [class.drag-insert-before]="isMixedLeafDragInsertBeforeTarget('request', row.item.id)"
+      draggable="true"
+      (dragstart)="onDragStart($event, row.item.id, 'request', parent.id)" (dragend)="onDragEnd($event)"
+      (dragover)="onDragOverOrderableRow($event, 'request', row.item.id, parent)"
+      (dragleave)="onDragLeaveOrderableRow($event)"
+      (drop)="onDropOrderableRow($event, 'request', row.item.id, parent, parentType)"
+      (contextmenu)="openRequestMenu($event, row.item.id)" (click)="selectRequest(row.item, $event)"
+      title="Drag onto another row to reorder (requests and WebSockets), or onto a folder to move.">
 
       <div class="request-left">
-        <span class="request-method-box" *ngIf="!hideRequestMethod" [ngClass]="HttpMethod[request.httpMethod]">{{
-          HttpMethod[request.httpMethod]
+        <span class="request-method-box" *ngIf="!hideRequestMethod" [ngClass]="HttpMethod[row.item.httpMethod]">{{
+          HttpMethod[row.item.httpMethod]
           }}</span>
 
-        <ng-container *ngIf="editingRequestId === request.id; else showRequestTitle">
-          <input id="request-{{request.id}}" type="text" #requestInput [value]="request.title"
-            (blur)="finishRenameRequest(request, requestInput.value)"
-            (keydown.enter)="finishRenameRequest(request, requestInput.value)" autofocus />
-        </ng-container>
-        <ng-template #showRequestTitle>
-          <span class="request-title-text" [title]="request.title || request.url">
-            <span class="starred-dot" *ngIf="request.starred" aria-label="Starred">★</span>
-            {{ request.title || request.url }}
-          </span>
-        </ng-template>
+        <input *ngIf="editingRequestId === row.item.id" id="request-{{row.item.id}}" type="text" #requestInput
+          [value]="row.item.title"
+          (blur)="finishRenameRequest(row.item, requestInput.value)"
+          (keydown.enter)="finishRenameRequest(row.item, requestInput.value)" autofocus />
+        <span *ngIf="editingRequestId !== row.item.id" class="request-title-text" [title]="row.item.title || row.item.url">
+          <span class="starred-dot" *ngIf="row.item.starred" aria-label="Starred">★</span>
+          {{ row.item.title || row.item.url }}
+        </span>
       </div>
 
-      <button type="button" class="menu-button" (click)="toggleRequestMenu($event, request.id)" aria-label="Request actions">
+      <button type="button" class="menu-button" (click)="toggleRequestMenu($event, row.item.id)" aria-label="Request actions">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="5" cy="12" r="1.6"></circle>
           <circle cx="12" cy="12" r="1.6"></circle>
@@ -177,9 +188,9 @@
         </svg>
       </button>
 
-      <div class="request-menu menu" *ngIf="activeRequestMenu === request.id" [ngStyle]="getMenuPosition(request.id)"
+      <div class="request-menu menu" *ngIf="activeRequestMenu === row.item.id" [ngStyle]="getMenuPosition(row.item.id)"
         (click)="$event.stopPropagation()">
-        <div class="menu-item" (click)="startRenameRequest(request.id); $event.stopPropagation()">
+        <div class="menu-item" (click)="startRenameRequest(row.item.id); $event.stopPropagation()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path>
@@ -193,7 +204,7 @@
           </svg>
           Add another request
         </div>
-        <div class="menu-item" (click)="duplicateRequest(request.id, parent.id); $event.stopPropagation()">
+        <div class="menu-item" (click)="duplicateRequest(row.item.id, parent.id); $event.stopPropagation()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -201,15 +212,31 @@
           </svg>
           Clone request
         </div>
-        <div class="menu-item" (click)="toggleStarred(request.id, parent.id); $event.stopPropagation()">
+        <div class="menu-item" *ngIf="canReorderRequestUp(row.item.id)"
+          (click)="moveRequestUpInList(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+          Move request up
+        </div>
+        <div class="menu-item" *ngIf="canReorderRequestDown(row.item.id)"
+          (click)="moveRequestDownInList(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          Move request down
+        </div>
+        <div class="menu-item" (click)="toggleStarred(row.item.id, parent.id); $event.stopPropagation()">
           <svg width="14" height="14" viewBox="0 0 24 24"
-               [attr.fill]="request.starred ? 'currentColor' : 'none'"
+               [attr.fill]="row.item.starred ? 'currentColor' : 'none'"
                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
           </svg>
-          {{ request.starred ? 'Unstar request' : 'Star request' }}
+          {{ row.item.starred ? 'Unstar request' : 'Star request' }}
         </div>
-        <div class="menu-item" (click)="exportCollection(request); $event.stopPropagation()">
+        <div class="menu-item" (click)="exportCollection(row.item); $event.stopPropagation()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -218,7 +245,7 @@
           </svg>
           Export (Postman)
         </div>
-        <div class="menu-item delete" (click)="deleteRequest(request.id); $event.stopPropagation()">
+        <div class="menu-item delete" (click)="deleteRequest(row.item.id); $event.stopPropagation()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="3 6 5 6 21 6"></polyline>
@@ -229,21 +256,111 @@
       </div>
     </li>
 
+      <li *ngIf="row.kind === 'websocket'" class="request websocket-row"
+      [class.selected]="selectedWebSocketId === row.item.id"
+      [class.drag-insert-before]="isMixedLeafDragInsertBeforeTarget('websocket', row.item.id)"
+      draggable="true"
+      (dragstart)="onDragStart($event, row.item.id, 'websocket', parent.id)" (dragend)="onDragEnd($event)"
+      (dragover)="onDragOverOrderableRow($event, 'websocket', row.item.id, parent)"
+      (dragleave)="onDragLeaveOrderableRow($event)"
+      (drop)="onDropOrderableRow($event, 'websocket', row.item.id, parent, parentType)"
+      (contextmenu)="openWebSocketMenu($event, row.item.id)" (click)="selectWebSocket(row.item, $event)"
+      title="Drag onto another row to reorder (requests and WebSockets), or onto a folder to move.">
+
+      <div class="request-left">
+        <span class="request-method-box ws-badge" [class.sse]="row.item.mode === 'sse'">{{ row.item.mode === 'sse' ? 'SSE' : 'WS' }}</span>
+
+        <input *ngIf="editingWebSocketId === row.item.id" id="websocket-{{row.item.id}}" type="text" #wsInput
+          [value]="row.item.title"
+          (blur)="finishRenameWebSocket(row.item, wsInput.value)"
+          (keydown.enter)="finishRenameWebSocket(row.item, wsInput.value)" autofocus />
+        <span *ngIf="editingWebSocketId !== row.item.id" class="request-title-text" [title]="row.item.title || row.item.url">
+          {{ row.item.title || row.item.url || 'WebSocket' }}
+        </span>
+      </div>
+
+      <button type="button" class="menu-button" (click)="toggleWebSocketMenu($event, row.item.id)" aria-label="WebSocket actions">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.6"></circle>
+          <circle cx="12" cy="12" r="1.6"></circle>
+          <circle cx="19" cy="12" r="1.6"></circle>
+        </svg>
+      </button>
+
+      <div class="request-menu menu websocket-menu" *ngIf="activeWebSocketMenu === row.item.id" [ngStyle]="getMenuPosition(row.item.id)"
+        (click)="$event.stopPropagation()">
+        <div class="menu-item" (click)="startRenameWebSocket(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7V4h16v3"></path><path d="M9 20h6"></path><path d="M12 4v16"></path>
+          </svg>
+          Rename
+        </div>
+        <div class="menu-item" (click)="createWebSocketRequest(parent.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Add another WebSocket
+        </div>
+        <div class="menu-item" (click)="duplicateWebSocketEntry(row.item.id, parent.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Clone WebSocket
+        </div>
+        <div class="menu-item" *ngIf="canReorderWebSocketUp(row.item.id)"
+          (click)="moveWebSocketUpInList(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+          Move WebSocket up
+        </div>
+        <div class="menu-item" *ngIf="canReorderWebSocketDown(row.item.id)"
+          (click)="moveWebSocketDownInList(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          Move WebSocket down
+        </div>
+        <div class="menu-item delete" (click)="deleteWebSocketEntry(row.item.id); $event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Delete
+        </div>
+      </div>
+    </li>
+    </ng-container>
+
+    <li *ngIf="orderedLeaves(parent).length > 0" class="leaf-list-tail-drop" role="presentation"
+        [class.active]="dragOverOrder?.mode === 'append'"
+        (dragover)="onDragOverLeafTail($event, parent)"
+        (dragleave)="onDragLeaveOrderableRow($event)"
+        (drop)="onDropLeafTail($event, parent, parentType)"
+        aria-hidden="true"></li>
+
     <ng-container *ngFor="let folder of parent.folders; trackBy: trackById">
       <li class="folder">
         <div class="folder-title" [class.selected]="selectedFolderId === folder.id"
-          [class.expandable]="folder.folders.length || folder.requests.length"
+          [class.expandable]="folder.folders.length || folder.requests.length || (folder.websocketRequests || []).length"
           [class.expanded]="isExpanded(folder.id, 'folder')" [class.drag-over]="dragOverId === folder.id"
           [class.drag-over-denied]="dragOverDeniedId === folder.id"
           [class.just-dropped]="recentlyDroppedId === folder.id" [class.just-denied]="deniedTargetId === folder.id"
-          title="Drop to move into this folder. Alt+drop on a sibling folder to reorder only."
+          title="Drop to move into this folder. Alt+drop or Shift+drop on a sibling folder to reorder only."
           draggable="true" (dragstart)="onDragStart($event, folder.id, 'folder', parent.id)"
           (dragend)="onDragEnd($event)" (dragover)="onDragOver($event, folder.id, 'folder')"
           (dragleave)="onDragLeave($event)" (drop)="onDrop($event, folder.id, 'folder')" (click)="onFolderClick(folder)"
           (contextmenu)="openFolderMenu($event, folder.id)">
 
           <div class="left-content">
-            <span class="folder-chevron" *ngIf="folder.folders.length || folder.requests.length"
+            <span class="folder-chevron" *ngIf="folder.folders.length || folder.requests.length || (folder.websocketRequests || []).length"
               (click)="toggleFolder(folder); $event.stopPropagation()">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
@@ -251,9 +368,9 @@
                 <polyline points="9 6 15 12 9 18"></polyline>
               </svg>
             </span>
-            <span class="folder-chevron-placeholder" *ngIf="!folder.folders.length && !folder.requests.length"></span>
+            <span class="folder-chevron-placeholder" *ngIf="!folder.folders.length && !folder.requests.length && !(folder.websocketRequests || []).length"></span>
 
-            <span class="folder-icon" [class.has-items]="folder.folders.length || folder.requests.length"
+            <span class="folder-icon" [class.has-items]="folder.folders.length || folder.requests.length || (folder.websocketRequests || []).length"
                   [class.is-open]="isExpanded(folder.id, 'folder')">
               <svg *ngIf="!isExpanded(folder.id, 'folder')" width="16" height="16" viewBox="0 0 24 24"
                    fill="currentColor" aria-hidden="true">

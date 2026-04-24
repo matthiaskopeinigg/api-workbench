@@ -38,6 +38,7 @@ export class WebSocketService {
       headers: initial?.headers || [],
       messageDraft: initial?.messageDraft || '',
       messageHistory: initial?.messageHistory || [],
+      auth: initial?.auth,
     };
     const subject = new BehaviorSubject<ConnectionState>({
       status: 'disconnected',
@@ -63,12 +64,20 @@ export class WebSocketService {
     subject.next({ ...current, tab: { ...current.tab, ...patch } });
   }
 
-  async connect(tabId: string): Promise<void> {
+  /**
+   * @param connectOverrides When set, `url` and `headers` are used for the wire handshake
+   * (e.g. after env substitution and auth merge). Otherwise headers are built from tab state only.
+   */
+  async connect(
+    tabId: string,
+    connectOverrides?: { url?: string; headers?: Record<string, string> },
+  ): Promise<void> {
     const subject = this.ensure(tabId);
     const current = subject.value;
     if (current.status === 'connecting' || current.status === 'connected') return;
     const tab = current.tab;
-    if (!tab.url) {
+    const urlToUse = (connectOverrides?.url ?? tab.url)?.trim();
+    if (!urlToUse) {
       subject.next({ ...current, status: 'error', error: 'URL is required' });
       return;
     }
@@ -78,10 +87,14 @@ export class WebSocketService {
       return;
     }
     const connectionId = uuidv4();
-    const headers: Record<string, string> = {};
-    for (const h of tab.headers || []) {
-      if (h.enabled === false || !h.key) continue;
-      headers[h.key] = h.value || '';
+    const headers: Record<string, string> = connectOverrides?.headers
+      ? { ...connectOverrides.headers }
+      : {};
+    if (!connectOverrides?.headers) {
+      for (const h of tab.headers || []) {
+        if (h.enabled === false || !h.key) continue;
+        headers[h.key] = h.value || '';
+      }
     }
     const unsubscribe = api.onWsEvent(connectionId, (event) => {
       this.handleEvent(tabId, event as unknown as Record<string, unknown> & { type: string });
@@ -97,7 +110,7 @@ export class WebSocketService {
     try {
       await api.wsConnect({
         connectionId,
-        url: tab.url,
+        url: urlToUse,
         protocols: tab.protocols || [],
         headers,
         mode: tab.mode,

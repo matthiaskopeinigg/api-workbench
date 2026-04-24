@@ -1,7 +1,6 @@
 const { ipcMain } = require('electron');
 const storeService = require('../services/store.service');
 const { logError } = require('../services/logger.service');
-const updaterService = require('../services/updater.service');
 
 module.exports = function () {
 
@@ -20,11 +19,6 @@ module.exports = function () {
         } catch (err) {
             logError('IPC save-settings failed', err);
             throw err;
-        }
-        try {
-            updaterService.applyFromStoredSettings();
-        } catch (err) {
-            logError('IPC save-settings: apply updater preferences failed', err);
         }
     });
 

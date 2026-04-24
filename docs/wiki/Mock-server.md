@@ -21,12 +21,31 @@ Point normal HTTP requests at that origin. In the main app, environment variable
 
 ## Collection routes
 
-- Add **mock variants** on a request (status, headers, body, delay).
-- Mark one variant as **active** (or call a specific variant by id in the URL).
+- Add **mock variants** on a request (status, headers, body, delay, optional **matchers**, **Served** toggle).
+- Use **Served** checkboxes to choose which variants participate in **`/mock/<requestId>`**; add **`/mock/<requestId>/<variantId>`** to force one variant (overrides matcher selection for that hit).
 - Default URL shape: **`/mock/<requestId>`**  
-  Optional: **`/mock/<requestId>/<variantId>`** to hit a specific variant.
+  Optional: **`/mock/<requestId>/<variantId>`** as above.
 
-The app can show a **Copy** URL for the active variant when the server is running.
+The app can show a **Copy** URL per variant when the server is running.
+
+### Multiple responses for the same path (request matchers)
+
+You can define **several variants on the same mock URL** and serve **different canned responses** depending on the incoming request (similar in spirit to WireMock stub priorities).
+
+- In the **Mock Server** tab or on the request’s **Mock Variants** section, use **Match incoming request** on each variant.
+- **All** configured predicates on a variant must pass (**AND**). Predicate kinds include literal **method**, **method regex**, **path/query substring**, **path+query regex** (same haystack as substring; dot-all), **header** rules (exact → regex → contains → “must be present”), **body** substring and **full-body regex**, **query** param (exact value or **value regex**; regex wins if both are set), **JSON path** with either exact JSON equality or a **regex on the stringified** value at that path.
+- **Variant order matters**: the server walks variants **top to bottom** and uses the **first** variant whose matchers all pass.
+- Variants **with no matchers** behave as a **default / fallback** after no matcher-only variant matches; if several have no matchers, the **first** wins among **served** variants. Further fallbacks use the legacy primary id (first served in list order), then the first served variant.
+
+**Tip:** Put **specific** rules higher in the list and a **catch-all** variant (no matchers) last.
+
+### Which variants are “served” on the unpinned URL
+
+Each variant has a **Served** checkbox (Mock Server tab and the request’s Mock Variants section).
+
+- When **all** are checked (default for older workspaces), **every** variant can win matcher selection for **`/mock/<requestId>`** (or the standalone path without a variant segment).
+- Uncheck variants you want to **keep saved** but **exclude** from automatic resolution (e.g. drafts or retired stubs). Only checked ids are sent to the mock process as **`activeMockVariantIds`** / **`activeVariantIds`**.
+- If **none** are checked, the unpinned URL returns **404** until you check at least one again (or call **`/mock/<requestId>/<variantId>`** to force a specific variant regardless of the served set).
 
 ## Standalone routes
 
@@ -49,7 +68,7 @@ These are **not** the same as workspace **environment** `{{variableName}}` subst
 | `{{bodyJson}}` | Whole request body as a JSON string literal (for embedding in JSON). |
 | `{{bodyJson.accessToken}}` | Dot path into the **parsed JSON** body (e.g. `user.id`, `items.0`). Value is JSON-stringified; use inside JSON. If the path is missing or the body is not valid JSON, expands to JSON `null`. |
 
-**Request body capture:** enable **Capture request & response bodies** (Mock Server → Advanced) so `{{body}}` / `{{bodyJson…}}` receive the client’s request body. Without capture, those placeholders may be empty.
+The mock process **reads the request body** (up to 64KB) for **matchers** and for **`{{body}}` / `{{bodyJson…}}` templates** regardless of the activity log setting. **Capture request & response bodies** (Mock Server → Advanced) only controls whether **hit log** entries store full bodies; it does not disable template expansion or matcher evaluation.
 
 ## Activity log
 

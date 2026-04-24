@@ -2,16 +2,16 @@
  * Thin wrapper around `electron-updater` that:
  *  - Streams a single normalized `{ state, info }` status object to the renderer.
  *  - In dev (unpackaged), checks GitHub releases against app.getVersion(); install/download stay disabled.
+ *  - Packaged: no auto-download; renderer triggers download + install explicitly.
  *  - Exposes a tiny imperative surface (check / download / install) for the IPC layer.
  */
 
-const { app } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { logInfo, logError } = require('./logger.service');
 const { getMainWindow } = require('./window.service');
-const storeService = require('./store.service');
 
 let autoUpdater = null;
 try {
@@ -32,6 +32,8 @@ const STATE = Object.freeze({
 });
 
 let lastStatus = { state: STATE.IDLE, info: null };
+/** @type {BrowserWindow | null} */
+let installSplashWindow = null;
 
 /**
  * Tag-only or incomplete GitHub releases: no latest.yml / beta.yml in artifacts.
@@ -136,26 +138,12 @@ function compareVersionTags(a, b) {
     return pa.prerelease.localeCompare(pb.prerelease);
 }
 
-function readUpdateSettings() {
-    try {
-        const s = storeService.getSettings();
-        const u = s?.updates || {};
-        return {
-            allowPrerelease: u.allowPrerelease === true,
-            allowDowngrade: u.allowDowngrade === true,
-            targetRelease: typeof u.targetRelease === 'string' ? u.targetRelease.trim() : 'latest',
-        };
-    } catch {
-        return { allowPrerelease: false, allowDowngrade: false, targetRelease: 'latest' };
-    }
-}
-
 /**
  * Unpackaged builds: compare app version to published GitHub releases (no electron-updater feed).
  */
 async function checkGitHubReleasesForDev() {
     const { owner, repo } = readGithubRepoFromPackageJson();
-    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=30`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=15`;
     const res = await httpsGet(url);
     if (!res.ok) {
         throw new Error(`GitHub releases request failed (${res.statusCode})`);
@@ -169,35 +157,11 @@ async function checkGitHubReleasesForDev() {
     if (!Array.isArray(arr) || arr.length === 0) {
         throw new Error('No releases returned from GitHub');
     }
-    const { allowPrerelease, targetRelease } = readUpdateSettings();
-    const wantLatest = !targetRelease || targetRelease.toLowerCase() === 'latest';
-
-    if (!wantLatest) {
-        const needle = targetRelease.replace(/^v/i, '').trim();
-        const match = arr.find((r) => {
-            if (r.draft) return false;
-            const tag = String(r.tag_name || '').replace(/^v/i, '').trim();
-            return tag === needle;
-        });
-        if (!match) {
-            throw new Error(`No GitHub release found for version "${needle}"`);
-        }
-        const bestTag = String(match.tag_name || '').replace(/^v/i, '').trim();
-        const current = getCurrentVersion();
-        const cmp = compareVersionTags(bestTag, current);
-        return {
-            remoteVersion: bestTag,
-            current,
-            newer: cmp > 0,
-            releaseNotes: match.body || null,
-        };
-    }
-
     let bestTag = null;
     let bestRelease = null;
     for (const r of arr) {
         if (r.draft) continue;
-        if (r.prerelease && !allowPrerelease) continue;
+        if (r.prerelease) continue;
         const tag = String(r.tag_name || '').replace(/^v/i, '').trim();
         if (!tag) continue;
         if (bestTag == null || compareVersionTags(tag, bestTag) > 0) {
@@ -234,75 +198,61 @@ function pushStatus(state, info = null) {
     }
 }
 
-/**
- * Applies Settings → About → update policy to electron-updater (packaged builds only).
- * Call after startup and whenever settings are saved.
- */
-function applyFromStoredSettings() {
-    if (!app.isPackaged || !autoUpdater) {
-        return;
+function closeInstallSplash() {
+    try {
+        if (installSplashWindow && !installSplashWindow.isDestroyed()) {
+            installSplashWindow.close();
+        }
+    } catch (_) {
+        /* ignore */
     }
-    const { allowPrerelease, allowDowngrade, targetRelease } = readUpdateSettings();
-    const wantLatest = !targetRelease || targetRelease.toLowerCase() === 'latest';
-    const { owner, repo } = readGithubRepoFromPackageJson();
-
-    autoUpdater.allowPrerelease = allowPrerelease;
-    autoUpdater.allowDowngrade = allowDowngrade === true || !wantLatest;
-
-    let feedLabel = 'github:latest';
-    if (wantLatest) {
-        autoUpdater.setFeedURL({
-            provider: 'github',
-            owner,
-            repo,
-        });
-    } else {
-        const ver = String(targetRelease).replace(/^v/i, '').trim();
-        const tagForUrl = String(targetRelease).trim().match(/^v/i) ? String(targetRelease).trim() : `v${ver}`;
-        const base = `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(tagForUrl)}`;
-        const url = base.endsWith('/') ? base : `${base}/`;
-        feedLabel = `generic:${tagForUrl}`;
-        autoUpdater.setFeedURL({
-            provider: 'generic',
-            url,
-        });
-    }
-
-    logInfo('Updater preferences applied', {
-        allowPrerelease,
-        allowDowngrade: autoUpdater.allowDowngrade,
-        feed: feedLabel,
-    });
+    installSplashWindow = null;
 }
 
-/** @returns {Promise<Array<{ tag: string; version: string; prerelease: boolean; name: string }>>} */
-async function listPublishedReleases() {
-    const { owner, repo } = readGithubRepoFromPackageJson();
-    const url = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=40`;
-    const res = await httpsGet(url);
-    if (!res.ok) {
-        throw new Error(`GitHub releases request failed (${res.statusCode})`);
-    }
-    let arr;
-    try {
-        arr = JSON.parse(res.body);
-    } catch {
-        throw new Error('Invalid response from GitHub releases API');
-    }
-    if (!Array.isArray(arr)) {
-        return [];
-    }
-    const rows = arr
-        .filter((r) => !r.draft && r.tag_name)
-        .map((r) => ({
-            tag: String(r.tag_name),
-            version: String(r.tag_name).replace(/^v/i, '').trim(),
-            prerelease: !!r.prerelease,
-            name: r.name ? String(r.name) : '',
-        }))
-        .filter((r) => r.version);
-    rows.sort((a, b) => compareVersionTags(b.version, a.version));
-    return rows;
+/**
+ * Small always-on-top window so users see feedback while the app hands off to the installer.
+ */
+function showUpdateInstallingSplash() {
+    closeInstallSplash();
+    const splash = new BrowserWindow({
+        width: 400,
+        height: 200,
+        frame: false,
+        resizable: false,
+        movable: true,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        show: false,
+        center: true,
+        backgroundColor: '#1a1d21',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+    });
+    installSplashWindow = splash;
+    const html =
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">' +
+        '<style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#1a1d21;color:#e8eaed;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;padding:20px;box-sizing:border-box}' +
+        '.sp{width:44px;height:44px;border:3px solid rgba(255,255,255,.18);border-top-color:#6c9eff;border-radius:50%;animation:sp .85s linear infinite}' +
+        '@keyframes sp{to{transform:rotate(360deg)}}h1{font-size:16px;font-weight:600;margin:16px 0 8px}' +
+        'p{font-size:13px;opacity:.88;margin:0;line-height:1.45;max-width:320px}</style></head><body>' +
+        '<div class="sp"></div><h1>Installing update…</h1><p>The application will close while the installer runs. ' +
+        'API Workbench will start again when the update finishes.</p></body></html>';
+    splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    splash.once('ready-to-show', () => {
+        try {
+            splash.show();
+            splash.focus();
+        } catch (_) {
+            /* ignore */
+        }
+    });
+    return splash;
 }
 
 function init() {
@@ -316,9 +266,9 @@ function init() {
         return;
     }
 
-    // Download in the background as soon as an update is found (no manual “Download” step).
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.allowPrerelease = false;
 
     autoUpdater.on('checking-for-update', () => pushStatus(STATE.CHECKING));
     autoUpdater.on('update-available', (info) =>
@@ -348,8 +298,7 @@ function init() {
         pushStatus(STATE.ERROR, { message: err?.message || String(err) });
     });
 
-    applyFromStoredSettings();
-    logInfo('Updater service initialized');
+    logInfo('Updater service initialized (manual download; no auto-install on quit)');
 }
 
 async function checkForUpdates() {
@@ -379,7 +328,6 @@ async function checkForUpdates() {
     if (!autoUpdater) return getStatus();
 
     try {
-        applyFromStoredSettings();
         await autoUpdater.checkForUpdates();
     } catch (err) {
         if (isMissingUpdateChannelFileError(err)) {
@@ -407,10 +355,18 @@ async function downloadUpdate() {
 function quitAndInstall() {
     if (!isSupported()) return;
     try {
-        // Windows NSIS: first arg = silent install (no setup wizard). Second = relaunch app when done.
-        // macOS ignores the silent flag; DMG flow unchanged.
-        setImmediate(() => autoUpdater.quitAndInstall(true, true));
+        showUpdateInstallingSplash();
+        setTimeout(() => {
+            try {
+                autoUpdater.quitAndInstall(true, true);
+            } catch (err) {
+                closeInstallSplash();
+                logError('quitAndInstall failed', err);
+                pushStatus(STATE.ERROR, { message: err?.message || String(err) });
+            }
+        }, 400);
     } catch (err) {
+        closeInstallSplash();
         logError('quitAndInstall failed', err);
         pushStatus(STATE.ERROR, { message: err?.message || String(err) });
     }
@@ -422,7 +378,5 @@ module.exports = {
     checkForUpdates,
     downloadUpdate,
     quitAndInstall,
-    applyFromStoredSettings,
-    listPublishedReleases,
     STATE,
 };

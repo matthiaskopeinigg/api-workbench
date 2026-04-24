@@ -49,7 +49,7 @@
               >
                 <option value="">＋</option>
                 <optgroup label="Template">
-                  <option *ngFor="let t of loadTestTemplateList" [value]="loadTestTplPrefix + t.id">{{ t.name }}</option>
+                  <option *ngFor="let t of loadTestTemplatesAvailable(item)" [value]="loadTestTplPrefix + t.id">{{ t.name }}</option>
                 </optgroup>
                 <option [value]="loadTestEmptyVal">Empty</option>
               </select>
