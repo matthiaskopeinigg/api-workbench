@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ElementRef,
   Input,
   OnDestroy,
   OnInit,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -63,7 +65,13 @@ export class ContractTestComponent implements OnInit, OnDestroy {
   /** `null` = workspace default for `{{var}}` in request URLs. */
   runEnvironmentId: string | null = null;
 
+  @ViewChild('contractHost', { static: true }) hostRef!: ElementRef;
+  isNarrow = false;
+  configCollapsed = false;
+
   private destroy$ = new Subject<void>();
+  private resizeObserver?: ResizeObserver;
+  private lastWidth = 0;
 
   constructor(
     private artifacts: TestArtifactService,
@@ -103,11 +111,27 @@ export class ContractTestComponent implements OnInit, OnDestroy {
       this.running = false;
       this.cdr.markForCheck();
     });
+
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w === 0) continue;
+        const wasNarrow = this.isNarrow;
+        this.isNarrow = w < 850;
+        if (this.isNarrow && !wasNarrow) {
+          this.configCollapsed = true;
+        }
+        this.lastWidth = w;
+        this.cdr.markForCheck();
+      }
+    });
+    this.resizeObserver.observe(this.hostRef.nativeElement);
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.resizeObserver?.disconnect();
   }
 
   get specKind(): 'inline' | 'url' { return this.artifact?.spec.kind ?? 'inline'; }

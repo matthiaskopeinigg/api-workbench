@@ -1,4 +1,4 @@
-<section class="contract" *ngIf="artifact; else loading">
+<section class="contract" #contractHost *ngIf="artifact; else loading">
   <header class="contract-header">
     <div class="title-row">
       <input
@@ -36,9 +36,17 @@
     </aw-stat-card>
   </div>
 
-  <div class="grid">
+  <div class="grid" [class.is-narrow]="isNarrow" [class.config-collapsed]="configCollapsed">
     
     <aside class="config-pane">
+      <div class="aside-header">
+        <h4>Configuration</h4>
+        <button type="button" class="collapse-toggle" (click)="configCollapsed = !configCollapsed" [title]="configCollapsed ? 'Expand' : 'Collapse'">
+          {{ configCollapsed ? '»' : '«' }}
+        </button>
+      </div>
+
+      <div class="aside-content">
       <div class="pane-section">
         <h4>Target</h4>
         <label class="field">
@@ -92,6 +100,7 @@
         </ng-container>
 
         <div class="spec-error" *ngIf="specError">{{ specError }}</div>
+      </div>
       </div>
     </aside>
 
