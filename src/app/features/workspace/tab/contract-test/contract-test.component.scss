@@ -28,6 +28,11 @@
   border-bottom: 1px solid var(--border-color);
   background: var(--aw-surface);
   flex-shrink: 0;
+
+  .is-narrow & {
+    padding: 8px 12px;
+    gap: 8px;
+  }
 }
 
 .title-row {
@@ -45,6 +50,11 @@
   border-radius: 6px;
   color: var(--text-color);
 
+  .is-narrow & {
+    flex: 1;
+    font-size: 14px;
+  }
+
   &:hover { border-color: var(--border-color); }
   &:focus {
     outline: none;
@@ -59,9 +69,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
   margin-left: auto;
+
+  .is-narrow & {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .actions { display: flex; align-items: center; gap: 8px; }
@@ -98,6 +114,18 @@
   border-bottom: 1px solid var(--border-color);
   background: var(--aw-surface-muted);
   flex-shrink: 0;
+
+  .is-narrow & {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 10px;
+    gap: 8px;
+
+    /* Make the last card (Operations) span full width if odd? No, 2 columns is fine. */
+    /* Wait, 5 cards. Last one can span 2 columns. */
+    aw-stat-card:last-child {
+      grid-column: span 2;
+    }
+  }
 }
 
 .grid {
