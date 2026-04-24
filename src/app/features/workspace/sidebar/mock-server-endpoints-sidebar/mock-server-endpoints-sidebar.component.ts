@@ -15,6 +15,7 @@ import {
   type MockEndpointGroup,
   type MockSelectionKind,
 } from '@core/mock-server/mock-server-ui-state.service';
+import { TabService } from '@core/tabs/tab.service';
 
 @Component({
   selector: 'app-mock-server-endpoints-sidebar',
@@ -31,10 +32,16 @@ export class MockServerEndpointsSidebarComponent implements OnInit, OnDestroy {
   selectedRequestId: string | null = null;
   selectedStandaloneId: string | null = null;
 
+  contextMenuVisible = false;
+  menuX = 0;
+  menuY = 0;
+  contextMenuEndpoint: StandaloneMockEndpoint | null = null;
+
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private mockUi: MockServerUiStateService,
+    private tabService: TabService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -94,14 +101,17 @@ export class MockServerEndpointsSidebarComponent implements OnInit, OnDestroy {
 
   selectRequest(request: RequestModel): void {
     this.mockUi.selectRequest(request);
+    this.tabService.openMockServerTab();
   }
 
   selectStandalone(endpoint: StandaloneMockEndpoint): void {
     this.mockUi.selectStandalone(endpoint);
+    this.tabService.openMockServerTab();
   }
 
   async addStandalone(): Promise<void> {
     await this.mockUi.addStandalone();
+    this.tabService.openMockServerTab();
   }
 
   async removeStandalone(endpoint: StandaloneMockEndpoint, evt?: MouseEvent): Promise<void> {
@@ -110,6 +120,21 @@ export class MockServerEndpointsSidebarComponent implements OnInit, OnDestroy {
       evt.preventDefault();
     }
     await this.mockUi.removeStandalone(endpoint);
+    this.closeContextMenu();
+  }
+
+  openContextMenu(event: MouseEvent, endpoint: StandaloneMockEndpoint): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenuVisible = true;
+    this.contextMenuEndpoint = endpoint;
+    this.menuX = event.clientX;
+    this.menuY = event.clientY;
+  }
+
+  closeContextMenu(): void {
+    this.contextMenuVisible = false;
+    this.contextMenuEndpoint = null;
   }
 
   /** Badge: at least one variant participates in unpinned mock resolution. */

@@ -4,6 +4,7 @@ import {
   EventEmitter,
   Input,
   Output,
+  OnInit,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -17,12 +18,25 @@ import { MOCK_MATCH_HTTP_METHODS, type MockVariant } from '@models/request';
   styleUrl: './mock-variant-match-section.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MockVariantMatchSectionComponent {
+export class MockVariantMatchSectionComponent implements OnInit {
   @Input({ required: true }) variant!: MockVariant;
   @Output() readonly changed = new EventEmitter<void>();
 
   /** When `matchOn` exists, controls visibility of the matcher form (not the whole card). */
   matchingExpanded = true;
+
+  private get sessionKey(): string {
+    return `aw.mockServer.match.${this.variant?.id}`;
+  }
+
+  ngOnInit() {
+    if (typeof sessionStorage !== 'undefined' && this.variant?.id) {
+      const saved = sessionStorage.getItem(this.sessionKey);
+      if (saved !== null) {
+        this.matchingExpanded = saved === 'true';
+      }
+    }
+  }
 
   readonly httpMethods = [...MOCK_MATCH_HTTP_METHODS];
 
@@ -34,12 +48,18 @@ export class MockVariantMatchSectionComponent {
 
   toggleMatchingPanel(): void {
     this.matchingExpanded = !this.matchingExpanded;
+    if (typeof sessionStorage !== 'undefined' && this.variant?.id) {
+      sessionStorage.setItem(this.sessionKey, String(this.matchingExpanded));
+    }
   }
 
   ensureMatchOn(): void {
     if (!this.variant.matchOn) {
       this.variant.matchOn = {};
       this.matchingExpanded = true;
+      if (typeof sessionStorage !== 'undefined' && this.variant?.id) {
+        sessionStorage.setItem(this.sessionKey, 'true');
+      }
       this.emit();
     }
   }
@@ -116,6 +136,9 @@ export class MockVariantMatchSectionComponent {
   clearMatchers(): void {
     this.variant.matchOn = undefined;
     this.matchingExpanded = true;
+    if (typeof sessionStorage !== 'undefined' && this.variant?.id) {
+      sessionStorage.removeItem(this.sessionKey);
+    }
     this.emit();
   }
 }

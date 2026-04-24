@@ -360,8 +360,8 @@ export class TabService {
     const o = raw as Record<string, unknown>;
     const tabs = Array.isArray(o['tabs'])
       ? (o['tabs'] as TabItem[])
-          .filter(t => t && typeof t.id === 'string')
-          .map(t => sanitizeTabForStorage({ ...t }))
+        .filter(t => t && typeof t.id === 'string')
+        .map(t => sanitizeTabForStorage({ ...t }))
       : [];
     const selectedTabId =
       typeof o['selectedTabId'] === 'string' && tabs.some(t => t.id === o['selectedTabId'])

@@ -52,6 +52,11 @@ export class SidebarComponent implements OnInit, OnDestroy {
       icon: 'M9 3h6v2h-1v3.586l4.707 7.243A2 2 0 0 1 16.984 19H7.016a2 2 0 0 1-1.723-3.171L10 8.586V5H9V3z',
       component: TestsComponent,
     },
+    {
+      label: 'Mock Server',
+      icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
+      component: MockServerEndpointsSidebarComponent,
+    },
   ];
 
   /**
@@ -59,12 +64,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
    * Order: Mock Server → History → Help.
    */
   toolItems: SidebarItem[] = [
-    {
-      label: 'Mock Server',
-      icon: 'M4 4h16v3H4V4zm0 5h16v3H4V9zm0 5h16v3H4v-3z',
-      component: MockServerEndpointsSidebarComponent,
-      action: () => this.tabService.openMockServerTab(),
-    },
     {
       label: 'History',
       icon: 'M13 3a9 9 0 1 0 8.94 10H20a7 7 0 1 1-2.05-5.95L15 10h7V3l-2.36 2.36A9 9 0 0 0 13 3zm-1 5v5l4.28 2.54.72-1.21L13.5 12V8z',

@@ -43,24 +43,24 @@ export interface UpdaterStatus {
   currentVersion: string;
   supported: boolean;
   info:
-    | null
-    | {
-        version?: string;
-        releaseNotes?: string | null;
-        releaseDate?: string;
-        percent?: number;
-        bytesPerSecond?: number;
-        transferred?: number;
-        total?: number;
-        message?: string;
-        reason?: string;
-        /** Set when the release exists but has no electron-updater channel file (e.g. missing latest.yml). */
-        noReleaseChannel?: boolean;
-        /** Development build: version was compared against GitHub releases only. */
-        devReadOnly?: boolean;
-        /** Newer tag found on GitHub while running an unpackaged dev build (no in-app install). */
-        devPreviewOnly?: boolean;
-      };
+  | null
+  | {
+    version?: string;
+    releaseNotes?: string | null;
+    releaseDate?: string;
+    percent?: number;
+    bytesPerSecond?: number;
+    transferred?: number;
+    total?: number;
+    message?: string;
+    reason?: string;
+    /** Set when the release exists but has no electron-updater channel file (e.g. missing latest.yml). */
+    noReleaseChannel?: boolean;
+    /** Development build: version was compared against GitHub releases only. */
+    devReadOnly?: boolean;
+    /** Newer tag found on GitHub while running an unpackaged dev build (no in-app install). */
+    devPreviewOnly?: boolean;
+  };
 }
 
 export interface StorageInfo {
@@ -378,4 +378,4 @@ declare global {
   }
 }
 
-export {};
+export { };
