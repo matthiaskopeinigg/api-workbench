@@ -53,6 +53,7 @@ Each variant has a **Served** checkbox (Mock Server tab and the request’s Mock
 - Paths may use wildcards:
   - **`*`** suffix — e.g. `/api/users/*` matches one extra segment under `/api/users/`.
   - **`**`** suffix — e.g. `/api/**` matches `/api` and any subpath.
+- To delete a standalone mock route, right-click the endpoint in the **Mock Server** sidebar to open the context menu and select **Delete endpoint**.
 
 ## Per-request response templates
 

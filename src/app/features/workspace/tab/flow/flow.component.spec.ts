@@ -232,10 +232,10 @@ describe('FlowComponent', () => {
     expect(component.viewBox).toBe('10 20 1000 500');
   });
 
-  it('zoomPercent is 100 at the default viewport width', () => {
-    component.viewport = { x: 0, y: 0, w: 2000, h: 1500 };
+  it('zoomPercent reflects the zoom scale', () => {
+    component.zoom = 1;
     expect(component.zoomPercent).toBe(100);
-    component.viewport = { x: 0, y: 0, w: 1000, h: 750 };
+    component.zoom = 2;
     expect(component.zoomPercent).toBe(200);
   });
 

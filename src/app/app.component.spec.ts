@@ -29,7 +29,7 @@ describe('AppComponent', () => {
     collectionSpy = jasmine.createSpyObj('CollectionService', ['loadCollections', 'flushPendingSaves']);
     envSpy = jasmine.createSpyObj('EnvironmentsService', ['loadEnvironments', 'flushPendingSaves']);
     historySpy = jasmine.createSpyObj('RequestHistoryService', ['loadHistory']);
-    sessionSpy = jasmine.createSpyObj('SessionService', ['load']);
+    sessionSpy = jasmine.createSpyObj('SessionService', ['load', 'get']);
     settingsSpy = jasmine.createSpyObj('SettingsService', ['loadSettings']);
     tabSpy = jasmine.createSpyObj('TabService', ['loadSettings']);
     themeSpy = jasmine.createSpyObj('ThemeService', ['loadTheme']);
@@ -56,6 +56,10 @@ describe('AppComponent', () => {
       themeSpy.loadTheme,
       viewStateSpy.load,
     ].forEach(s => s.and.returnValue(Promise.resolve()));
+
+    sessionSpy.get.and.returnValue(null);
+
+    (window as any).awElectron = { appReady: jasmine.createSpy('appReady') };
 
     await TestBed.configureTestingModule({
       imports: [AppComponent],
