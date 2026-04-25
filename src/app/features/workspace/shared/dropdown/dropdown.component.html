@@ -1,5 +1,5 @@
 <div class="dropdown-container" [class.open]="isOpen">
-    <button type="button" class="dropdown-trigger" (click)="toggle()" [attr.aria-expanded]="isOpen"
+    <button type="button" class="dropdown-trigger" (mousedown)="toggle()" [attr.aria-expanded]="isOpen"
             [attr.aria-label]="ariaLabel || null"
             [class.is-placeholder]="!selectedLabel || selectedLabel === placeholder">
         <span class="label">{{ selectedLabel }}</span>
@@ -9,14 +9,14 @@
         </svg>
     </button>
 
-    <div class="backdrop" *ngIf="isOpen" (click)="close()"></div>
+    <div class="backdrop" *ngIf="isOpen" (mousedown)="close()"></div>
 
     <div class="dropdown-menu" *ngIf="isOpen" [class.align-right]="align === 'right'" role="listbox"
          [style.max-width]="menuMaxWidth">
         <button type="button" class="dropdown-item" *ngFor="let option of options"
                 [class.selected]="option.value === value"
                 [class.is-stacked]="!!option.description" role="option"
-                [attr.aria-selected]="option.value === value" (click)="select(option)"
+                [attr.aria-selected]="option.value === value" (mousedown)="select(option); $event.preventDefault(); $event.stopPropagation();"
                 [attr.title]="(option.title || option.description) || null">
             <span class="dropdown-item-text">
                 <span class="dropdown-item-label">{{ option.label }}</span>

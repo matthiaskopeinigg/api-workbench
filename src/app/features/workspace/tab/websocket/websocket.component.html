@@ -3,8 +3,9 @@
     <app-dropdown class="method-select" [options]="modeOptions" [value]="view.tab.mode"
       (valueChange)="onModeChange($any($event))"></app-dropdown>
 
-    <input type="text" class="url-field" [ngModel]="view.tab.url" (ngModelChange)="onUrlChange($event)"
-      [placeholder]="view.tab.mode === 'sse' ? 'https://… (SSE endpoint)' : 'wss://…'" />
+    <app-variable-input class="url-field" [ngModel]="view.tab.url" (ngModelChange)="onUrlChange($event)"
+      [placeholder]="view.tab.mode === 'sse' ? 'https://… (SSE endpoint)' : 'wss://…'"
+      [activeVariables]="activeVariables" (onEnter)="connect()"></app-variable-input>
 
     <div class="ws-control-meta" [attr.data-status]="view.status">
       <span class="connection-pill">{{ statusLabel }}</span>
@@ -12,8 +13,8 @@
 
     <button type="button" class="btn btn-accent send-btn" *ngIf="showPrimaryConnect" (click)="connect()"
       [disabled]="!(view.tab.url || '').trim()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M5 12h14M12 5l7 7-7 7"></path>
       </svg>
       <span>Connect</span>
@@ -24,8 +25,8 @@
     </button>
 
     <button type="button" class="btn code-btn" *ngIf="showDisconnect" (click)="disconnect()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
         <line x1="9" y1="9" x2="15" y2="15"></line>
         <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -35,8 +36,8 @@
   </div>
 
   <div class="ws-connection-alert" *ngIf="view.error" role="alert">
-    <svg class="ws-connection-alert__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg class="ws-connection-alert__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10"></circle>
       <line x1="12" y1="8" x2="12" y1="12"></line>
       <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -70,6 +71,10 @@
           <span class="tab-badge" *ngIf="view.frames.length">{{ view.frames.length }}</span>
         </button>
       </div>
+      <div class="env-group">
+        <app-dropdown [options]="environmentOptions" [value]="selectedEnvironmentId || 'none'"
+          (valueChange)="onEnvironmentChange($event)" align="right" menuMaxWidth="300px"></app-dropdown>
+      </div>
     </div>
 
     <div class="tab-content">
@@ -80,14 +85,15 @@
               <h4>Message</h4>
             </div>
           </div>
-          <textarea class="ws-message-editor" rows="6" [ngModel]="view.tab.messageDraft"
-            (ngModelChange)="onDraftChange($event)" [disabled]="view.tab.mode === 'sse'"
-            [placeholder]="view.tab.mode === 'sse' ? 'SSE is receive-only.' : 'Message to send when connected…'"></textarea>
+          <app-code-editor class="ws-message-editor" [content]="view.tab.messageDraft"
+            (contentChange)="onDraftChange($event)" [language]="'plain'" [activeVariables]="activeVariables"
+            [readonly]="view.tab.mode === 'sse'"
+            [title]="view.tab.mode === 'sse' ? 'SSE is receive-only.' : 'Message to send when connected…'"></app-code-editor>
           <div class="ws-message-footer">
             <button type="button" class="btn btn-accent send-btn ws-inline-send" (click)="send()"
               [disabled]="!isConnected || view.tab.mode === 'sse' || !(view.tab.messageDraft || '').trim()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
@@ -102,10 +108,12 @@
           <div class="panel-section-header">
             <div class="panel-section-title">
               <h4>Headers</h4>
-              <span class="muted-count" *ngIf="(view.tab.headers || []).length">{{ (view.tab.headers || []).length }}</span>
+              <span class="muted-count" *ngIf="(view.tab.headers || []).length">{{ (view.tab.headers || []).length
+                }}</span>
             </div>
           </div>
-          <p class="ws-hint">Sent on connect. Variable placeholders follow the same rules as HTTP requests. Auth overrides duplicate keys.</p>
+          <p class="ws-hint">Sent on connect. Variable placeholders follow the same rules as HTTP requests. Auth
+            overrides duplicate keys.</p>
           <div class="kv-table ws-headers-kv" *ngIf="(view.tab.headers || []).length > 0">
             <div class="kv-grid-header">
               <span></span>
@@ -117,12 +125,13 @@
               [class.disabled]="h.enabled === false">
               <input type="checkbox" [checked]="h.enabled !== false"
                 (change)="updateHeader(i, 'enabled', $any($event.target).checked)" />
-              <input type="text" [ngModel]="h.key" (ngModelChange)="updateHeader(i, 'key', $event)" placeholder="Key" />
-              <input type="text" [ngModel]="h.value" (ngModelChange)="updateHeader(i, 'value', $event)"
-                placeholder="Value" />
+              <app-variable-input [ngModel]="h.key" (ngModelChange)="updateHeader(i, 'key', $event)" placeholder="Key"
+                [activeVariables]="activeVariables"></app-variable-input>
+              <app-variable-input [ngModel]="h.value" (ngModelChange)="updateHeader(i, 'value', $event)"
+                placeholder="Value" [activeVariables]="activeVariables"></app-variable-input>
               <button type="button" class="btn-icon" (click)="removeHeader(i)" title="Remove">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="3 6 5 6 21 6"></polyline>
                   <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path>
                   <path d="M10 11v6M14 11v6"></path>
@@ -132,8 +141,8 @@
           </div>
           <div class="empty-row" *ngIf="!(view.tab.headers || []).length">No headers yet</div>
           <button type="button" class="btn-add-row" (click)="addHeader()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
@@ -144,7 +153,8 @@
 
       <div *ngIf="activeSection === 'auth'" class="auth-section tab-panel scrollable">
         <div class="auth-config">
-          <p class="ws-hint auth-hint">Bearer, Basic, and API key (header). Merged at connect; auth wins key conflicts.</p>
+          <p class="ws-hint auth-hint">Bearer, Basic, and API key (header). Merged at connect; auth wins key conflicts.
+          </p>
           <div class="auth-type-selector">
             <label>Auth type</label>
             <app-dropdown [options]="authTypeOptions" [value]="authModel.type"
@@ -154,34 +164,38 @@
           <div class="auth-fields" *ngIf="authModel.type === AuthType.BEARER">
             <div class="auth-row">
               <label>Token</label>
-              <input type="text" [ngModel]="authModel.bearer?.token || ''" (ngModelChange)="patchAuthBearer($event)"
-                placeholder="Bearer token" autocomplete="off" />
+              <app-variable-input [ngModel]="authModel.bearer?.token || ''" (ngModelChange)="patchAuthBearer($event)"
+                placeholder="Bearer token" [activeVariables]="activeVariables"></app-variable-input>
             </div>
           </div>
 
           <div class="auth-fields" *ngIf="authModel.type === AuthType.BASIC">
             <div class="auth-row">
               <label>Username</label>
-              <input type="text" [ngModel]="authModel.basic?.username || ''"
-                (ngModelChange)="patchAuthBasic('username', $event)" autocomplete="username" />
+              <app-variable-input [ngModel]="authModel.basic?.username || ''"
+                (ngModelChange)="patchAuthBasic('username', $event)"
+                [activeVariables]="activeVariables"></app-variable-input>
             </div>
             <div class="auth-row">
               <label>Password</label>
-              <input type="password" [ngModel]="authModel.basic?.password || ''"
-                (ngModelChange)="patchAuthBasic('password', $event)" autocomplete="current-password" />
+              <app-variable-input type="password" [ngModel]="authModel.basic?.password || ''"
+                (ngModelChange)="patchAuthBasic('password', $event)"
+                [activeVariables]="activeVariables"></app-variable-input>
             </div>
           </div>
 
           <div class="auth-fields" *ngIf="authModel.type === AuthType.API_KEY">
             <div class="auth-row">
               <label>Key</label>
-              <input type="text" [ngModel]="authModel.apiKey?.key || ''" (ngModelChange)="patchAuthApiKey('key', $event)"
-                placeholder="e.g. X-API-Key" />
+              <app-variable-input [ngModel]="authModel.apiKey?.key || ''"
+                (ngModelChange)="patchAuthApiKey('key', $event)" placeholder="e.g. X-API-Key"
+                [activeVariables]="activeVariables"></app-variable-input>
             </div>
             <div class="auth-row">
               <label>Value</label>
-              <input type="text" [ngModel]="authModel.apiKey?.value || ''"
-                (ngModelChange)="patchAuthApiKey('value', $event)" />
+              <app-variable-input [ngModel]="authModel.apiKey?.value || ''"
+                (ngModelChange)="patchAuthApiKey('value', $event)"
+                [activeVariables]="activeVariables"></app-variable-input>
             </div>
           </div>
         </div>
@@ -195,8 +209,9 @@
             </div>
           </div>
           <p class="ws-hint">Comma-separated Sec-WebSocket-Protocol values.</p>
-          <input type="text" class="protocols-field" [ngModel]="protocolsInput" (ngModelChange)="onProtocolsChange($event)"
-            placeholder="e.g. chat, superchat" />
+          <app-variable-input class="protocols-field" [ngModel]="protocolsInput"
+            (ngModelChange)="onProtocolsChange($event)" placeholder="e.g. chat, superchat"
+            [activeVariables]="activeVariables"></app-variable-input>
         </div>
       </div>
 
@@ -226,7 +241,7 @@
                 <ng-container *ngIf="f.kind === 'binary'">
                   <span class="ws-frame-tag">binary</span>
                   <span class="ws-frame-binary">{{ (f.binaryBase64 || '').slice(0, 120) }}<ng-container
-                    *ngIf="(f.binaryBase64 || '').length > 120">…</ng-container></span>
+                      *ngIf="(f.binaryBase64 || '').length > 120">…</ng-container></span>
                 </ng-container>
                 <ng-container *ngIf="f.kind === 'event'">
                   <span class="ws-frame-tag">{{ f.event || 'event' }}</span>

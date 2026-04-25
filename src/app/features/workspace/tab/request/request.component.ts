@@ -228,7 +228,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer,
     private keyboardShortcuts: KeyboardShortcutsService,
-  ) {}
+  ) { }
 
   /** Open the singleton Mock Server tab from the inline mock variant section. */
   openMockServerTab(): void {
@@ -356,11 +356,11 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   private loadRequest() {
     this.lastDirtyEmitted = undefined;
-    this.request = (undefined as any); 
+    this.request = (undefined as any);
     const original = this.collectionService.findRequestById(this.requestPayloadId());
     if (!original) return;
 
-    this.request = JSON.parse(JSON.stringify(original)); 
+    this.request = JSON.parse(JSON.stringify(original));
     if (!this.request.requestBody) {
       this.request.requestBody = '{}';
     }
@@ -432,7 +432,11 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   private applyWorkspaceEnvironmentSelection() {
     if (this.workspacePaneId) {
-      this.selectedEnvironmentId = this.paneEnvironmentOverrideId ?? this.globalEnvironmentId ?? null;
+      if (this.paneEnvironmentOverrideId === 'none') {
+        this.selectedEnvironmentId = null;
+      } else {
+        this.selectedEnvironmentId = this.paneEnvironmentOverrideId ?? this.globalEnvironmentId ?? null;
+      }
     } else {
       this.selectedEnvironmentId = this.globalEnvironmentId;
     }
@@ -636,8 +640,12 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   onEnvironmentChange(envId: any) {
     this.selectedEnvironmentId = envId === 'none' ? null : envId;
+
     if (this.workspacePaneId) {
-      this.paneEnvironmentOverrideChange.emit(this.selectedEnvironmentId);
+      // Prevent stale Input from overwriting our local change before parent responds
+      this.paneEnvironmentOverrideId = envId;
+      // Emit 'none' for explicit no-environment selection to distinguish from null (inheritance)
+      this.paneEnvironmentOverrideChange.emit(envId);
       this.updateActiveVariables();
       this.cdr.markForCheck();
       return;
@@ -1218,7 +1226,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     const actualIndex = this.request.httpParameters!.indexOf(paramToRemove);
     if (actualIndex !== -1) {
       this.request.httpParameters!.splice(actualIndex, 1);
-      this.updateUrlFromParams(); 
+      this.updateUrlFromParams();
       this.saveRequest();
       this.cdr.markForCheck();
     }
@@ -1342,7 +1350,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
     if (newHeight < 60) {
       this.isResponseHidden = true;
-      this.onResizeEnd(); 
+      this.onResizeEnd();
       this.cdr.markForCheck();
       return;
     }

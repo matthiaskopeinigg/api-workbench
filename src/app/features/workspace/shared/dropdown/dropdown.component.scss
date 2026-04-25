@@ -2,10 +2,7 @@
     display: block;
     position: relative;
     min-width: 0;
-    /* In flex rows, 100% width makes this control eat the full row; auto + max-width
-       keeps the trigger content-sized. In normal block flow, block + width: auto
-       still stretches to the container. */
-    width: auto;
+    width: fit-content;
     max-width: 100%;
     font-family: inherit;
 }
@@ -34,7 +31,6 @@
     min-width: 0; /* must shrink in flex; label uses ellipsis, arrow stays reserved */
     border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
     width: 100%;
-    text-align: left;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
 
@@ -64,6 +60,7 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        text-align: center;
     }
 
     .arrow {

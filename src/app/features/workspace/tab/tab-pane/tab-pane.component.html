@@ -92,7 +92,11 @@
         }
       } @else if (activeTab.type === TabType.WEBSOCKET && isWebSocketTab(activeTab)) {
         @defer (on immediate) {
-          <app-websocket [tab]="activeTab" />
+          <app-websocket
+            [tab]="activeTab"
+            [workspacePaneId]="paneId"
+            [paneEnvironmentOverrideId]="paneEnvironmentOverrideId"
+            (paneEnvironmentOverrideChange)="emitPaneEnvOverride($event)" />
         } @placeholder {
           <div class="tab-defer-placeholder" role="status" aria-live="polite">
             <div class="defer-skeleton">

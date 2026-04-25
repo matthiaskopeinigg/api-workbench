@@ -2,10 +2,12 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  EventEmitter,
   Input,
   OnChanges,
   OnDestroy,
   OnInit,
+  Output,
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -19,6 +21,8 @@ import { EnvironmentsService } from '@core/environments/environments.service';
 import { cleanKv } from '@core/utils/kv-utils';
 import { DropdownComponent, DropdownOption } from '../../shared/dropdown/dropdown.component';
 import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
+import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
+import { CodeEditorComponent } from '../../shared/code-editor/code-editor.component';
 import {
   WebSocketConnectionStatus,
   WebSocketFrame,
@@ -41,6 +45,9 @@ type ConnectionView = {
 
 const PERSIST_DEBOUNCE_MS = 300;
 
+import { WorkspacePaneId } from '@core/tabs/workspace-tabs.model';
+import { Environment } from '@models/environment';
+
 /**
  * WebSocket / SSE playground. Owns the per-tab UI state (URL, headers,
  * message draft) while delegating the actual connection lifecycle to
@@ -50,13 +57,21 @@ const PERSIST_DEBOUNCE_MS = 300;
 @Component({
   selector: 'app-websocket',
   standalone: true,
-  imports: [CommonModule, FormsModule, DropdownComponent],
+  imports: [CommonModule, FormsModule, DropdownComponent, VariableInputComponent, CodeEditorComponent],
   templateUrl: './websocket.component.html',
   styleUrl: './websocket.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WebSocketComponent implements OnInit, OnChanges, OnDestroy {
   @Input() tab!: TabItem;
+  @Input() workspacePaneId: WorkspacePaneId | null = null;
+  @Input() paneEnvironmentOverrideId: string | null = null;
+  @Output() paneEnvironmentOverrideChange = new EventEmitter<string | null>();
+
+  environments: Environment[] = [];
+  selectedEnvironmentId: string | null = null;
+  activeVariables: Record<string, string> = {};
+  private globalEnvironmentId: string | null = null;
 
   view: ConnectionView = {
     status: 'disconnected',
@@ -102,15 +117,33 @@ export class WebSocketComponent implements OnInit, OnChanges, OnDestroy {
     private collectionService: CollectionService,
     private environmentsService: EnvironmentsService,
     private cdr: ChangeDetectorRef,
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.bind(this.tab?.id);
+
+    this.environmentsService.getEnvironmentsObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((envs: Environment[]) => {
+        this.environments = envs;
+        this.cdr.markForCheck();
+      });
+
+    this.environmentsService.getActiveContextAsObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((env: Environment | null) => {
+        this.globalEnvironmentId = env?.id || null;
+        this.applyWorkspaceEnvironmentSelection();
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['tab']) {
       this.bind(this.tab?.id);
+    }
+    if (changes['paneEnvironmentOverrideId']) {
+      this.applyWorkspaceEnvironmentSelection();
     }
   }
 
@@ -213,6 +246,52 @@ export class WebSocketComponent implements OnInit, OnChanges, OnDestroy {
     return t !== AuthType.NONE && t !== AuthType.INHERIT;
   }
 
+  get environmentOptions(): DropdownOption[] {
+    const opts: DropdownOption[] = [{ label: 'No Environment', value: 'none' }];
+    this.environments.forEach(e => {
+      opts.push({ label: e.title, value: e.id });
+    });
+    return opts;
+  }
+
+  private applyWorkspaceEnvironmentSelection() {
+    if (this.workspacePaneId) {
+      if (this.paneEnvironmentOverrideId === 'none') {
+        this.selectedEnvironmentId = null;
+      } else {
+        this.selectedEnvironmentId = this.paneEnvironmentOverrideId ?? this.globalEnvironmentId ?? null;
+      }
+    } else {
+      this.selectedEnvironmentId = this.globalEnvironmentId;
+    }
+    this.updateActiveVariables();
+    this.cdr.markForCheck();
+  }
+
+  onEnvironmentChange(envId: any) {
+    this.selectedEnvironmentId = envId === 'none' ? null : envId;
+    if (this.workspacePaneId) {
+      this.paneEnvironmentOverrideId = envId;
+      this.paneEnvironmentOverrideChange.emit(envId);
+      this.updateActiveVariables();
+      this.cdr.markForCheck();
+      return;
+    }
+    if (this.selectedEnvironmentId) {
+      const env = this.environmentsService.getEnvironmentById(this.selectedEnvironmentId);
+      this.environmentsService.setActiveContext(env);
+    } else {
+      this.environmentsService.setActiveContext(null);
+    }
+    this.updateActiveVariables();
+    this.cdr.markForCheck();
+  }
+
+  private updateActiveVariables() {
+    this.activeVariables = this.buildVariableMap();
+    this.cdr.markForCheck();
+  }
+
   private buildVariableMap(): Record<string, string> {
     const out: Record<string, string> = {};
     const id = this.view.tab.id;
@@ -222,7 +301,9 @@ export class WebSocketComponent implements OnInit, OnChanges, OnDestroy {
         out[v.key as string] = (v.value ?? '') as string;
       });
     });
-    const env = this.environmentsService.getActiveContext();
+    const env = this.selectedEnvironmentId
+      ? this.environmentsService.getEnvironmentById(this.selectedEnvironmentId)
+      : this.environmentsService.getActiveContext();
     cleanKv(env?.variables).forEach((v) => {
       out[v.key as string] = (v.value ?? '') as string;
     });
