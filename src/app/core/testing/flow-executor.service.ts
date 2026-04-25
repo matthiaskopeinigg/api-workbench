@@ -235,7 +235,7 @@ export class FlowExecutorService {
   }
 
   private async runDbQuery(node: DbQueryNode, base: FlowNodeRunResult, vars: Record<string, unknown>): Promise<FlowNodeRunResult> {
-    const config = this.settings.currentSettings.databases?.connections.find(c => c.id === node.connectionId);
+    const config = this.settings.getSettings().databases?.connections.find((c: DatabaseConnection) => c.id === node.connectionId);
     if (!config) {
       return { ...base, status: 'failed', durationMs: Date.now() - base.startedAt, message: `Database connection not found: ${node.connectionId}` };
     }

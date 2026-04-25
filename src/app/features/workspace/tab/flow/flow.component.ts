@@ -158,7 +158,7 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
   ) {}
 
   get dbConnections(): DatabaseConnection[] {
-    return this.settings.currentSettings.databases?.connections || [];
+    return this.settings.getSettings().databases?.connections || [];
   }
 
   /**
@@ -243,11 +243,11 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
       this.applyFlowFromStore();
     });
 
-    this.collections.getCollectionsObservable().pipe(takeUntil(this.destroy$)).subscribe((cols) => {
+    this.collectionService.getCollectionsObservable().pipe(takeUntil(this.destroy$)).subscribe((cols: Collection[]) => {
       this.requestPicks = flattenRequests(cols);
       this.cdr.markForCheck();
     });
-    this.requestPicks = flattenRequests(this.collections.getCollections() || []);
+    this.requestPicks = flattenRequests(this.collectionService.getCollections() || []);
 
     this.executor.onStep().pipe(takeUntil(this.destroy$)).subscribe(({ flowId, step }) => {
       if (!this.artifact || flowId !== this.artifact.id) return;
@@ -800,7 +800,7 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
           return truncate(`${node.target.method} ${node.target.url}`, NODE_SUB_MAX_CHARS);
         }
         {
-          const req = this.collections.findRequestById(node.target.requestId);
+          const req = this.collectionService.findRequestById(node.target.requestId);
           return req
             ? truncate(`${HTTP_METHOD_LABELS[req.httpMethod] || 'GET'} ${req.title || req.url}`, NODE_SUB_MAX_CHARS)
             : '(no request)';
