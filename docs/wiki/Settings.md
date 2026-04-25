@@ -16,7 +16,8 @@ Open from the **title bar** (gear icon). Settings open as a **modal** with a lef
 | **Certificates & SSL** | Trust, client certs, managed certificates for HTTPS debugging. |
 | **DNS Settings** | Custom DNS resolution options if exposed. |
 | **Proxy Settings** | HTTP(S) proxy for outbound traffic. |
-| **Data & config** | Paths to database and config; open folders; relocate data directory (restart required). |
+| **Databases** | Manage database connection profiles for testing flows. |
+| **Data & config** | Paths to database and config; relocate data directory. |
 | **Import & Export** | Bulk import/export entry points (see also [Import & export](Import-and-export)). |
 | **About** | Version, **updater** status (check for updates, download), links to site/repo/wiki. |
 
