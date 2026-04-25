@@ -9,6 +9,7 @@ export interface Settings {
   dns: DnsSettings;
   proxy: ProxySettings;
   logging: LoggingSettings;
+  databases: DatabaseSettings;
   /** Optional keyboard chord overrides (action id → chord, e.g. Mod+KeyK). */
   keyboard?: KeyboardSettings;
 }
@@ -125,5 +126,21 @@ export enum Theme {
   NIGHT_OWL_DARK = 'night-owl-dark',
   SOLARIZED_LIGHT = 'solarized-light',
   SOLARIZED_DARK = 'solarized-dark'
+}
+
+export interface DatabaseSettings {
+  connections: DatabaseConnection[];
+}
+
+export interface DatabaseConnection {
+  id: string;
+  name: string;
+  type: 'redis' | 'postgresql' | 'mysql' | 'mssql';
+  host: string;
+  port: number;
+  user?: string;
+  password?: string;
+  database?: string;
+  tls?: boolean;
 }
 

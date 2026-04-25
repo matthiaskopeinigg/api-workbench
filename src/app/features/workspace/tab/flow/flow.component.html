@@ -308,6 +308,31 @@
           </label>
         </ng-container>
 
+        <!-- DB QUERY -->
+        <ng-container *ngIf="n.kind === 'db-query'">
+          <label class="field">
+            <span>Database Connection</span>
+            <select [(ngModel)]="asDbQuery(n).connectionId" (ngModelChange)="onInspectorChange()">
+              <option value="">— pick a connection —</option>
+              <option *ngFor="let c of dbConnections" [value]="c.id">{{ c.name }} ({{ c.type }})</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Query (supports <code>{{ '{{' }}var{{ '}}' }}</code>)</span>
+            <textarea rows="3" class="mono"
+                      [(ngModel)]="asDbQuery(n).query"
+                      (ngModelChange)="onInspectorChange()"
+                      placeholder="e.g. GET user:123"></textarea>
+          </label>
+          <label class="field">
+            <span>Store result in variable (optional)</span>
+            <input type="text"
+                   [(ngModel)]="asDbQuery(n).targetVarName"
+                   (ngModelChange)="onInspectorChange()"
+                   placeholder="e.g. dbResult" />
+          </label>
+        </ng-container>
+
         
         <div class="step-result" *ngIf="selectedNodeStep as s">
           <h5>Last run</h5>

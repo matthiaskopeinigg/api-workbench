@@ -29,6 +29,8 @@ function registerIpcHandlers() {
     registerTestingIpcHandlers();
     registerLoadIpcHandlers();
     registerStorageIpcHandlers();
+    const { registerDbIpcHandlers } = require('./db.ipc');
+    registerDbIpcHandlers();
 
     logInfo('IPC handlers registered');
 }

@@ -117,6 +117,7 @@ const awElectron = {
   openConfigMarkerDirectory: () => ipcRenderer.invoke('storage:open-marker-dir'),
   chooseDataDirectory: () => ipcRenderer.invoke('storage:choose-data-directory'),
   resetDataDirectoryOverride: () => ipcRenderer.invoke('storage:reset-data-directory-override'),
+  dbQuery: (payload) => ipcRenderer.invoke('db:query', payload),
 };
 
 contextBridge.exposeInMainWorld('awElectron', awElectron);

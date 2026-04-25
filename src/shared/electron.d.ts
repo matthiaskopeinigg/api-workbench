@@ -1,4 +1,4 @@
-import { Settings } from './settings';
+import { Settings, DatabaseConnection } from './settings';
 import { Collection } from './collection';
 import { Environment } from './environment';
 import { FileDialogResult, OpenFilesDialogResult, ReadImportFolderOptions, SaveFileOptions, WriteFilesToDirectoryResult } from './file-dialog';
@@ -131,6 +131,7 @@ export interface AwElectronApi {
   downloadUpdate: () => Promise<UpdaterStatus>;
   installUpdate: () => void;
   onUpdaterStatus: (listener: (status: UpdaterStatus) => void) => () => void;
+  dbQuery: (payload: { connection: DatabaseConnection; query: string }) => Promise<any>;
 
   mockStart: (port?: number) => Promise<MockServerStatus>;
   mockStop: () => Promise<MockServerStatus>;

@@ -24,7 +24,9 @@ import type {
   SetVarNode,
   TerminateNode,
   TransformNode,
+  DbQueryNode,
 } from '@models/testing/flow';
+import type { DatabaseConnection } from '@models/settings';
 
 interface RawResponse {
   status: number;
@@ -185,6 +187,8 @@ export class FlowExecutorService {
           return this.runAssert(node, base, vars);
         case 'terminate':
           return { ...base, status: 'success', durationMs: Date.now() - started, output: input };
+        case 'db-query':
+          return await this.runDbQuery(node, base, vars);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -228,6 +232,28 @@ export class FlowExecutorService {
   private async runDelay(node: DelayNode, base: FlowNodeRunResult): Promise<FlowNodeRunResult> {
     await new Promise((r) => setTimeout(r, Math.max(0, node.ms)));
     return { ...base, status: 'success', durationMs: Date.now() - base.startedAt, output: base.input };
+  }
+
+  private async runDbQuery(node: DbQueryNode, base: FlowNodeRunResult, vars: Record<string, unknown>): Promise<FlowNodeRunResult> {
+    const config = this.settings.currentSettings.databases?.connections.find(c => c.id === node.connectionId);
+    if (!config) {
+      return { ...base, status: 'failed', durationMs: Date.now() - base.startedAt, message: `Database connection not found: ${node.connectionId}` };
+    }
+
+    const query = applyVars(node.query, vars);
+    const result = await window.awElectron.dbQuery({ connection: config, query });
+
+    if (node.targetVarName) {
+      vars[node.targetVarName] = result;
+    }
+
+    return {
+      ...base,
+      status: 'success',
+      durationMs: Date.now() - base.startedAt,
+      output: result,
+      message: node.targetVarName ? `${node.targetVarName} = ${asPreview(result)}` : `Success: ${asPreview(result)}`,
+    };
   }
 
   private runSetVar(node: SetVarNode, base: FlowNodeRunResult, vars: Record<string, unknown>): FlowNodeRunResult {

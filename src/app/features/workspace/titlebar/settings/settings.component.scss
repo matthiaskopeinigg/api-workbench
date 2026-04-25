@@ -1516,3 +1516,115 @@ label:has(input[type="checkbox"]) {
   border-radius: 4px;
   background: color-mix(in srgb, var(--text-color) 6%, transparent);
 }
+.database-card {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  
+  .database-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 1rem;
+    
+    &:last-of-type {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  .card-item-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+
+    .ghost-input {
+      background: transparent;
+      border: none;
+      font-size: 1.05rem;
+      font-weight: 700;
+      padding: 4px 0;
+      height: auto;
+      
+      &:focus {
+        box-shadow: none;
+        border-bottom: 1px solid var(--secondary-color);
+        border-radius: 0;
+      }
+    }
+  }
+
+  .card-item-footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid color-mix(in srgb, var(--border-color), transparent 50%);
+  }
+}
+
+.fancy-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 36px !important;
+}
+
+.card-item {
+  background: color-mix(in srgb, var(--text-color), transparent 98%);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--secondary-color), transparent 40%);
+    background: color-mix(in srgb, var(--text-color), transparent 97%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+}
+
+.flex-1 { flex: 1; }
+.flex-spacer { flex: 1; }
+.no-margin { margin: 0 !important; }
+.text-danger { color: #ff4757; }
+.btn-icon {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  
+  &:hover {
+    background: color-mix(in srgb, var(--text-color), transparent 94%);
+  }
+}
+
+.empty-state-mini {
+  padding: 2rem;
+  text-align: center;
+  opacity: 0.4;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.ghost-button.add-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  
+  &:hover {
+    border-style: solid;
+    border-color: var(--secondary-color);
+    color: var(--secondary-color);
+  }
+}

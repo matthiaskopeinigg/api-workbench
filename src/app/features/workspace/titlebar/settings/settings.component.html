@@ -444,6 +444,77 @@
         <p class="import-popup import-success" *ngIf="dataMessage" style="position: static; margin-top: 1rem;">{{ dataMessage }}</p>
       </div>
 
+      <div *ngIf="selectedTab==='databases'" formGroupName="databases" class="tab-pane">
+        <h2 class="tab-title">Database Connections</h2>
+        <p class="tab-description">Configure database connection profiles for use in flows and scripts.</p>
+
+        <div formArrayName="connections">
+          <div *ngFor="let conn of databaseConnections.controls; let i = index" [formGroupName]="i" class="database-card card-item">
+            <div class="card-item-header">
+              <div class="form-group no-margin flex-1">
+                <input type="text" formControlName="name" placeholder="Connection Name (e.g. Local Redis)" class="ghost-input" />
+              </div>
+              <div class="card-item-actions">
+                <button type="button" class="btn-icon text-danger" (click)="removeDatabaseConnection(i)" title="Remove connection">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="database-grid">
+              <div class="form-group">
+                <label>Type</label>
+                <select formControlName="type" class="fancy-select">
+                  <option value="redis">Redis</option>
+                  <option value="postgresql" disabled>PostgreSQL (Coming Soon)</option>
+                  <option value="mysql" disabled>MySQL (Coming Soon)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Host</label>
+                <input type="text" formControlName="host" placeholder="localhost" />
+              </div>
+              <div class="form-group">
+                <label>Port</label>
+                <input type="number" formControlName="port" placeholder="6379" />
+              </div>
+            </div>
+
+            <div class="database-grid">
+              <div class="form-group">
+                <label>User (Optional)</label>
+                <input type="text" formControlName="user" placeholder="User" />
+              </div>
+              <div class="form-group">
+                <label>Password (Optional)</label>
+                <input type="password" formControlName="password" placeholder="Password" />
+              </div>
+              <div class="form-group">
+                <label>DB Index / Name</label>
+                <input type="text" formControlName="database" placeholder="0" />
+              </div>
+            </div>
+
+            <div class="card-item-footer">
+              <label class="checkbox-label no-margin">
+                <input type="checkbox" formControlName="tls" /> Use TLS/SSL
+              </label>
+              <div class="flex-spacer"></div>
+              <button type="button" class="fancy-button btn-sm" (click)="testDatabaseConnection(i)">Test Connection</button>
+            </div>
+          </div>
+
+          <div *ngIf="databaseConnections.length === 0" class="empty-state-mini">
+            No database connections configured.
+          </div>
+
+          <button type="button" class="ghost-button add-btn" (click)="addDatabaseConnection()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Connection
+          </button>
+        </div>
+      </div>
+
       <div *ngIf="selectedTab==='export-import'" class="tab-pane">
         <h2 class="tab-title">Import & Export</h2>
         <p class="tab-description">Manage your collections and data. Import from other tools or backup your work.</p>

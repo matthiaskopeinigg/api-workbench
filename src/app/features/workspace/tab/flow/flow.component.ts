@@ -37,7 +37,10 @@ import type {
   AssertNode,
   DelayNode,
   TerminateNode,
+  DbQueryNode,
 } from '@models/testing/flow';
+import { SettingsService } from '@core/settings/settings.service';
+import type { DatabaseConnection } from '@models/settings';
 import type { Collection, Folder } from '@models/collection';
 import { HttpMethod, type Request as RequestModel } from '@models/request';
 
@@ -61,6 +64,7 @@ const PALETTE: PaletteItem[] = [
   { kind: 'assert',    label: 'Assert',    color: '#dc2626' },
   { kind: 'delay',     label: 'Delay',     color: '#6b7280' },
   { kind: 'terminate', label: 'Terminate', color: '#16a34a' },
+  { kind: 'db-query',  label: 'DB Query',  color: '#059669' },
 ];
 
 const HTTP_METHOD_LABELS: Record<number, string> = {
@@ -147,10 +151,15 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
   constructor(
     private artifacts: TestArtifactService,
     private executor: FlowExecutorService,
-    private collections: CollectionService,
+    private collectionService: CollectionService,
+    private settings: SettingsService,
     private cdr: ChangeDetectorRef,
     private hostRef: ElementRef<HTMLElement>,
   ) {}
+
+  get dbConnections(): DatabaseConnection[] {
+    return this.settings.currentSettings.databases?.connections || [];
+  }
 
   /**
    * Load the flow matching the **current** tab from the artifact store.
@@ -623,6 +632,7 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
   asSetVar(n: FlowNode): SetVarNode { return n as SetVarNode; }
   asAssert(n: FlowNode): AssertNode { return n as AssertNode; }
   asTerminate(n: FlowNode): TerminateNode { return n as TerminateNode; }
+  asDbQuery(n: FlowNode): DbQueryNode { return n as DbQueryNode; }
 
   onInspectorChange(): void { this.persist(); }
 
@@ -798,7 +808,9 @@ export class FlowComponent implements OnInit, OnChanges, AfterViewInit, OnDestro
       case 'branch':
         return truncate(node.expression || 'true', NODE_SUB_MAX_CHARS);
       case 'assert':
-        return truncate(node.expression || '', NODE_SUB_MAX_CHARS);
+        return truncate(node.expression || 'true', NODE_SUB_MAX_CHARS);
+      case 'db-query':
+        return truncate(node.query || '(no query)', NODE_SUB_MAX_CHARS);
       case 'set-var':
         return truncate(`${node.varName || 'var'} = …`, NODE_SUB_MAX_CHARS);
       case 'delay':
@@ -974,6 +986,7 @@ function createNode(kind: FlowNodeKind, x: number, y: number): FlowNode {
     case 'set-var': return { id, kind, label: 'Set Var', x, y, varName: 'token', expression: 'input.body.token' };
     case 'assert': return { id, kind, label: 'Assert', x, y, expression: 'input.status < 300' };
     case 'terminate': return { id, kind, label: 'Terminate', x, y, outcome: 'success' };
+    case 'db-query': return { id, kind, label: 'DB Query', x, y, connectionId: '', query: 'GET otp:{{email}}', targetVarName: 'otp' };
   }
 }
 

@@ -67,3 +67,6 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 *.lnk
+
+# Documentation
+CHANGELOG.md

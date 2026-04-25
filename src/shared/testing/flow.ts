@@ -29,7 +29,8 @@ export type FlowNodeKind =
   | 'delay'
   | 'set-var'
   | 'assert'
-  | 'terminate';
+  | 'terminate'
+  | 'db-query';
 
 export interface FlowNodeBase {
   id: string;
@@ -82,9 +83,20 @@ export interface TerminateNode extends FlowNodeBase {
   outcome: 'success' | 'failure';
 }
 
+export interface DbQueryNode extends FlowNodeBase {
+  kind: 'db-query';
+  /** ID of a connection defined in settings. */
+  connectionId: string;
+  /** Query string (e.g. "GET user:123"). Supports placeholders. */
+  query: string;
+  /** Optional variable name to store the result. */
+  targetVarName?: string;
+}
+
 export type FlowNode =
   | StartNode | RequestNode | TransformNode | BranchNode
-  | DelayNode | SetVarNode | AssertNode | TerminateNode;
+  | DelayNode | SetVarNode | AssertNode | TerminateNode
+  | DbQueryNode;
 
 export interface FlowEdge {
   id: string;

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, FormControl } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
+import { v4 as uuidv4 } from 'uuid';
 import { Certificate, RequestEditorSection, Settings, Theme } from '@models/settings';
 import {
   KEYBOARD_SHORTCUT_CATALOG,
@@ -113,6 +114,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       title: 'Data',
       items: [
         { id: 'data', label: 'Data & config', icon: 'M3 5h3l1.5-2h6L12 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z' },
+        { id: 'databases', label: 'Databases', icon: 'M12 2C6.48 2 2 4.01 2 6.5s4.48 4.5 10 4.5 10-2.01 10-4.5S17.52 2 12 2zm0 18c-5.52 0-10-2.01-10-4.5V18c0 2.49 4.48 4.5 10 4.5s10-2.01 10-4.5v-1.5c0 2.49-4.48 4.5-10 4.5zM2 11.5v3c0 2.49 4.48 4.5 10 4.5s10-2.01 10-4.5v-3c0 2.49-4.48 4.5-10 4.5s-10-2.01-10-4.5z' },
         { id: 'export-import', label: 'Export & Import', icon: 'M19 9h-4V3H9v6H5l7 7zM5 18v2h14v-2z' },
         { id: 'about', label: 'About', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z' },
       ],
@@ -358,6 +360,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
         password: [settings?.proxy?.password ?? ''],
         noProxy: [settings?.proxy?.noProxy ?? []]
       }),
+      databases: this.fb.group({
+        connections: this.fb.array(
+          (settings?.databases?.connections || []).map(c => this.createDatabaseConnectionGroup(c))
+        )
+      })
     });
 
     const collections = this.collectionService.getCollections();
@@ -512,6 +519,48 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   removeHeader(index: number) {
     this.defaultHeaders.removeAt(index);
+  }
+
+  get databaseConnections(): FormArray {
+    return this.settingsForm.get('databases.connections') as FormArray;
+  }
+
+  createDatabaseConnectionGroup(conn?: any): FormGroup {
+    return this.fb.group({
+      id: [conn?.id ?? uuidv4()],
+      name: [conn?.name ?? '', Validators.required],
+      type: [conn?.type ?? 'redis', Validators.required],
+      host: [conn?.host ?? 'localhost', Validators.required],
+      port: [conn?.port ?? 6379, Validators.required],
+      user: [conn?.user ?? ''],
+      password: [conn?.password ?? ''],
+      database: [conn?.database ?? ''],
+      tls: [conn?.tls ?? false]
+    });
+  }
+
+  addDatabaseConnection() {
+    this.databaseConnections.push(this.createDatabaseConnectionGroup());
+  }
+
+  removeDatabaseConnection(index: number) {
+    this.databaseConnections.removeAt(index);
+  }
+
+  async testDatabaseConnection(index: number) {
+    const conn = this.databaseConnections.at(index).value;
+    this.isLoading = true;
+    try {
+      // We can use a special "ping" command or just a basic query
+      const query = conn.type === 'redis' ? 'PING' : 'SELECT 1';
+      const result = await window.awElectron.dbQuery({ connection: conn, query });
+      this.showImportPopup(`Connection successful: ${JSON.stringify(result)}`);
+    } catch (err: any) {
+      this.showImportPopup(`Connection failed: ${err.message}`, true);
+    } finally {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   get certificates(): FormArray {
