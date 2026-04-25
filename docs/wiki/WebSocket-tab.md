@@ -19,14 +19,26 @@ The **WebSocket** tab is a **playground** for interactive **WebSocket** and **SS
 
 ## Typical workflow
 
-1. Enter **URL** (ws:// or wss:// for WebSocket; http(s) for SSE as supported).
-2. Optional: **Headers**, **Auth**, **Sub-protocols** (WebSocket only).
-3. **Connect**; observe connection state on the status strip. If a connection fails, the full error text appears on a **separate row** under the URL bar (not beside the **Connect** button) so it can wrap and stay readable.
-4. **Send** text when connected (SSE is receive-only). Use the **Log** section for the frame/event list and **Clear** to reset it.
+1. Choose an **Environment** (dropdown in the top right) if you need variable substitution.
+2. Enter **URL** (`ws://` or `wss://` for WebSocket; `http(s)` for SSE). Both support `{{variables}}` and dynamic placeholders like `$uuid`.
+3. Optional: Configure **Headers**, **Auth**, or **Sub-protocols** (WebSocket only). These also support variable resolution.
+4. **Connect**; observe connection state on the status strip. If a connection fails, the full error text appears on a **separate row** under the URL bar.
+5. **Send** text when connected (SSE is receive-only). The message editor supports syntax highlighting and `{{` autocomplete. Use the **Log** section for the frame/event list and **Clear** to reset it.
+
+## Variables & placeholders
+
+The WebSocket and SSE tabs share the same variable resolution engine as the HTTP Request tab:
+
+- **Environment variables** — `{{my_api_key}}` resolved from the active environment.
+- **Folder variables** — Inherited from parent folders in the collection.
+- **Dynamic placeholders** — `$uuid`, `$timestamp`, `$isoDate`, etc. are generated at the moment of connection or message send.
+- **Autocomplete** — Type `{{` in any input field or the message editor for a list of available variables.
 
 ## Auth (v1)
 
-Supported types: **None**, **Bearer**, **Basic**, and **API key** with **header** placement only.
+Supported types: **None**, **Bearer**, **Basic**, and **API key**. 
+
+All auth fields (Tokens, Usernames, Keys) support variable substitution (`{{…}}`).
 
 At **Connect**, the app builds a header map as follows:
 

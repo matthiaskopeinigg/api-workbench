@@ -580,7 +580,7 @@
             </button>
 
             <button class="fancy-button"
-                    *ngIf="updaterStatus.state === 'downloaded'"
+                    *ngIf="updaterStatus.state === 'downloaded' && !isAutomaticInstall"
                     type="button"
                     [disabled]="!updaterStatus.supported"
                     (click)="installUpdate()">

@@ -106,6 +106,10 @@ export class AppComponent implements OnInit, OnDestroy {
     );
   }
 
+  get isAutomaticInstall(): boolean {
+    return this.updateService.isAutomaticInstall;
+  }
+
   get updateBannerMessage(): string {
     const s = this.updaterUi;
     if (!s) return '';
@@ -117,7 +121,9 @@ export class AppComponent implements OnInit, OnDestroy {
         return `Downloading update… ${p}%`;
       }
       case 'downloaded':
-        return `Update ${s.info?.version ?? ''} is ready. Preparing installer…`;
+        return this.isAutomaticInstall
+          ? 'Restarting to install update…'
+          : `Update ${s.info?.version ?? ''} is ready. Preparing installer…`;
       case 'error':
         return s.info?.message ? `Update failed: ${s.info.message}` : 'Update check failed.';
       default:

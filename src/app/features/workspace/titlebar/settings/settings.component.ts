@@ -231,6 +231,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.updateService.installUpdate();
   }
 
+  get isAutomaticInstall(): boolean {
+    return this.updateService.isAutomaticInstall;
+  }
+
   get updateStatusMessage(): string {
     const s = this.updaterStatus;
     if (!s) return 'Checking\u2026';
@@ -276,7 +280,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         return `Downloading update\u2026 ${p}%`;
       }
       case 'downloaded':
-        return `Version ${s.info?.version ?? ''} is ready. The app will restart for the installer, or use Restart & install.`;
+        return this.isAutomaticInstall
+          ? 'The app will restart now to install the update.'
+          : `Version ${s.info?.version ?? ''} is ready. The app will restart for the installer, or use Restart & install.`;
       case 'error': {
         const m = s.info?.message ?? '';
         if (/CHANNEL_FILE_NOT_FOUND|Cannot find .*\.yml|latest\.yml|beta\.yml/i.test(m)) {

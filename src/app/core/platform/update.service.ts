@@ -32,6 +32,10 @@ export class UpdateService implements OnDestroy {
     return this.status$.value;
   }
 
+  get isAutomaticInstall(): boolean {
+    return this.installAfterDownload;
+  }
+
   private async start(): Promise<void> {
     const api = window.awElectron;
     if (!api?.getUpdaterStatus) return;
@@ -46,9 +50,11 @@ export class UpdateService implements OnDestroy {
     this.unsubscribe = api.onUpdaterStatus((status) => {
       this.zone.run(() => {
         if (status.state === 'downloaded' && this.installAfterDownload && status.supported) {
-          this.installAfterDownload = false;
           this.status$.next(status);
-          queueMicrotask(() => window.awElectron?.installUpdate?.());
+          queueMicrotask(() => {
+            this.installAfterDownload = false;
+            window.awElectron?.installUpdate?.();
+          });
           return;
         }
         if (status.state === 'error') {

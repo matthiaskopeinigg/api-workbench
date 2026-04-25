@@ -10,8 +10,8 @@ Clicking an environment opens an **Environment** tab (or focuses an existing one
 
 ## Using variables on requests
 
-- Choose the active **environment** from the request tab (dropdown near Params / Headers).
-- Reference variables with **`{{variableName}}`** in URL, params, headers, auth fields, and body.
+- Choose the active **environment** from the tab header (Request, WebSocket, or SSE).
+- Reference variables with **`{{variableName}}`** in URL, params, headers, auth fields, and message bodies.
 - Unknown names stay **literal** text.
 - Type **`{{`** in supported fields for **autocomplete**; known names may be highlighted.
 

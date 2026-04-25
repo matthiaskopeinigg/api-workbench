@@ -37,7 +37,7 @@
                 (click)="startDownloadAndInstall()">
           Download and install
         </button>
-        <button *ngIf="updaterUi?.state === 'downloaded'" type="button" class="update-banner-primary"
+        <button *ngIf="updaterUi?.state === 'downloaded' && !isAutomaticInstall" type="button" class="update-banner-primary"
                 (click)="installAppUpdate()">
           Restart &amp; update
         </button>
