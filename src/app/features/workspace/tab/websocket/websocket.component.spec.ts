@@ -41,8 +41,17 @@ describe('WebSocketComponent', () => {
     collectionSpy = jasmine.createSpyObj('CollectionService', ['findWebSocketRequestById', 'updateWebSocketRequest', 'getParentFolders']);
     collectionSpy.findWebSocketRequestById.and.returnValue(null);
     collectionSpy.getParentFolders.and.returnValue([]);
-    environmentsSpy = jasmine.createSpyObj('EnvironmentsService', ['getActiveContext']);
+    environmentsSpy = jasmine.createSpyObj('EnvironmentsService', [
+      'getActiveContext',
+      'getEnvironmentsObservable',
+      'getActiveContextAsObservable',
+      'getEnvironmentById',
+      'setActiveContext',
+    ]);
     environmentsSpy.getActiveContext.and.returnValue(null);
+    environmentsSpy.getEnvironmentsObservable.and.returnValue(new BehaviorSubject([]).asObservable());
+    environmentsSpy.getActiveContextAsObservable.and.returnValue(new BehaviorSubject(null).asObservable());
+    environmentsSpy.getEnvironmentById.and.returnValue(null);
 
     await TestBed.configureTestingModule({
       imports: [WebSocketComponent],

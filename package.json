@@ -1,6 +1,6 @@
 {
   "name": "api-workbench",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A local-first, open-source Postman alternative for API testing and development.",
   "author": {
     "name": "Matthias Kopeinigg",
