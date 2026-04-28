@@ -19,25 +19,24 @@ export enum TabType {
   WEBSOCKET,
   MOCK_SERVER,
   LOAD_TEST,
-  TEST_SUITE,
-  CONTRACT_TEST,
-  FLOW
+  /** Singleton HTTP capture: embedded browser + traffic log. */
+  CAPTURE,
+  DASHBOARD,
+  REGRESSION,
+  SECURITY,
 }
 
 /** Stable id used by the singleton Mock Server tab. */
 export const MOCK_SERVER_TAB_ID = '__mock_server__';
+
+/** Stable id for the singleton Capture tab. */
+export const CAPTURE_TAB_ID = '__capture__';
 
 /** Tab id used by the workbench for a saved test artifact (see `open*Tab` on this service). */
 export function tabIdForTestArtifact(kind: TestingArtifactKind, id: string): string | null {
   switch (kind) {
     case 'loadTests':
       return `lt:${id}`;
-    case 'testSuites':
-      return `ts:${id}`;
-    case 'contractTests':
-      return `ct:${id}`;
-    case 'flows':
-      return `fl:${id}`;
     default:
       return null;
   }
@@ -155,16 +154,8 @@ export class TabService {
     return tab.type === TabType.LOAD_TEST;
   }
 
-  isTestSuiteTab(tab: TabItem) {
-    return tab.type === TabType.TEST_SUITE;
-  }
-
-  isContractTestTab(tab: TabItem) {
-    return tab.type === TabType.CONTRACT_TEST;
-  }
-
-  isFlowTab(tab: TabItem) {
-    return tab.type === TabType.FLOW;
+  isCaptureTab(tab: TabItem) {
+    return tab.type === TabType.CAPTURE;
   }
 
   /**
@@ -176,6 +167,14 @@ export class TabService {
       id: MOCK_SERVER_TAB_ID,
       title: 'Mock Server',
       type: TabType.MOCK_SERVER,
+    });
+  }
+
+  openCaptureTab(): void {
+    this.openTab({
+      id: CAPTURE_TAB_ID,
+      title: 'Capture',
+      type: TabType.CAPTURE,
     });
   }
 
@@ -205,16 +204,16 @@ export class TabService {
     this.openTab({ id: `lt:${id}`, title, type: TabType.LOAD_TEST });
   }
 
-  openTestSuiteTab(id: string, title = 'Test Suite'): void {
-    this.openTab({ id: `ts:${id}`, title, type: TabType.TEST_SUITE });
+  openDashboardTab(): void {
+    this.openRegressionTab();
   }
 
-  openContractTestTab(id: string, title = 'Contract Test'): void {
-    this.openTab({ id: `ct:${id}`, title, type: TabType.CONTRACT_TEST });
+  openRegressionTab(id = 'testing:regression', title = 'Regression'): void {
+    this.openTab({ id, title, type: TabType.REGRESSION });
   }
 
-  openFlowTab(id: string, title = 'Flow'): void {
-    this.openTab({ id: `fl:${id}`, title, type: TabType.FLOW });
+  openSecurityTab(): void {
+    this.openTab({ id: 'testing:security', title: 'Security Test', type: TabType.SECURITY });
   }
 
   getActiveTabs(): TabItem[] | null {
@@ -267,7 +266,9 @@ export class TabService {
     }
     await this.sessionService.load(this.ACTIVE_TABS_KEY);
     await this.sessionService.load(this.SELECTED_TAB_KEY);
-    const legacyTabs = this.sessionService.get<TabItem[]>(this.ACTIVE_TABS_KEY) ?? [];
+    const legacyTabs = (this.sessionService.get<TabItem[]>(this.ACTIVE_TABS_KEY) ?? []).filter(
+      (t) => t && typeof t.id === 'string' && !this.isRemovedTabType(t.type),
+    );
     const selected = this.sessionService.get<TabItem | null>(this.SELECTED_TAB_KEY);
     const selectedId =
       selected && legacyTabs.some(t => t.id === selected.id)
@@ -278,7 +279,7 @@ export class TabService {
       ratio: 0.5,
       orientation: 'horizontal',
       paneEnvironmentIds: { primary: null, secondary: null },
-      primary: { tabs: [...legacyTabs], selectedTabId: selectedId },
+      primary: { tabs: legacyTabs.map((t) => sanitizeTabForStorage({ ...t })), selectedTabId: selectedId },
       secondary: emptyPaneState(),
     };
   }
@@ -362,6 +363,7 @@ export class TabService {
       ? (o['tabs'] as TabItem[])
         .filter(t => t && typeof t.id === 'string')
         .map(t => sanitizeTabForStorage({ ...t }))
+        .filter((t) => !this.isRemovedTabType(t.type))
       : [];
     const selectedTabId =
       typeof o['selectedTabId'] === 'string' && tabs.some(t => t.id === o['selectedTabId'])
@@ -375,6 +377,13 @@ export class TabService {
     return defaultWorkspaceTabsState();
   }
 
+  /** Tab types whose UI was removed; strip from persisted workspace. */
+  private isRemovedTabType(type: TabType): boolean {
+    return (
+      type === TabType.CAPTURE ||
+      type === TabType.MOCK_SERVER ||
+      type === TabType.DASHBOARD
+    );
+  }
+
 }
-
-

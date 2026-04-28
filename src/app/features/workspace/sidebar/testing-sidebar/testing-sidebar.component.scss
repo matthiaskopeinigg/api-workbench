@@ -1,0 +1,119 @@
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--aw-surface-muted, var(--bg-color));
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--aw-radius-md, 8px);
+  color: var(--aw-text, var(--text-color));
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--aw-duration-fast, 120ms) ease;
+  width: 100%;
+
+  &:hover {
+    background-color: var(--aw-surface, rgba(255, 255, 255, 0.05));
+    border-color: var(--aw-border, rgba(255, 255, 255, 0.1));
+    
+    .list-icon { transform: scale(1.1); }
+    .list-chevron { transform: translateX(2px); color: var(--secondary-color); }
+  }
+
+  .list-icon {
+    font-size: 1.5rem;
+    transition: transform var(--aw-duration-fast) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+  }
+
+  .list-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .list-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+  }
+
+  .list-hint {
+    font-size: 0.75rem;
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 40%);
+    font-weight: 500;
+  }
+
+  .list-chevron {
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 60%);
+    transition: all var(--aw-duration-fast) ease;
+  }
+}
+
+.view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--aw-border, rgba(255, 255, 255, 0.1));
+  background-color: var(--aw-surface, rgba(255, 255, 255, 0.03));
+  height: 48px;
+  flex-shrink: 0;
+
+  .view-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--aw-text, var(--text-color));
+  }
+}
+
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--aw-border);
+  color: var(--secondary-color);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--aw-radius-sm, 4px);
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: var(--aw-surface-muted);
+    border-color: var(--secondary-color);
+  }
+}
+
+.view-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}

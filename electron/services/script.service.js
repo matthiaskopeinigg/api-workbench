@@ -147,9 +147,14 @@ async function executeScript(code, context = {}) {
     util,
     console: sandboxConsole,
     Buffer: Buffer,
-    setTimeout: undefined, 
+    setTimeout: undefined,
     setInterval: undefined,
   };
+
+  /** Mock response pipeline: read/write `cache` between DB and script steps. */
+  if (context.mockCache && typeof context.mockCache === 'object') {
+    sandbox.cache = context.mockCache;
+  }
 
   let value;
   try {

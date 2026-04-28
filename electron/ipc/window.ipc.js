@@ -17,6 +17,10 @@ module.exports = function () {
         event.returnValue = app.isPackaged;
     });
 
+    ipcMain.on('app:get-version', (event) => {
+        event.returnValue = app.getVersion();
+    });
+
     /** Open a link in the OS default browser (not an in-app BrowserWindow). */
     ipcMain.handle('open-external-url', async (_event, url) => {
         if (!isSafeHttpUrl(url)) {

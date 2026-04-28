@@ -7,6 +7,11 @@
     font-family: inherit;
 }
 
+:host(.full-width) {
+    width: 100%;
+    max-width: 100%;
+}
+
 .dropdown-container {
     position: relative;
 }

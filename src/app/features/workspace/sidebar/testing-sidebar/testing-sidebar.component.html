@@ -1,0 +1,62 @@
+<div class="panel">
+  @if (activeView === 'menu') {
+    <div class="menu-list">
+      <button class="list-item" (click)="openRegression()">
+        <span class="list-icon">🔄</span>
+        <div class="list-content">
+          <span class="list-title">Regression</span>
+          <span class="list-hint">Automated Flow Sequences</span>
+        </div>
+      </button>
+
+      <button class="list-item" (click)="showLoadTests()">
+        <span class="list-icon">📈</span>
+        <div class="list-content">
+          <span class="list-title">Load Test</span>
+          <span class="list-hint">Performance & Scalability</span>
+        </div>
+        <svg class="list-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+
+      <button class="list-item" (click)="openSecurity()">
+        <span class="list-icon">🛡️</span>
+        <div class="list-content">
+          <span class="list-title">Security Test</span>
+          <span class="list-hint">Vulnerability Scanning</span>
+        </div>
+      </button>
+    </div>
+  } @else if (activeView === 'regressions') {
+    <div class="view-container">
+      <header class="view-header">
+        <button class="btn-back" (click)="backToMenu()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back
+        </button>
+        <span class="view-title">Regression</span>
+      </header>
+      <div class="view-content">
+        <app-regression-sidebar></app-regression-sidebar>
+      </div>
+    </div>
+  } @else {
+    <div class="view-container">
+      <header class="view-header">
+        <button class="btn-back" (click)="backToMenu()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          Back
+        </button>
+        <span class="view-title">Load Tests</span>
+      </header>
+      <div class="view-content">
+        <app-tests></app-tests>
+      </div>
+    </div>
+  }
+</div>

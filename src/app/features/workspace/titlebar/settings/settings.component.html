@@ -1,13 +1,14 @@
 <div class="settings-container disable-select" (click)="onBackdropClick($event)">
   <div class="settings-popup">
 
-    <button class="settings-close-btn" (click)="closeSettings()" aria-label="Close Settings">
+    <button class="settings-close-btn" (click)="onCloseSettings()" aria-label="Close Settings">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"></line>
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
     </button>
 
+    <div class="settings-popup-main">
     <aside class="settings-sidebar">
       <header class="settings-sidebar-brand">
         <div class="brand-mark">
@@ -187,6 +188,37 @@
           <input type="checkbox" formControlName="exponentialBackoff">
           Use exponential backoff
         </label>
+      </div>
+
+      <div *ngIf="selectedTab==='logging'" formGroupName="logging" class="tab-pane">
+        <h2 class="tab-title">Logging</h2>
+        <p class="tab-description">Control console and file logging from the main process. Log files are written under the application <code>logs/</code> folder unless you set a custom path.</p>
+
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="enableRequestLogging" />
+          Log outgoing HTTP request details (when supported by the client)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="enableResponseLogging" />
+          Log incoming HTTP response details (when supported by the client)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="logToFile" />
+          Write application logs to a file (in addition to the developer console in dev builds)
+        </label>
+
+        <div class="form-group">
+          <label>Log file path (optional)</label>
+          <input type="text" formControlName="logFilePath" placeholder="e.g. app.log or C:\logs\api-workbench.log" spellcheck="false" autocomplete="off" />
+          <p class="form-hint">Relative paths are placed under the <code>logs/</code> directory next to the app.</p>
+        </div>
+
+        <div class="form-group">
+          <label>Rotate log when size exceeds (KB)</label>
+          <input type="number" formControlName="maxLogFileSizeKb" min="64" step="64" />
+        </div>
+
+        <app-bug-report-hint class="settings-bug-hint" />
       </div>
 
       <div *ngIf="selectedTab==='headers'" formGroupName="headers" class="tab-pane">
@@ -400,118 +432,263 @@
 
       <div *ngIf="selectedTab==='data'" class="tab-pane">
         <h2 class="tab-title">Data &amp; config</h2>
-        <p class="tab-description">Database and app data live on disk. You can open those folders or move data to another directory (requires restart).</p>
+        <p class="tab-description">Collections, settings, session, and response history are stored as JSON under <code>workspace/</code> in your data directory (plus <code>app-config/</code> and <code>logs/</code>). Use <strong>Change work directory</strong> to pick a folder (writes <code>user-data-path.txt</code> under <code>.api-workbench</code> in your profile; the app relaunches automatically to apply it). If <code>API_WORKBENCH_USER_DATA</code> is set, it takes precedence and the change-folder controls are disabled. Bundled repo <code>config/</code> is not auto-imported for a custom root.</p>
 
-        <div class="settings-section" *ngIf="storageInfo">
-          <h3>Current locations</h3>
-          <dl class="data-paths">
+        <div class="settings-section settings-section--data-paths" *ngIf="storageInfo">
+          <h3 class="data-paths-heading">Current locations</h3>
+          <dl class="data-paths data-paths--compact">
             <div class="data-path-row">
               <dt>Data directory</dt>
-              <dd class="mono-path">{{ storageInfo.userData }}</dd>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.userData">{{ storageInfo.userData }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.userData, 'userData')"
+                  [attr.aria-label]="'Copy data directory path'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'userData'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
             </div>
             <div class="data-path-row">
-              <dt>Database</dt>
-              <dd class="mono-path">{{ storageInfo.databasePath }}</dd>
+              <dt>Workspace (JSON)</dt>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.databasePath">{{ storageInfo.databasePath }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.databasePath, 'workspace')"
+                  [attr.aria-label]="'Copy workspace path'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'workspace'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
+            </div>
+            <div class="data-path-row" *ngIf="storageInfo.appConfigDir">
+              <dt>App config</dt>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.appConfigDir">{{ storageInfo.appConfigDir }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.appConfigDir, 'appConfig')"
+                  [attr.aria-label]="'Copy app config path'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'appConfig'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
+            </div>
+            <div class="data-path-row" *ngIf="storageInfo.logsDir">
+              <dt>Logs</dt>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.logsDir">{{ storageInfo.logsDir }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.logsDir, 'logs')"
+                  [attr.aria-label]="'Copy logs directory path'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'logs'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
             </div>
             <div class="data-path-row" *ngIf="storageInfo.markerFile">
-              <dt>Override file</dt>
-              <dd class="mono-path">{{ storageInfo.markerFile }}</dd>
+              <dt>Path file</dt>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.markerFile">{{ storageInfo.markerFile }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.markerFile, 'markerFile')"
+                  [attr.aria-label]="'Copy path to user-data-path.txt'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'markerFile'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </dd>
             </div>
             <div class="data-path-row" *ngIf="storageInfo.env">
               <dt>API_WORKBENCH_USER_DATA</dt>
-              <dd class="mono-path">{{ storageInfo.env }}</dd>
-            </div>
-            <div class="data-path-row" *ngIf="!storageInfo.env && storageInfo.overrideSource">
-              <dt>Override</dt>
-              <dd>
-                <span *ngIf="storageInfo.overrideSource === 'marker'">Set via <code>user-data-path.txt</code> in <code>.api-workbench</code></span>
+              <dd class="data-path-dd">
+                <span class="mono-path" [attr.title]="storageInfo.env">{{ storageInfo.env }}</span>
+                <button type="button" class="path-copy-btn" (click)="copyStoragePath(storageInfo.env, 'env')"
+                  [attr.aria-label]="'Copy environment variable value'"
+                  [class.path-copy-btn--flash]="pathCopyFeedbackKey === 'env'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
               </dd>
             </div>
           </dl>
 
           <div class="data-actions">
-            <button type="button" class="fancy-button" (click)="openUserDataFolder()">Open data folder</button>
-            <button type="button" class="fancy-button" (click)="openConfigMarkerFolder()">Open <code>.api-workbench</code> (override)</button>
-            <button type="button" class="fancy-button" (click)="chooseCustomDataDirectory()">Change data directory…</button>
-            <button type="button" class="fancy-button cancel" (click)="resetDataDirectoryOverride()"
-              [disabled]="!!storageInfo.env">Reset to default</button>
+            <button type="button" class="fancy-button btn-sm" (click)="openUserDataFolder()">Open data folder</button>
+            <button type="button" class="fancy-button btn-sm" (click)="chooseWorkDirectory()" [disabled]="!!storageInfo.env">
+              Change work directory…
+            </button>
+            <button type="button" class="fancy-button cancel btn-sm" (click)="resetWorkDirectoryToDefault()" [disabled]="!!storageInfo.env">
+              Reset to default
+            </button>
           </div>
-          <p class="data-hint" *ngIf="storageInfo.env">Unset the API_WORKBENCH_USER_DATA environment variable to use a file-based override, then restart.</p>
+          <p class="data-hint" *ngIf="storageInfo.env">Unset <code>API_WORKBENCH_USER_DATA</code> to use the path file or default location, then restart.</p>
+          <p class="import-popup import-success data-inline-msg" *ngIf="dataMessage">{{ dataMessage }}</p>
         </div>
 
         <p class="data-hint" *ngIf="!storageInfo && !hasStorageApi">Storage info is only available in the desktop app.</p>
-
-        <p class="import-popup import-success" *ngIf="dataMessage" style="position: static; margin-top: 1rem;">{{ dataMessage }}</p>
       </div>
 
       <div *ngIf="selectedTab==='databases'" formGroupName="databases" class="tab-pane">
-        <h2 class="tab-title">Database Connections</h2>
-        <p class="tab-description">Configure database connection profiles for use in flows and scripts.</p>
+        <div class="databases-section-head">
+          <div>
+            <h2 class="tab-title">Database Connections</h2>
+            <p class="tab-description">Configure database connection profiles for use in flows, scripts, and mock response steps.</p>
+          </div>
+          <button type="button" class="fancy-button btn-sm databases-add-btn" (click)="addDatabaseConnection()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add
+          </button>
+        </div>
 
-        <div formArrayName="connections">
-          <div *ngFor="let conn of databaseConnections.controls; let i = index" [formGroupName]="i" class="database-card card-item">
-            <div class="card-item-header">
-              <div class="form-group no-margin flex-1">
-                <input type="text" formControlName="name" placeholder="Connection Name (e.g. Local Redis)" class="ghost-input" />
+        <div formArrayName="connections" class="database-compact-list">
+          <div *ngIf="databaseConnections.length === 0" class="empty-state-mini database-list-empty">
+            No database connections yet. Click <strong>Add</strong> to create one.
+          </div>
+
+          <div *ngFor="let _c of databaseConnections.controls; let i = index" class="database-compact-item">
+            <div
+              class="database-compact-row"
+              [class.is-open]="expandedDbIndex === i"
+              role="button"
+              tabindex="0"
+              (click)="toggleDbExpand(i)"
+              (keydown.enter)="toggleDbExpand(i)"
+              (keydown.space)="$event.preventDefault(); toggleDbExpand(i)"
+            >
+              <span class="db-type-pill">{{ databaseTypeLabel(databaseConnections.at(i).get('type')?.value) }}</span>
+              <span class="db-row-name" [title]="databaseConnections.at(i).get('name')?.value">
+                {{ databaseConnections.at(i).get('name')?.value || 'Untitled connection' }}
+              </span>
+              <span class="db-row-summary" [title]="databaseConnectionSummary(i)">{{ databaseConnectionSummary(i) }}</span>
+              <div class="db-row-chev" aria-hidden="true" [class.db-row-chev--open]="expandedDbIndex === i">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </div>
-              <div class="card-item-actions">
-                <button type="button" class="btn-icon text-danger" (click)="removeDatabaseConnection(i)" title="Remove connection">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <button
+                type="button"
+                class="btn-icon text-danger db-row-remove"
+                title="Remove connection"
+                (click)="$event.stopPropagation(); removeDatabaseConnection(i)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div *ngIf="expandedDbIndex === i" [formGroupName]="i" class="database-compact-detail card-item">
+              <div class="database-grid database-grid--tight">
+                <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" formControlName="name" placeholder="e.g. Local Redis" />
+                </div>
+                <div class="form-group">
+                  <label>Type</label>
+                  <app-dropdown
+                    [fullWidth]="true"
+                    [options]="databaseTypeOptions"
+                    [value]="databaseConnections.at(i).get('type')?.value"
+                    (valueChange)="onDatabaseTypeChange(i, $event)"
+                    ariaLabel="Database type"
+                    menuMaxWidth="min(100vw - 48px, 22rem)"
+                  />
+                </div>
+                <ng-container *ngIf="databaseConnections.at(i).get('type')?.value !== 'sqlite'">
+                  <div class="form-group">
+                    <label>Host</label>
+                    <input type="text" formControlName="host" placeholder="localhost" />
+                  </div>
+                  <div class="form-group">
+                    <label>Port</label>
+                    <input type="number" formControlName="port" />
+                  </div>
+                </ng-container>
+                <div class="form-group" *ngIf="databaseConnections.at(i).get('type')?.value === 'sqlite'">
+                  <label>File</label>
+                  <input type="text" formControlName="filePath" placeholder="C:\data\app.db" spellcheck="false" />
+                </div>
+              </div>
+
+              <div class="database-grid database-grid--tight" *ngIf="databaseConnections.at(i).get('type')?.value !== 'sqlite'">
+                <div class="form-group">
+                  <label>User</label>
+                  <input type="text" formControlName="user" placeholder="optional" />
+                </div>
+                <div class="form-group">
+                  <label>Password</label>
+                  <input type="password" formControlName="password" placeholder="optional" />
+                </div>
+                <div class="form-group">
+                  <label>DB / index</label>
+                  <input type="text" formControlName="database" placeholder="0 or db name" />
+                </div>
+                <div class="form-group">
+                  <label>Connect ms</label>
+                  <input type="number" formControlName="connectTimeoutMs" min="100" step="100" title="Max time to open network connection" />
+                </div>
+                <div class="form-group">
+                  <label>Query ms</label>
+                  <input type="number" formControlName="commandTimeoutMs" min="0" step="500" placeholder="default" title="Optional cap per query / Redis command" />
+                </div>
+              </div>
+
+              <div class="database-grid database-grid--tight database-timeouts-grid" *ngIf="databaseConnections.at(i).get('type')?.value === 'sqlite'">
+                <div class="form-group">
+                  <label>Busy ms</label>
+                  <input type="number" formControlName="busyTimeoutMs" min="0" step="100" title="SQLite busy_timeout" />
+                </div>
+              </div>
+
+              <div class="db-test-feedback" *ngIf="dbTestFeedback && dbTestFeedback.index === i" [class.db-test-feedback--error]="dbTestFeedback.error" role="status">
+                {{ dbTestFeedback.message }}
+              </div>
+
+              <div class="card-item-footer">
+                <label class="checkbox-label no-margin" *ngIf="databaseConnections.at(i).get('type')?.value !== 'sqlite'">
+                  <input type="checkbox" formControlName="tls" /> Use TLS/SSL
+                </label>
+                <span class="checkbox-label no-margin db-tls-placeholder" *ngIf="databaseConnections.at(i).get('type')?.value === 'sqlite'" aria-hidden="true"></span>
+                <div class="flex-spacer"></div>
+                <span class="db-test-inline" *ngIf="testingDbIndex === i" aria-live="polite">
+                  <span class="db-test-spinner" aria-hidden="true"></span>
+                  <span class="db-test-spinner-label">Testing…</span>
+                </span>
+                <button
+                  type="button"
+                  class="fancy-button btn-sm"
+                  [disabled]="testingDbIndex === i"
+                  (click)="testDatabaseConnection(i)"
+                >
+                  Test connection
                 </button>
               </div>
             </div>
-
-            <div class="database-grid">
-              <div class="form-group">
-                <label>Type</label>
-                <select formControlName="type" class="fancy-select">
-                  <option value="redis">Redis</option>
-                  <option value="postgresql" disabled>PostgreSQL (Coming Soon)</option>
-                  <option value="mysql" disabled>MySQL (Coming Soon)</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Host</label>
-                <input type="text" formControlName="host" placeholder="localhost" />
-              </div>
-              <div class="form-group">
-                <label>Port</label>
-                <input type="number" formControlName="port" placeholder="6379" />
-              </div>
-            </div>
-
-            <div class="database-grid">
-              <div class="form-group">
-                <label>User (Optional)</label>
-                <input type="text" formControlName="user" placeholder="User" />
-              </div>
-              <div class="form-group">
-                <label>Password (Optional)</label>
-                <input type="password" formControlName="password" placeholder="Password" />
-              </div>
-              <div class="form-group">
-                <label>DB Index / Name</label>
-                <input type="text" formControlName="database" placeholder="0" />
-              </div>
-            </div>
-
-            <div class="card-item-footer">
-              <label class="checkbox-label no-margin">
-                <input type="checkbox" formControlName="tls" /> Use TLS/SSL
-              </label>
-              <div class="flex-spacer"></div>
-              <button type="button" class="fancy-button btn-sm" (click)="testDatabaseConnection(i)">Test Connection</button>
-            </div>
           </div>
+        </div>
 
-          <div *ngIf="databaseConnections.length === 0" class="empty-state-mini">
-            No database connections configured.
+        <div class="databases-inline-actions" *ngIf="isDatabasesDirty()">
+          <p class="databases-inline-actions__hint">You have unsaved connection changes.</p>
+          <div class="databases-inline-actions__buttons">
+            <button type="button" class="fancy-button cancel btn-sm" (click)="onCancelDatabaseSection()">Cancel</button>
+            <button type="button" class="fancy-button btn-sm" (click)="onSaveDatabaseSection()" [disabled]="saveInProgress">
+              {{ saveInProgress ? 'Saving…' : 'Save' }}
+            </button>
           </div>
-
-          <button type="button" class="ghost-button add-btn" (click)="addDatabaseConnection()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Add Connection
-          </button>
         </div>
       </div>
 
@@ -668,6 +845,7 @@
         </section>
       </div>
 
+    </div>
     </div>
 
     <div *ngIf="isLoading" class="settings-loading-overlay">

@@ -5,6 +5,7 @@
       <p class="boot-error-title">Could not load workspace</p>
       <p class="boot-error-detail">{{ initError }}</p>
       <button type="button" class="boot-retry" (click)="retryInit()">Retry</button>
+      <app-bug-report-hint class="boot-bug-hint" [prominent]="true" [errorSummary]="initError" />
     </div>
   } @else if (!isReady) {
     <div class="boot-shell boot-loading" aria-busy="true" aria-live="polite">

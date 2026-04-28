@@ -1,5 +1,5 @@
-<div class="environment-panel">
-  <div class="panel-toolbar">
+<div class="environment-panel" (click)="closeContextMenu()">
+  <div class="panel-toolbar" (click)="$event.stopPropagation()">
     <div class="input-group">
       <input type="text" placeholder="New environment name…" [value]="newEnvTitle"
              (input)="onNewEnvInput($event)" (keyup.enter)="addEnvironment()" />
@@ -16,8 +16,9 @@
   <ul class="env-list" *ngIf="environments.length > 0; else empty">
     <li *ngFor="let env of environments; let i = index; trackBy: trackById"
         [class.active]="env === selectedEnv" [class.drag-over]="isDragOver(i)"
-        (click)="selectEnvironment(env)" draggable="true" (dragstart)="onDragStart(i)"
-        (dragover)="onDragOver($event, i)" (drop)="onDrop()">
+        (click)="selectEnvironment(env); $event.stopPropagation()" draggable="true" (dragstart)="onDragStart(i)"
+        (dragover)="onDragOver($event, i)" (drop)="onDrop()"
+        (contextmenu)="openContextMenu($event, env)">
 
       <span class="env-icon" aria-hidden="true">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -28,12 +29,19 @@
         </svg>
       </span>
 
-      <span class="env-name">{{ env.title }}</span>
+      <input *ngIf="editingEnvironmentId === env.id" id="environment-{{ env.id }}" type="text" class="env-name-input"
+        #envTitleInput [value]="env.title"
+        (blur)="finishRenameEnvironment(env, envTitleInput.value)"
+        (keydown.enter)="finishRenameEnvironment(env, envTitleInput.value)"
+        (keydown.escape)="cancelRenameEnvironment(); $event.stopPropagation()"
+        (click)="$event.stopPropagation()" />
+      <span *ngIf="editingEnvironmentId !== env.id" class="env-name"
+        (dblclick)="$event.stopPropagation(); startRenameEnvironment(env.id)">{{ env.title }}</span>
 
       <span class="env-meta" *ngIf="env.variables?.length">{{ env.variables.length }}</span>
 
       <button class="delete" (click)="deleteEnvironment(i); $event.stopPropagation()" title="Delete environment"
-              aria-label="Delete environment">
+              aria-label="Delete environment" (contextmenu)="$event.stopPropagation()">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
@@ -57,4 +65,16 @@
       <span>Create one above to start defining variables.</span>
     </div>
   </ng-template>
+</div>
+
+<div class="context-menu-overlay" *ngIf="contextMenuVisible" (click)="closeContextMenu()"
+     (contextmenu)="closeContextMenu(); $event.preventDefault()">
+  <div class="context-menu" [style.left.px]="menuX" [style.top.px]="menuY" (click)="$event.stopPropagation()">
+    <div class="menu-item" *ngIf="contextMenuEnv" (click)="startRenameEnvironment(contextMenuEnv.id)">
+      Rename
+    </div>
+    <div class="menu-item danger" *ngIf="contextMenuEnv" (click)="deleteEnvironmentFromContext()">
+      Delete "{{ contextMenuEnv.title }}"
+    </div>
+  </div>
 </div>

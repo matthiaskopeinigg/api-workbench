@@ -1,0 +1,136 @@
+<div class="planner-overlay" (click)="cancel.emit()">
+  <div class="planner-modal" (click)="$event.stopPropagation()">
+    
+    <header class="planner-header">
+      <div class="title-area">
+        <h2>Plan New Release</h2>
+        <p>Step {{ step() }} of 3: {{ step() === 1 ? 'Details' : step() === 2 ? 'Selection' : 'Settings' }}</p>
+      </div>
+      <div class="stepper">
+        <div class="step-dot" [class.active]="step() >= 1" [class.done]="step() > 1">1</div>
+        <div class="step-line" [class.active]="step() > 1"></div>
+        <div class="step-dot" [class.active]="step() >= 2" [class.done]="step() > 2">2</div>
+        <div class="step-line" [class.active]="step() > 2"></div>
+        <div class="step-dot" [class.active]="step() >= 3">3</div>
+      </div>
+    </header>
+
+    <div class="planner-content">
+      <!-- Step 1: Details -->
+      @if (step() === 1) {
+        <div class="step-details animate-fade">
+          <div class="form-group">
+            <label>Release Version</label>
+            <input type="text" [(ngModel)]="versionTag" placeholder="e.g. v2.1.0-stable" class="planner-input" autofocus>
+            <span class="hint">Use semantic versioning for best results.</span>
+          </div>
+          <div class="form-group">
+            <label>Release Description</label>
+            <textarea [(ngModel)]="description" placeholder="What's included in this release cycle?" class="planner-input"></textarea>
+          </div>
+        </div>
+      }
+
+      <!-- Step 2: Selection -->
+      @if (step() === 2) {
+        <div class="step-selection animate-fade">
+          <div class="selection-summary">
+            <span>{{ totalSelected() }} flows selected for this release</span>
+          </div>
+          <div class="selection-tree">
+            @for (p of projects; track p.id) {
+              <div class="project-node">
+                <div class="node-row project-row">
+                  <input type="checkbox" 
+                         [checked]="isFolderSelected(p.flows)" 
+                         [indeterminate]="isFolderIndeterminate(p.flows)"
+                         (change)="toggleFolder(p.flows, $any($event.target).checked)">
+                  <span class="icon">📁</span>
+                  <span class="label">{{ p.name }}</span>
+                </div>
+                
+                <div class="node-children">
+                  <ng-container *ngTemplateOutlet="itemTree; context: { items: p.flows }"></ng-container>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Step 3: Settings -->
+      @if (step() === 3) {
+        <div class="step-settings animate-fade">
+          <div class="settings-grid">
+            <label class="setting-card" [class.active]="settings().headless">
+              <input type="checkbox" [(ngModel)]="settings().headless">
+              <div class="setting-info">
+                <span class="setting-title">Headless Execution</span>
+                <span class="setting-desc">Run E2E tests in the background (faster)</span>
+              </div>
+              <div class="setting-toggle"></div>
+            </label>
+
+            <label class="setting-card" [class.active]="settings().stopOnFailure">
+              <input type="checkbox" [(ngModel)]="settings().stopOnFailure">
+              <div class="setting-info">
+                <span class="setting-title">Fail-Fast</span>
+                <span class="setting-desc">Stop the entire release if a critical flow fails</span>
+              </div>
+              <div class="setting-toggle"></div>
+            </label>
+
+            <label class="setting-card" [class.active]="settings().parallel">
+              <input type="checkbox" [(ngModel)]="settings().parallel">
+              <div class="setting-info">
+                <span class="setting-title">Parallel Testing</span>
+                <span class="setting-desc">Run multiple flows simultaneously (Experimental)</span>
+              </div>
+              <div class="setting-toggle"></div>
+            </label>
+          </div>
+        </div>
+      }
+    </div>
+
+    <footer class="planner-footer">
+      <button class="btn-ghost" (click)="cancel.emit()">Cancel</button>
+      <div class="footer-actions">
+        @if (step() > 1) {
+          <button class="btn-secondary" (click)='prevStep()'>Back</button>
+        }
+        @if (step() < 3) {
+          <button class="btn-primary" [disabled]="step() === 1 && !versionTag()" (click)='nextStep()'>Next Step</button>
+        } @else {
+          <button class="btn-primary" [disabled]="totalSelected() === 0" (click)="finish()">Plan Release</button>
+        }
+      </div>
+    </footer>
+  </div>
+</div>
+
+<ng-template #itemTree let-items="items">
+  @for (item of items; track item.id) {
+    @if (item.type === 'flow') {
+      <div class="node-row flow-row" (click)="toggleFlow(item.flow.id)">
+        <input type="checkbox" [checked]="selectedFlowIds().has(item.flow.id)" (click)="$event.stopPropagation()" (change)="toggleFlow(item.flow.id)">
+        <span class="icon">⚡️</span>
+        <span class="label">{{ item.flow.name }}</span>
+      </div>
+    } @else {
+      <div class="folder-node">
+        <div class="node-row folder-row">
+          <input type="checkbox" 
+                 [checked]="isFolderSelected(item.children)" 
+                 [indeterminate]="isFolderIndeterminate(item.children)"
+                 (change)="toggleFolder(item.children, $any($event.target).checked)">
+          <span class="icon">📂</span>
+          <span class="label">{{ item.name }}</span>
+        </div>
+        <div class="node-children">
+          <ng-container *ngTemplateOutlet="itemTree; context: { items: item.children }"></ng-container>
+        </div>
+      </div>
+    }
+  }
+</ng-template>

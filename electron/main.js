@@ -7,19 +7,27 @@ applyUserDataOverride();
 applyRendererCachePath();
 
 const { registerIpcHandlers } = require('./ipc');
-const { initStores, getSession, setSession } = require('./services/store.service');
+const { initStores, getSettings, getSession, setSession } = require('./services/store.service');
+const { readMockServerOptions, writeMockServerOptions } = require('./services/app-config-mock.service');
+const { reconfigure: reconfigureLogger } = require('./services/logger.service');
 const httpService = require('./services/http.service');
 const scriptService = require('./services/script.service');
 const mockService = require('./services/mock.service');
 const { createWindow, getMainWindow } = require('./services/window.service');
 const updaterService = require('./services/updater.service');
 const { logInfo, logError } = require('./services/logger.service');
+require('./services/e2e.service');
 
 const MOCK_OPTIONS_SESSION_KEY = 'mockServerOptions';
 const MOCK_STANDALONE_SESSION_KEY = 'mockServerStandalone';
 
 function rehydrateMockOptions() {
   try {
+    const fromFile = readMockServerOptions();
+    if (fromFile && typeof fromFile === 'object') {
+      mockService.setOptions(fromFile);
+      return;
+    }
     const persisted = getSession(MOCK_OPTIONS_SESSION_KEY);
     if (persisted && typeof persisted === 'object') {
       mockService.setOptions(persisted);
@@ -34,6 +42,7 @@ function persistMockOptionsOnChange() {
   mockService.setOptions = (partial) => {
     const next = original(partial);
     try { setSession(MOCK_OPTIONS_SESSION_KEY, next); } catch {  }
+    try { writeMockServerOptions(next); } catch {  }
     return next;
   };
 }
@@ -82,6 +91,11 @@ if (typeof crashReporter?.setUploadToServer === 'function') {
 app.whenReady().then(async () => {
   try {
     await initStores();
+    try {
+      reconfigureLogger(getSettings()?.logging);
+    } catch (e) {
+      logError('Logger init from settings failed', e);
+    }
     await httpService.init();
     scriptService.init({ httpRequest: httpService.handleHttpRequest });
     rehydrateMockOptions();

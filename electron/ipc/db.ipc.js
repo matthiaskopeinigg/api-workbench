@@ -16,6 +16,15 @@ function registerDbIpcHandlers() {
     }
   });
 
+  ipcMain.handle('db:test-connection', async (_event, connection) => {
+    try {
+      return await dbService.testConnection(connection);
+    } catch (err) {
+      logError('IPC db:test-connection failed', err);
+      throw err;
+    }
+  });
+
   // Close connections on app quit (handled in main.js usually, but we can hook here if needed)
 }
 

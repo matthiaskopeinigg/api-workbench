@@ -15,7 +15,7 @@ import { SidebarItem } from './sidebar-item';
 import { EnvironmentComponent } from './environment/environment.component';
 import { CollectionComponent } from './collection/collection.component';
 import { HistoryComponent } from './history/history.component';
-import { TestsComponent } from './tests/tests.component';
+import { TestingSidebarComponent } from './testing-sidebar/testing-sidebar.component';
 import { Subject, takeUntil } from 'rxjs';
 import { CollectionService } from '@core/collection/collection.service';
 import { SessionService } from '@core/session/session.service';
@@ -48,9 +48,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       component: EnvironmentComponent,
     },
     {
-      label: 'Tests',
+      label: 'Testing',
       icon: 'M9 3h6v2h-1v3.586l4.707 7.243A2 2 0 0 1 16.984 19H7.016a2 2 0 0 1-1.723-3.171L10 8.586V5H9V3z',
-      component: TestsComponent,
+      component: TestingSidebarComponent,
     },
     {
       label: 'Mock Server',

@@ -1,6 +1,8 @@
 @use 'styles/tokens' as *;
 @use 'styles/base' as *;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
+
 @mixin theme($bg, $surface, $text, $primary, $secondary, $accent, $border) {
   --bg-color: #{$bg};
   --surface: #{$surface};
@@ -14,6 +16,21 @@
 :root {
   --fixed-text-color: #000000;
   color-scheme: light dark;
+
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(12px);
+
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --success-gradient: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+  --error-gradient: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%);
+
+  --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 .theme-dark,
@@ -29,127 +46,51 @@
 }
 
 .theme-light {
-  @include theme(#fafafa,
-    #ffffff,
-    #111111,
-    #0066ff,
-    #868e96,
-    #17c1ff,
-    #d1d5db);
+  @include theme(#fafafa, #ffffff, #111111, #0066ff, #868e96, #17c1ff, #d1d5db);
 }
 
 .theme-dark {
-  @include theme(#121212,
-    #1e1e1e,
-    #e0e0e0,
-    #bb86fc,
-    #03dac6,
-    #ff4081,
-    #2c2c2c);
+  @include theme(#121212, #1e1e1e, #e0e0e0, #bb86fc, #03dac6, #ff4081, #2c2c2c);
 }
 
 .theme-high-contrast-dark {
-  @include theme(#000000,
-    #1a1a1a,
-    #ffffff,
-    #ffff00,
-    #00ff00,
-    #ff00ff,
-    #555555);
+  @include theme(#000000, #1a1a1a, #ffffff, #ffff00, #00ff00, #ff00ff, #555555);
 }
 
 .theme-high-contrast-darklight {
-  @include theme(#1a1a1a,
-    #2a2a2a,
-    #ffffff,
-    #ffcc00,
-    #00ffcc,
-    #ff00cc,
-    #666666);
+  @include theme(#1a1a1a, #2a2a2a, #ffffff, #ffcc00, #00ffcc, #ff00cc, #666666);
 }
 
 .theme-ayu-light {
-  @include theme(#f0f0f0,
-    #ffffff,
-    #3b4252,
-    #f07178,
-    #ffb454,
-    #57c7ff,
-    #d0d4d8);
+  @include theme(#f0f0f0, #ffffff, #3b4252, #f07178, #ffb454, #57c7ff, #d0d4d8);
 }
 
 .theme-ayu-dark {
-  @include theme(#0b0e14,
-    #1a1c24,
-    #dcdfe4,
-    #f07178,
-    #ffb454,
-    #57c7ff,
-    #222831);
+  @include theme(#0b0e14, #1a1c24, #dcdfe4, #f07178, #ffb454, #57c7ff, #222831);
 }
 
 .theme-dracula {
-  @include theme(#282a36,
-    #373844,
-    #f8f8f2,
-    #ff79c6,
-    #bd93f9,
-    #8be9fd,
-    #6272a4);
+  @include theme(#282a36, #373844, #f8f8f2, #ff79c6, #bd93f9, #8be9fd, #6272a4);
 }
 
 .theme-monokai {
-  @include theme(#272822,
-    #3e3d32,
-    #f8f8f2,
-    #f92672,
-    #fd971f,
-    #a6e22e,
-    #49483e);
+  @include theme(#272822, #3e3d32, #f8f8f2, #f92672, #fd971f, #a6e22e, #49483e);
 }
 
 .theme-night-owl-light {
-  @include theme(#fdf6ff, 
-    #ffffff, 
-    #5c6773, 
-    #8250df, 
-    #36b7b7, 
-    #ef6155, 
-    #dcdde1 
-  );
+  @include theme(#fdf6ff, #ffffff, #5c6773, #8250df, #36b7b7, #ef6155, #dcdde1);
 }
 
 .theme-night-owl-dark {
-  @include theme(#000C1D, 
-    #001122, 
-    #8BADC1, 
-    #82aaff, 
-    #c792ea, 
-    #ffcb6b, 
-    #102a44 
-  );
+  @include theme(#000C1D, #001122, #8BADC1, #82aaff, #c792ea, #ffcb6b, #102a44);
 }
 
 .theme-solarized-light {
-  @include theme(#fdf6e3, 
-    #eee8d5, 
-    #657b83, 
-    #b58900, 
-    #2aa198, 
-    #cb4b16, 
-    #93a1a1 
-  );
+  @include theme(#fdf6e3, #eee8d5, #657b83, #b58900, #2aa198, #cb4b16, #93a1a1);
 }
 
 .theme-solarized-dark {
-  @include theme(#002b36, 
-    #073642, 
-    #839496, 
-    #268bd2, 
-    #2aa198, 
-    #cb4b16, 
-    #586e75 
-  );
+  @include theme(#002b36, #073642, #839496, #268bd2, #2aa198, #cb4b16, #586e75);
 }
 
 :root {
@@ -171,7 +112,7 @@ html {
 body {
   background-color: var(--bg-color);
   color: var(--text-color);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -181,6 +122,12 @@ body {
   overflow: hidden;
   box-sizing: border-box;
   transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 app-root {
@@ -272,58 +219,23 @@ a:hover {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(15px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.flex {
-  display: flex;
-}
-
-.flex-col {
-  flex-direction: column;
-}
-
-.items-center {
-  align-items: center;
-}
-
-.justify-between {
-  justify-content: space-between;
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-.gap-4 {
-  gap: 1rem;
-}
-
-.w-full {
-  width: 100%;
-}
-
-.h-full {
-  height: 100%;
-}
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 0.5rem; }
+.gap-4 { gap: 1rem; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
 
 .drag-ghost {
   position: absolute;

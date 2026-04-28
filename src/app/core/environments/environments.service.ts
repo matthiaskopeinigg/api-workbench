@@ -16,6 +16,7 @@ export class EnvironmentsService {
   private selectedEnvSubject = new BehaviorSubject<TabItem | null>(null);
   private activeContextSubject = new BehaviorSubject<Environment | null>(null);
   private environmentDeletedSubject = new Subject<string>();
+  private environmentTitleUpdatedSubject = new Subject<{ id: string; title: string }>();
 
   constructor(private sessionService: SessionService) { }
 
@@ -59,6 +60,15 @@ export class EnvironmentsService {
 
   getEnvironmentDeletedObservable() {
     return this.environmentDeletedSubject.asObservable();
+  }
+
+  getEnvironmentTitleUpdatedObservable() {
+    return this.environmentTitleUpdatedSubject.asObservable();
+  }
+
+  /** Keeps workspace tab titles in sync when an environment is renamed outside the tab strip. */
+  emitEnvironmentTitleUpdated(id: string, title: string): void {
+    this.environmentTitleUpdatedSubject.next({ id, title });
   }
 
   async loadEnvironments(): Promise<void> {

@@ -1,15 +1,15 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject } from 'rxjs';
-import { MockServerComponent } from './mock-server.component';
+import { MockComponent } from './mock-server.component';
 import { CollectionService } from '@core/collection/collection.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
 import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { TabType, MOCK_SERVER_TAB_ID } from '@core/tabs/tab.service';
 import type { MockServerStatus, MockServerOptions, StandaloneMockEndpoint, MockHit } from '@models/electron';
 
-describe('MockServerComponent', () => {
-  let fixture: ComponentFixture<MockServerComponent>;
-  let component: MockServerComponent;
+describe('MockComponent', () => {
+  let fixture: ComponentFixture<MockComponent>;
+  let component: MockComponent;
 
   let collections$: BehaviorSubject<any[]>;
   let status$: BehaviorSubject<MockServerStatus>;
@@ -74,7 +74,7 @@ describe('MockServerComponent', () => {
     confirmDialogSpy.alert.and.resolveTo();
 
     await TestBed.configureTestingModule({
-      imports: [MockServerComponent],
+      imports: [MockComponent],
       providers: [
         { provide: CollectionService,  useValue: collectionsSpy },
         { provide: MockServerService,  useValue: mockSpy },
@@ -82,7 +82,7 @@ describe('MockServerComponent', () => {
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(MockServerComponent);
+    fixture = TestBed.createComponent(MockComponent);
     component = fixture.componentInstance;
     component.tab = { id: MOCK_SERVER_TAB_ID, title: 'Mock', type: TabType.MOCK_SERVER };
     fixture.detectChanges();
@@ -157,23 +157,6 @@ describe('MockServerComponent', () => {
     expect(mockSpy.restart).toHaveBeenCalled();
   });
 
-  it('setBindAddress to 0.0.0.0 requires a confirmation', async () => {
-    confirmDialogSpy.confirm.and.resolveTo(false);
-    await component.setBindAddress('0.0.0.0');
-    expect(mockSpy.setOptions).not.toHaveBeenCalled();
-
-    confirmDialogSpy.confirm.and.resolveTo(true);
-    await component.setBindAddress('0.0.0.0');
-    expect(mockSpy.setOptions).toHaveBeenCalledWith({ bindAddress: '0.0.0.0' });
-  });
-
-  it('setBindAddress to loopback needs no confirm', async () => {
-    confirmDialogSpy.confirm.calls.reset();
-    await component.setBindAddress('127.0.0.1');
-    expect(confirmDialogSpy.confirm).not.toHaveBeenCalled();
-    expect(mockSpy.setOptions).toHaveBeenCalledWith({ bindAddress: '127.0.0.1' });
-  });
-
   it('addStandalone picks a unique path, registers it, and selects the result', async () => {
     mockSpy.registerStandalone.and.resolveTo({
       id: 'sa-1',
@@ -189,15 +172,6 @@ describe('MockServerComponent', () => {
       jasmine.objectContaining({ name: '', method: 'GET', path: '/mock/new' }),
     );
     expect(component.selectedStandaloneId).toBe('sa-1');
-  });
-
-  it('standalonePrimaryLabel uses name or falls back to path', () => {
-    expect(
-      component.standalonePrimaryLabel({ name: '  Health  ', path: '/api/x', id: '1' } as StandaloneMockEndpoint),
-    ).toBe('Health');
-    expect(
-      component.standalonePrimaryLabel({ name: '', path: '/api/x', id: '1' } as StandaloneMockEndpoint),
-    ).toBe('/api/x');
   });
 
   it('removeStandalone only calls through when the user confirms', async () => {
@@ -283,12 +257,6 @@ describe('MockServerComponent', () => {
     confirmDialogSpy.confirm.and.resolveTo(true);
     await component.resetAllVariants();
     expect(mockSpy.clearAll).toHaveBeenCalled();
-  });
-
-  it('toggleAdvanced flips the showAdvanced flag', () => {
-    expect(component.showAdvanced).toBeFalse();
-    component.toggleAdvanced();
-    expect(component.showAdvanced).toBeTrue();
   });
 
   it('defaults to activity hidden when session is empty', () => {

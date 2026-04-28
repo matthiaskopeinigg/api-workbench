@@ -205,6 +205,7 @@ export class MockServerService {
             body: v.body || '',
             delayMs: v.delayMs || 0,
             matchOn: v.matchOn,
+            responseSteps: v.responseSteps,
           })),
           activeVariantId: request.activeMockVariantId,
           activeVariantIds: request.activeMockVariantIds,

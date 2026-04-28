@@ -1,6 +1,9 @@
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs/promises');
 const { logInfo, logError } = require('./logger.service');
+const scriptService = require('./script.service');
+const dbService = require('./db.service');
 
 /**
  * Lightweight local mock server. Variants are registered by request id and
@@ -407,13 +410,35 @@ function getJsonPath(obj, rawPath) {
 
 /**
  * Replace `{{header.Name}}`, `{{headerJson.Name}}`, `{{body}}`, `{{bodyJson}}`,
- * `{{bodyJson.path.to.field}}` using the incoming request. `headerJson` /
+ * `{{bodyJson.path.to.field}}` and `$uuid` using the incoming request. `headerJson` /
  * dotted `bodyJson` use JSON.stringify so you can embed them inside JSON
  * bodies without manual escaping.
  * Order matters: `{{bodyJson.x}}` before `{{bodyJson}}`, then `{{body}}`, etc.
  */
-function expandMockResponseTemplates(str, req, capturedReqBody) {
-  if (typeof str !== 'string' || str.indexOf('{{') === -1) return str;
+/**
+ * @param {Record<string, unknown>} [cache] Values from response pipeline (DB + script steps), e.g. `{{cache.name}}`
+ */
+function expandCacheTemplates(str, cache) {
+  if (typeof str !== 'string' || str.indexOf('{{cache.') === -1) return str;
+  const c = cache || {};
+  return str.replace(/\{\{cache\.([^}]+)\}\}/g, (_, rawPath) => {
+    const v = getJsonPath(c, rawPath);
+    if (v === undefined) return '';
+    if (v === null) return 'null';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  });
+}
+
+function expandDynamicMockPlaceholders(str) {
+  if (typeof str !== 'string' || str.indexOf('$') === -1) return str;
+  // Postman-style dynamic placeholder support for generated ids.
+  return str.replace(/\$uuid\b/g, () => crypto.randomUUID());
+}
+
+function expandMockResponseTemplates(str, req, capturedReqBody, cache) {
+  if (typeof str !== 'string') return str;
+  if (str.indexOf('{{') === -1 && str.indexOf('$uuid') === -1) return str;
   const bodyStr = capturedReqBody == null ? '' : String(capturedReqBody);
   let out = str;
   out = out.replace(/\{\{bodyJson\.([^}]+)\}\}/g, (_, rawPath) => {
@@ -425,6 +450,8 @@ function expandMockResponseTemplates(str, req, capturedReqBody) {
   out = out.replace(/\{\{body\}\}/g, () => bodyStr);
   out = out.replace(/\{\{headerJson\.([^}]+)\}\}/g, (_, rawName) => JSON.stringify(getHeaderInsensitive(req.headers, rawName)));
   out = out.replace(/\{\{header\.([^}]+)\}\}/g, (_, rawName) => getHeaderInsensitive(req.headers, rawName));
+  out = expandCacheTemplates(out, cache);
+  out = expandDynamicMockPlaceholders(out);
   return out;
 }
 
@@ -442,13 +469,13 @@ function applyCorsHeaders(req, headers) {
   }
 }
 
-function buildResponseHeaders(req, variant, capturedReqBody) {
+function buildResponseHeaders(req, variant, capturedReqBody, cache) {
   const headers = {};
   if (Array.isArray(variant && variant.headers)) {
     for (const h of variant.headers) {
       if (!h || !h.key) continue;
       const rawVal = String(h.value ?? '');
-      headers[String(h.key)] = expandMockResponseTemplates(rawVal, req, capturedReqBody);
+      headers[String(h.key)] = expandMockResponseTemplates(rawVal, req, capturedReqBody, cache);
     }
   }
   if (!Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
@@ -458,13 +485,112 @@ function buildResponseHeaders(req, variant, capturedReqBody) {
   return headers;
 }
 
-function writeResponse(req, res, variant, ctx) {
+/**
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function runResponseSteps(req, variant, capturedReqBody) {
+  /** @type {Record<string, unknown>} */
+  const cache = {};
+  const steps = Array.isArray(variant.responseSteps) ? variant.responseSteps : [];
+  const headerPairs = () => Object.entries(req.headers || {}).map(([k, v]) => [
+    k,
+    Array.isArray(v) ? v.join(', ') : String(v ?? ''),
+  ]);
+  for (const step of steps) {
+    if (!step || !step.kind) continue;
+    if (step.kind === 'db') {
+      const id = String(step.connectionId || '').trim();
+      const cmd = String(step.command || '').trim();
+      if (!id || !cmd) continue;
+      const conn = dbService.getConnectionByIdFromSettings(id);
+      if (!conn) {
+        throw new Error(`Unknown database connection: ${id}`);
+      }
+      const result = await dbService.query(conn, cmd);
+      const assignTo = String(step.assignTo || '').trim();
+      if (assignTo) {
+        cache[assignTo] = result;
+      }
+    } else if (step.kind === 'script') {
+      const code = String(step.script || '');
+      if (!code.trim()) continue;
+      const scriptCtx = {
+        request: {
+          method: String(req.method || 'GET'),
+          url: String(req.url || '/'),
+          headers: headerPairs(),
+          body: capturedReqBody,
+        },
+        environment: {},
+        globals: {},
+        variables: {},
+        session: {},
+        mockCache: cache,
+      };
+      await scriptService.executeScript(code, scriptCtx);
+    }
+  }
+  return cache;
+}
+
+async function writeResponse(req, res, variant, ctx) {
   const status = Number(variant && variant.statusCode) || 200;
   const statusText = variant && variant.statusText ? String(variant.statusText) : undefined;
   const capturedReqBody = ctx && ctx.capturedReqBody != null ? ctx.capturedReqBody : '';
-  const headers = buildResponseHeaders(req, variant, capturedReqBody);
+  let cache = ctx && ctx.cache ? ctx.cache : {};
+  if (Array.isArray(variant.responseSteps) && variant.responseSteps.length > 0) {
+    try {
+      cache = await runResponseSteps(req, variant, capturedReqBody);
+    } catch (err) {
+      logError('Mock response steps failed', err);
+      const headers = { 'Content-Type': 'application/json; charset=utf-8' };
+      applyCorsHeaders(req, headers);
+      const errBody = JSON.stringify({
+        error: 'Mock response steps failed',
+        message: err && err.message ? String(err.message) : String(err),
+      });
+      res.writeHead(500, headers);
+      res.end(errBody);
+      recordHit({
+        req,
+        res: { status: 500, headers, body: errBody },
+        matchedRequestId: ctx.matchedRequestId,
+        matchedVariant: variant,
+        matchedKind: ctx.matchedKind,
+        startedAt: ctx.startedAt,
+        capturedReqBody: ctx.capturedReqBody,
+      });
+      return;
+    }
+  }
+  const headers = buildResponseHeaders(req, variant, capturedReqBody, cache);
   const rawBody = typeof (variant && variant.body) === 'string' ? variant.body : '';
-  const body = expandMockResponseTemplates(rawBody, req, capturedReqBody);
+  const contentTypeHeader = Object.entries(headers).find(([k]) => String(k).toLowerCase() === 'content-type');
+  const contentType = String(contentTypeHeader?.[1] || '').toLowerCase();
+  const isBinary = contentType.includes('application/octet-stream');
+  let body = expandMockResponseTemplates(rawBody, req, capturedReqBody, cache);
+  if (isBinary) {
+    try {
+      body = await fs.readFile(String(rawBody || '').trim());
+    } catch (err) {
+      const message = err && err.message ? String(err.message) : String(err);
+      const errBody = JSON.stringify({ error: 'Binary response file not found', message, path: rawBody || '' });
+      const errHeaders = { 'Content-Type': 'application/json; charset=utf-8' };
+      applyCorsHeaders(req, errHeaders);
+      res.writeHead(500, errHeaders);
+      res.end(errBody);
+      recordHit({
+        req,
+        res: { status: 500, headers: errHeaders, body: errBody },
+        matchedRequestId: ctx.matchedRequestId,
+        matchedVariant: variant,
+        matchedKind: ctx.matchedKind,
+        startedAt: ctx.startedAt,
+        capturedReqBody: ctx.capturedReqBody,
+      });
+      return;
+    }
+  }
   if (statusText) res.statusMessage = statusText;
   res.writeHead(status, headers);
   res.end(body);
@@ -560,13 +686,16 @@ async function handleRequest(req, res) {
     const variant = pickVariant(standaloneEntry, null, req, pathNoQuery, req.url || '/', capturedReqBody);
     if (variant) {
       const delay = Math.max(0, Math.min(Number(variant.delayMs) || options.defaultDelayMs || 0, 30000));
-      const send = () => writeResponse(req, res, variant, {
-        matchedRequestId: standaloneEntry.id,
-        matchedKind: 'standalone',
-        startedAt,
-        capturedReqBody,
-      });
-      if (delay > 0) setTimeout(send, delay); else send();
+      const send = async () => {
+        await writeResponse(req, res, variant, {
+          matchedRequestId: standaloneEntry.id,
+          matchedKind: 'standalone',
+          startedAt,
+          capturedReqBody,
+        });
+      };
+      if (delay > 0) setTimeout(() => { void send(); }, delay);
+      else void send();
       return;
     }
   }
@@ -609,13 +738,16 @@ async function handleRequest(req, res) {
     return;
   }
   const delay = Math.max(0, Math.min(Number(variant.delayMs) || options.defaultDelayMs || 0, 30000));
-  const send = () => writeResponse(req, res, variant, {
-    matchedRequestId: parsed.requestId,
-    matchedKind: 'request',
-    startedAt,
-    capturedReqBody,
-  });
-  if (delay > 0) setTimeout(send, delay); else send();
+  const send = async () => {
+    await writeResponse(req, res, variant, {
+      matchedRequestId: parsed.requestId,
+      matchedKind: 'request',
+      startedAt,
+      capturedReqBody,
+    });
+  };
+  if (delay > 0) setTimeout(() => { void send(); }, delay);
+  else void send();
 }
 
 function start(portOverride) {
@@ -733,6 +865,7 @@ function registerVariants(requestId, variants, activeVariantId, activeVariantIds
       body: typeof v.body === 'string' ? v.body : '',
       delayMs: Number(v.delayMs) || 0,
       matchOn: v.matchOn,
+      responseSteps: Array.isArray(v.responseSteps) ? v.responseSteps : [],
     })),
     activeVariantId: activeVariantId || null,
     activeVariantIds: normalizedIds,
@@ -776,6 +909,7 @@ function registerStandalone(endpoint) {
       body: typeof v.body === 'string' ? v.body : '',
       delayMs: Number(v.delayMs) || 0,
       matchOn: v.matchOn,
+      responseSteps: Array.isArray(v.responseSteps) ? v.responseSteps : [],
     })),
     activeVariantId: endpoint.activeVariantId || null,
     activeVariantIds: Array.isArray(endpoint.activeVariantIds) ? endpoint.activeVariantIds.map(String) : null,

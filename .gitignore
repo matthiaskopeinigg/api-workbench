@@ -49,7 +49,10 @@ __screenshots__/
 /full-test-output.txt
 
 # Electron logs & local storage
-/logs/
+/logs/*
+!/logs/README.md
+/app-config/*
+!/app-config/README.md
 /configs/
 /release/
 

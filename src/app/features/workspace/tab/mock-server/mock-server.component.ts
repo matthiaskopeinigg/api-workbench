@@ -28,6 +28,7 @@ import {
   syncLegacyPrimaryMockVariantId,
   toggleVariantServed,
 } from '@models/request';
+import { SettingsService } from '@core/settings/settings.service';
 import type {
   MockHit,
   MockServerOptions,
@@ -36,6 +37,11 @@ import type {
 } from '@models/electron';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  CodeEditorComponent,
+  type EditorLanguage,
+  type ScriptCompletionItem,
+} from '../../shared/code-editor/code-editor.component';
 import { DropdownComponent, type DropdownOption } from '../../shared/dropdown/dropdown.component';
 import { formatTimestampForUi } from '../../shared/utils/timestamp.util';
 import { MockVariantMatchSectionComponent } from '../../shared/mock-variant-match-section/mock-variant-match-section.component';
@@ -44,9 +50,10 @@ import { MockVariantMatchSectionComponent } from '../../shared/mock-variant-matc
 interface MockServerSessionSnapshot {
   v: 1;
   activityVisible: boolean;
-  showAdvanced: boolean;
   expandedHitId: string | null;
   headersOpen: string[];
+  /** Variant ids whose matchers / response / body editor is expanded (compact list when omitted). */
+  variantDetailsOpen?: string[];
   selectionKind: MockSelectionKind;
   selectedRequestId: string | null;
   selectedStandaloneId: string | null;
@@ -65,14 +72,27 @@ const STANDALONE_METHODS: ReadonlyArray<string> = [
  * from the Content-Type and re-write that header when the user picks a
  * different one.
  */
-type BodyType = 'json' | 'xml' | 'html' | 'text' | 'form' | 'none' | 'custom';
+type BodyType =
+  | 'json'
+  | 'xml'
+  | 'html'
+  | 'text'
+  | 'graphql'
+  | 'formdata'
+  | 'urlencoded'
+  | 'binary'
+  | 'none'
+  | 'custom';
 
 const BODY_TYPE_HEADERS: Record<Exclude<BodyType, 'none' | 'custom'>, string> = {
   json: 'application/json; charset=utf-8',
   xml: 'application/xml; charset=utf-8',
   html: 'text/html; charset=utf-8',
   text: 'text/plain; charset=utf-8',
-  form: 'application/x-www-form-urlencoded',
+  graphql: 'application/graphql; charset=utf-8',
+  formdata: 'multipart/form-data',
+  urlencoded: 'application/x-www-form-urlencoded',
+  binary: 'application/octet-stream',
 };
 
 const BODY_TYPE_STUBS: Record<Exclude<BodyType, 'none' | 'custom'>, string> = {
@@ -80,7 +100,10 @@ const BODY_TYPE_STUBS: Record<Exclude<BodyType, 'none' | 'custom'>, string> = {
   xml: '<?xml version="1.0" encoding="UTF-8"?>\n<root>\n  <ok>true</ok>\n</root>',
   html: '<!doctype html>\n<html>\n  <body>Hello</body>\n</html>',
   text: 'Hello',
-  form: 'key=value',
+  graphql: 'query {\n  viewer {\n    id\n  }\n}',
+  formdata: 'field=value\nfile=@/path/to/file',
+  urlencoded: 'key=value',
+  binary: '[binary data placeholder]',
 };
 
 /** Anything that has a header list + body — covers MockVariant and standalone variants. */
@@ -90,14 +113,14 @@ interface VariantLike {
 }
 
 @Component({
-  selector: 'app-mock-server',
+  selector: 'app-mock',
   standalone: true,
-  imports: [CommonModule, FormsModule, DropdownComponent, MockVariantMatchSectionComponent],
+  imports: [CommonModule, FormsModule, DropdownComponent, CodeEditorComponent, MockVariantMatchSectionComponent],
   templateUrl: './mock-server.component.html',
   styleUrl: './mock-server.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MockServerComponent implements OnInit, OnDestroy {
+export class MockComponent implements OnInit, OnDestroy {
   @Input() tab!: TabItem;
 
   status: MockServerStatus = {
@@ -121,9 +144,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
     captureBodies: true,
   };
 
-  /** Form-bound port (`type="number"` may sync a number from the template). */
+  /** Listening / configured port (synced from the service; used when starting or restarting from this tab). */
   portInput: string | number = '';
-  showAdvanced = false;
   /** When true, the activity log is shown below the editor (hidden by default). */
   activityPaneVisible = false;
   private readonly sessionUiKey = 'aw.mockServer.sessionUi';
@@ -150,7 +172,16 @@ export class MockServerComponent implements OnInit, OnDestroy {
     value: m,
   }));
   readonly bodyTypeOptions: ReadonlyArray<BodyType> = [
-    'json', 'xml', 'html', 'text', 'form', 'none', 'custom',
+    'json', 'xml', 'html', 'text', 'graphql', 'formdata', 'urlencoded', 'binary', 'none', 'custom',
+  ];
+  readonly responsePlaceholderCompletions: ScriptCompletionItem[] = [
+    { label: '{{body}}', insert: '{{body}}', detail: 'Raw incoming request body.' },
+    { label: '{{bodyJson}}', insert: '{{bodyJson}}', detail: 'Incoming body JSON-escaped as string.' },
+    { label: '{{bodyJson.accessToken}}', insert: '{{bodyJson.accessToken}}', detail: 'Dot-path lookup in parsed JSON body.' },
+    { label: '{{header.Authorization}}', insert: '{{header.Authorization}}', detail: 'Raw request header value.' },
+    { label: '{{headerJson.Authorization}}', insert: '{{headerJson.Authorization}}', detail: 'Header value JSON-escaped for safe embed.' },
+    { label: '{{cache.result}}', insert: '{{cache.result}}', detail: 'Value from response pipeline cache (if set).' },
+    { label: '$uuid', insert: '$uuid', detail: 'Generated UUID per response.' },
   ];
 
   hits: MockHit[] = [];
@@ -175,16 +206,13 @@ export class MockServerComponent implements OnInit, OnDestroy {
     { label: '4xx', value: '4xx' },
     { label: '5xx', value: '5xx' },
   ];
-  /** Advanced header: CORS policy (shared app-dropdown). */
-  readonly corsModeOptions: DropdownOption[] = [
-    { label: 'Off', value: 'off' },
-    { label: 'Allow all origins', value: 'all' },
-    { label: 'Allow listed origins', value: 'list' },
-  ];
   expandedHitId: string | null = null;
 
   /** Variant ids whose response-headers editor is currently expanded. */
   private headersOpen = new Set<string>();
+
+  /** Variant ids whose full mock editor (matchers, steps, body) is visible. */
+  private variantDetailsOpen = new Set<string>();
 
   private destroy$ = new Subject<void>();
   private collections: Collection[] = [];
@@ -194,6 +222,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
     private mockServer: MockServerService,
     private mockUi: MockServerUiStateService,
     private confirmDialog: ConfirmDialogService,
+    private settings: SettingsService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -263,6 +292,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
       });
 
     await Promise.all([
+      this.settings.loadSettings(),
       this.mockServer.refreshStatus(),
       this.mockServer.refreshOptions(),
       this.mockServer.refreshHits(),
@@ -304,12 +334,17 @@ export class MockServerComponent implements OnInit, OnDestroy {
         return;
       }
       this.activityPaneVisible = !!snap.activityVisible;
-      this.showAdvanced = !!snap.showAdvanced;
       this.expandedHitId = snap.expandedHitId ?? null;
       this.headersOpen.clear();
       if (Array.isArray(snap.headersOpen)) {
         for (const id of snap.headersOpen) {
           if (id) this.headersOpen.add(id);
+        }
+      }
+      this.variantDetailsOpen.clear();
+      if (Array.isArray(snap.variantDetailsOpen)) {
+        for (const id of snap.variantDetailsOpen) {
+          if (id) this.variantDetailsOpen.add(id);
         }
       }
       let kind: MockSelectionKind = null;
@@ -350,9 +385,9 @@ export class MockServerComponent implements OnInit, OnDestroy {
       const snap: MockServerSessionSnapshot = {
         v: 1,
         activityVisible: this.activityPaneVisible,
-        showAdvanced: this.showAdvanced,
         expandedHitId: this.expandedHitId,
         headersOpen: Array.from(this.headersOpen),
+        variantDetailsOpen: Array.from(this.variantDetailsOpen),
         selectionKind: this.selectionKind,
         selectedRequestId: this.selectedRequestId,
         selectedStandaloneId: this.selectedStandaloneId,
@@ -440,6 +475,7 @@ export class MockServerComponent implements OnInit, OnDestroy {
         body: v.body,
         delayMs: v.delayMs,
         matchOn: v.matchOn,
+        responseSteps: (v as MockVariant).responseSteps,
       })),
       activeVariantId: s.activeVariantId,
       activeVariantIds: s.activeVariantIds === undefined ? undefined : s.activeVariantIds,
@@ -452,18 +488,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (!this.selectedStandalone) return;
     this.selectedStandalone.method = method;
     this.onStandaloneFieldChange();
-  }
-
-  /** Rail + editor title: custom name, or the path if the name is empty. */
-  standalonePrimaryLabel(e: StandaloneMockEndpoint): string {
-    const n = e.name.trim();
-    return n || e.path;
-  }
-
-  /** Tooltip for the rail row: name (if any) and the route. */
-  standaloneEntryTitle(e: StandaloneMockEndpoint): string {
-    const n = e.name.trim();
-    return n ? `${n} — ${e.method} ${e.path}` : `${e.method} ${e.path}`;
   }
 
   onStandaloneFieldChange(): void {
@@ -485,8 +509,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (Array.isArray(s.activeVariantIds)) {
       s.activeVariantIds = [...s.activeVariantIds, variant.id];
     }
+    this.variantDetailsOpen.add(variant.id);
     this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   removeStandaloneVariant(index: number): void {
@@ -495,11 +522,17 @@ export class MockServerComponent implements OnInit, OnDestroy {
     const next = s.variants.slice();
     const [removed] = next.splice(index, 1);
     s.variants = next;
+    if (removed?.id) {
+      this.variantDetailsOpen.delete(removed.id);
+      this.headersOpen.delete(removed.id);
+    }
     if (removed && Array.isArray(s.activeVariantIds)) {
       s.activeVariantIds = s.activeVariantIds.filter((id: string) => id !== removed.id);
     }
     this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   duplicateStandaloneVariant(index: number): void {
@@ -513,6 +546,9 @@ export class MockServerComponent implements OnInit, OnDestroy {
       name: `${original.name || 'Variant'} (copy)`,
       headers: original.headers ? original.headers.map((h) => ({ ...h })) : [],
       matchOn: cloneMockVariantMatchRules(original.matchOn),
+      responseSteps: (original as MockVariant).responseSteps?.length
+        ? JSON.parse(JSON.stringify((original as MockVariant).responseSteps)) as MockVariant['responseSteps']
+        : [],
     };
     const next = s.variants.slice();
     next.splice(index + 1, 0, copy);
@@ -521,8 +557,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (Array.isArray(ids) && ids.includes(original.id)) {
       s.activeVariantIds = [...ids, copy.id];
     }
+    this.variantDetailsOpen.add(copy.id);
     this.syncStandalonePrimaryActive(s);
     void this.commitStandalone();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   onStandaloneVariantServedChange(variantId: string, ev: Event): void {
@@ -574,7 +613,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   trackByVariant = (_i: number, v: MockVariant) => v.id;
   trackByHit = (_i: number, h: MockHit) => h.id;
-
   addVariant(): void {
     if (!this.selectedRequest) return;
     const list = this.selectedRequest.mockVariants || [];
@@ -590,8 +628,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (Array.isArray(this.selectedRequest.activeMockVariantIds)) {
       this.selectedRequest.activeMockVariantIds = [...this.selectedRequest.activeMockVariantIds, variant.id];
     }
+    this.variantDetailsOpen.add(variant.id);
     syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   removeVariant(index: number): void {
@@ -599,6 +640,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
     const next = this.selectedRequest.mockVariants.slice();
     const [removed] = next.splice(index, 1);
     this.selectedRequest.mockVariants = next;
+    if (removed?.id) {
+      this.variantDetailsOpen.delete(removed.id);
+      this.headersOpen.delete(removed.id);
+    }
     if (removed && Array.isArray(this.selectedRequest.activeMockVariantIds)) {
       this.selectedRequest.activeMockVariantIds = this.selectedRequest.activeMockVariantIds.filter(
         (id) => id !== removed.id,
@@ -606,6 +651,8 @@ export class MockServerComponent implements OnInit, OnDestroy {
     }
     syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   duplicateVariant(index: number): void {
@@ -618,6 +665,9 @@ export class MockServerComponent implements OnInit, OnDestroy {
       name: `${original.name || 'Variant'} (copy)`,
       headers: original.headers ? original.headers.map((h) => ({ ...h })) : undefined,
       matchOn: cloneMockVariantMatchRules(original.matchOn),
+      responseSteps: original.responseSteps?.length
+        ? JSON.parse(JSON.stringify(original.responseSteps)) as MockVariant['responseSteps']
+        : [],
     };
     const next = this.selectedRequest.mockVariants.slice();
     next.splice(index + 1, 0, copy);
@@ -626,8 +676,11 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (Array.isArray(ids) && ids.includes(original.id)) {
       this.selectedRequest.activeMockVariantIds = [...ids, copy.id];
     }
+    this.variantDetailsOpen.add(copy.id);
     syncLegacyPrimaryMockVariantId(this.selectedRequest);
     void this.persistAndSync();
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
   }
 
   onRequestVariantServedChange(variantId: string, ev: Event): void {
@@ -706,7 +759,10 @@ export class MockServerComponent implements OnInit, OnDestroy {
     if (ct.includes('application/json') || ct.endsWith('+json')) return 'json';
     if (ct.includes('xml')) return 'xml';
     if (ct.includes('html')) return 'html';
-    if (ct.includes('x-www-form-urlencoded')) return 'form';
+    if (ct.includes('application/graphql')) return 'graphql';
+    if (ct.includes('multipart/form-data')) return 'formdata';
+    if (ct.includes('x-www-form-urlencoded')) return 'urlencoded';
+    if (ct.includes('application/octet-stream')) return 'binary';
     if (ct.startsWith('text/')) return 'text';
     return 'custom';
   }
@@ -738,15 +794,74 @@ export class MockServerComponent implements OnInit, OnDestroy {
       case 'json': return '{ "example": true }';
       case 'xml':  return '<root>example</root>';
       case 'html': return '<p>Hello</p>';
-      case 'form': return 'key=value';
+      case 'graphql': return 'query { viewer { id } }';
+      case 'formdata': return 'field=value';
+      case 'urlencoded': return 'key=value';
+      case 'binary': return '[binary data]';
       case 'text': return 'Plain text response';
       case 'none': return '(empty body)';
       default:     return 'Response body';
     }
   }
 
+  responseEditorLanguage(variant: VariantLike): EditorLanguage {
+    const type = this.bodyTypeOf(variant);
+    if (type === 'json') return 'json';
+    if (type === 'xml') return 'xml';
+    if (type === 'html') return 'html';
+    if (type === 'graphql') return 'graphql';
+    return 'plain';
+  }
+
+  isBinaryBodyType(variant: VariantLike): boolean {
+    return this.bodyTypeOf(variant) === 'binary';
+  }
+
+  async pickResponseBinaryFile(variant: VariantLike, context: 'request' | 'standalone'): Promise<void> {
+    const picked = await window.awElectron.pickFilePath();
+    if (!picked?.path) return;
+    variant.body = picked.path;
+    if (context === 'standalone') {
+      this.onStandaloneFieldChange();
+    } else {
+      this.onVariantChanged();
+    }
+  }
+
+  clearResponseBinaryFile(variant: VariantLike, context: 'request' | 'standalone'): void {
+    variant.body = '';
+    if (context === 'standalone') {
+      this.onStandaloneFieldChange();
+    } else {
+      this.onVariantChanged();
+    }
+  }
+
   isHeadersOpen(variantId: string): boolean {
     return this.headersOpen.has(variantId);
+  }
+
+  isVariantDetailsOpen(variantId: string): boolean {
+    return this.variantDetailsOpen.has(variantId);
+  }
+
+  toggleVariantDetails(variantId: string): void {
+    if (this.variantDetailsOpen.has(variantId)) this.variantDetailsOpen.delete(variantId);
+    else this.variantDetailsOpen.add(variantId);
+    this.persistMockServerSession();
+    this.cdr.markForCheck();
+  }
+
+  onVariantHeadClick(variantId: string, event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        'input, textarea, select, button, a, label, .dropdown-trigger, .variant-served, .variant-actions, .variant-field, .variant-name',
+      )
+    ) {
+      return;
+    }
+    this.toggleVariantDetails(variantId);
   }
 
   toggleHeaders(variantId: string): void {
@@ -806,26 +921,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
     return Math.floor(num);
   }
 
-  async setBindAddress(address: '127.0.0.1' | '0.0.0.0'): Promise<void> {
-    if (address === '0.0.0.0' && this.options.bindAddress !== '0.0.0.0') {
-      const ok = await this.confirmDialog.confirm({
-        title: 'Network exposure',
-        message:
-          'Binding to 0.0.0.0 makes the mock server reachable from other devices on your network. Continue?',
-        confirmLabel: 'Continue',
-      });
-      if (!ok) return;
-    }
-    await this.mockServer.setOptions({ bindAddress: address });
-    if (this.status.status === 'running') {
-      await this.mockServer.restart();
-    }
-  }
-
-  async onOptionChange<K extends keyof MockServerOptions>(key: K, value: MockServerOptions[K]): Promise<void> {
-    await this.mockServer.setOptions({ [key]: value } as Partial<MockServerOptions>);
-  }
-
   async resetAllVariants(): Promise<void> {
     const ok = await this.confirmDialog.confirm({
       title: 'Unregister variants',
@@ -867,12 +962,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
 
   onHitFilterChange(): void {
     this.persistMockServerSession();
-  }
-
-  onCorsModeChange(v: string | null | undefined): void {
-    if (v !== 'off' && v !== 'all' && v !== 'list') return;
-    void this.onOptionChange('corsMode', v);
-    this.cdr.markForCheck();
   }
 
   filteredHits(): MockHit[] {
@@ -950,12 +1039,6 @@ export class MockServerComponent implements OnInit, OnDestroy {
       return `${first}\n\n${hit.reqBody}`;
     }
     return first;
-  }
-
-  toggleAdvanced(): void {
-    this.showAdvanced = !this.showAdvanced;
-    this.persistMockServerSession();
-    this.cdr.markForCheck();
   }
 
   /** HTTP method enum -> readable token (`GET`, `POST`, …). */

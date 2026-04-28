@@ -1,0 +1,113 @@
+.bug-hint {
+  margin-top: 1rem;
+  padding: 12px 14px;
+  border-radius: 8px;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--border-color, #444), transparent 25%);
+  background: color-mix(in srgb, var(--surface, #252830), transparent 15%);
+  max-width: 100%;
+}
+
+.bug-hint--prominent {
+  margin-top: 1.25rem;
+  padding: 14px 16px;
+}
+
+.bug-hint__title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color, #e8eaed);
+}
+
+.bug-hint--prominent .bug-hint__title {
+  font-size: 14px;
+}
+
+.bug-hint__steps {
+  margin: 0 0 12px;
+  padding-left: 1.15rem;
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text-color, #e8eaed), transparent 12%);
+}
+
+.bug-hint--prominent .bug-hint__steps {
+  font-size: 13px;
+}
+
+.bug-hint__steps li + li {
+  margin-top: 6px;
+}
+
+.bug-hint__link {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: var(--secondary-color, #6c9eff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bug-hint__link:hover {
+  filter: brightness(1.08);
+}
+
+.bug-hint__meta {
+  margin: 0 0 12px;
+  font-size: 11px;
+}
+
+.bug-hint__meta-row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+}
+
+.bug-hint__meta-row dt {
+  margin: 0;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text-color, #e8eaed), transparent 25%);
+}
+
+.bug-hint__meta-row dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.bug-hint__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+}
+
+.bug-hint__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bug-hint__btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--border-color, #444), transparent 30%);
+  background: var(--secondary-color, #6c9eff);
+  color: #0f1114;
+}
+
+.bug-hint__btn--secondary {
+  background: color-mix(in srgb, var(--surface, #252830), transparent 10%);
+  color: var(--text-color, #e8eaed);
+}
+
+.bug-hint__btn:hover {
+  filter: brightness(1.05);
+}

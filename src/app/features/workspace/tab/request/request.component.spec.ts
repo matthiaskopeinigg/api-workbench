@@ -182,9 +182,9 @@ describe('RequestComponent', () => {
   });
 
   it('should switch tabs', () => {
-    expect(component.activeRequestTab).toBe('body'); 
-    component.activeRequestTab = 'params';
     expect(component.activeRequestTab).toBe('params');
+    component.activeRequestTab = 'body';
+    expect(component.activeRequestTab).toBe('body');
   });
 
   it('should add and remove headers', () => {

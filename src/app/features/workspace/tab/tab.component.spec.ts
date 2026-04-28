@@ -12,6 +12,7 @@ import { CollectionService } from '@core/collection/collection.service';
 import { CollectionWebSocketTabService } from '@core/collection/collection-websocket-tab.service';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
+import { MockServerUiStateService } from '@core/mock-server/mock-server-ui-state.service';
 
 describe('TabComponent', () => {
   let fixture: ComponentFixture<TabComponent>;
@@ -38,6 +39,7 @@ describe('TabComponent', () => {
       'isRequestTab',
       'isFolderTab',
       'isWebSocketTab',
+      'isMockServerTab',
     ]);
     tabServiceSpy.getWorkspaceTabsState.and.resolveTo(null);
     tabServiceSpy.saveWorkspaceTabsState.and.resolveTo();
@@ -49,6 +51,7 @@ describe('TabComponent', () => {
     tabServiceSpy.isRequestTab.and.returnValue(true);
     tabServiceSpy.isFolderTab.and.returnValue(false);
     tabServiceSpy.isWebSocketTab.and.returnValue(false);
+    tabServiceSpy.isMockServerTab.and.returnValue(false);
 
     viewStateSpy = jasmine.createSpyObj('ViewStateService', ['load', 'retainOnly', 'clear']);
     viewStateSpy.load.and.resolveTo();
@@ -68,10 +71,12 @@ describe('TabComponent', () => {
       'getSelectedEnvironmentAsObservable',
       'removeSelectedEnvironment',
       'getEnvironmentDeletedObservable',
+      'getEnvironmentTitleUpdatedObservable',
     ]);
     envSpy.getSelectedEnvironmentAsObservable.and.returnValue(new Subject().asObservable());
     envSpy.removeSelectedEnvironment.and.resolveTo();
     envSpy.getEnvironmentDeletedObservable.and.returnValue(new Subject().asObservable());
+    envSpy.getEnvironmentTitleUpdatedObservable.and.returnValue(new Subject().asObservable());
 
     const histSpy = jasmine.createSpyObj('RequestHistoryService', [
       'getSelectedHistoryEntryAsObservable',
@@ -110,6 +115,11 @@ describe('TabComponent', () => {
 
     const testArtSpy = jasmine.createSpyObj('TestArtifactService', ['getTestArtifactDeletedObservable']);
     testArtSpy.getTestArtifactDeletedObservable.and.returnValue(new Subject().asObservable());
+    const mockUiSpy = jasmine.createSpyObj('MockServerUiStateService', [
+      'clearSelection',
+      'loadSelectionFromSession',
+    ]);
+    mockUiSpy.loadSelectionFromSession.and.resolveTo();
 
     await TestBed.configureTestingModule({
       imports: [TabComponent],
@@ -123,6 +133,7 @@ describe('TabComponent', () => {
         { provide: CollectionWebSocketTabService, useValue: wsTabSpy },
         { provide: KeyboardShortcutsService, useValue: keyboardSpy },
         { provide: TestArtifactService, useValue: testArtSpy },
+        { provide: MockServerUiStateService, useValue: mockUiSpy },
       ],
     }).compileComponents();
 

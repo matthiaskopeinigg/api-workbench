@@ -12,6 +12,7 @@ const { registerMockIpcHandlers } = require('./mock.ipc');
 const { registerTestingIpcHandlers } = require('./testing.ipc');
 const { registerLoadIpcHandlers } = require('./load.ipc');
 const { registerStorageIpcHandlers } = require('./storage.ipc');
+const { registerCaptureIpcHandlers } = require('./capture.ipc');
 const { logInfo } = require('../services/logger.service');
 
 function registerIpcHandlers() {
@@ -29,6 +30,7 @@ function registerIpcHandlers() {
     registerTestingIpcHandlers();
     registerLoadIpcHandlers();
     registerStorageIpcHandlers();
+    registerCaptureIpcHandlers();
     const { registerDbIpcHandlers } = require('./db.ipc');
     registerDbIpcHandlers();
 

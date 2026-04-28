@@ -10,10 +10,11 @@ import {
   Output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable, Subject, takeUntil } from 'rxjs';
+import { Observable, Subject, combineLatest, takeUntil } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import {
   duplicateRequestTabSurface,
+  MOCK_SERVER_TAB_ID,
   sanitizeTabForStorage,
   TabItem,
   tabIdForTestArtifact,
@@ -35,6 +36,7 @@ import { RequestService } from '@core/http/request.service';
 import { CollectionService } from '@core/collection/collection.service';
 import { CollectionWebSocketTabService } from '@core/collection/collection-websocket-tab.service';
 import { KeyboardShortcutsService } from '@core/keyboard/keyboard-shortcuts.service';
+import { MockServerUiStateService } from '@core/mock-server/mock-server-ui-state.service';
 
 @Component({
   selector: 'app-tab',
@@ -90,6 +92,7 @@ export class TabComponent implements OnInit, OnDestroy {
     private requestService: RequestService,
     private collectionWebSocketTabService: CollectionWebSocketTabService,
     private collectionService: CollectionService,
+    private mockServerUiState: MockServerUiStateService,
     private testArtifacts: TestArtifactService,
     private viewState: ViewStateService,
     private cdr: ChangeDetectorRef,
@@ -99,6 +102,7 @@ export class TabComponent implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.viewState.load();
+    await this.mockServerUiState.loadSelectionFromSession();
     await this.loadWorkspace();
     this.viewState.retainOnly(this.allOpenTabIds());
     await this.syncGlobalSelection(this.getSelectedTabInPane(this.focusedPane));
@@ -453,6 +457,7 @@ export class TabComponent implements OnInit, OnDestroy {
         await this.environmentsService.removeSelectedEnvironment();
         await this.requestHistoryService.removeSelectedHistoryEntry();
         this.collectionService.selectFolder(null as any);
+        this.mockServerUiState.clearSelection();
         return;
       }
 
@@ -484,6 +489,10 @@ export class TabComponent implements OnInit, OnDestroy {
         this.collectionService.selectFolder(newSelectedTab);
       } else {
         this.collectionService.selectFolder(null as any);
+      }
+
+      if (!this.tabService.isMockServerTab(newSelectedTab)) {
+        this.mockServerUiState.clearSelection();
       }
 
       await this.tabService.saveSelectTab(newSelectedTab);
@@ -616,6 +625,56 @@ export class TabComponent implements OnInit, OnDestroy {
         void this.removeTabByIdEverywhere(environmentId);
         this.cdr.markForCheck();
       });
+
+    this.environmentsService
+      .getEnvironmentTitleUpdatedObservable()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(({ id, title }) => {
+        void this.applyTitlePatchEverywhere(id, title);
+        this.cdr.markForCheck();
+      });
+
+    combineLatest([
+      this.mockServerUiState.selectionKind$,
+      this.mockServerUiState.selectedRequestId$,
+      this.mockServerUiState.selectedStandaloneId$,
+      this.mockServerUiState.groups$,
+      this.mockServerUiState.standalones$,
+    ])
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(([kind, requestId, standaloneId, groups, standalones]) => {
+        let nextTitle = 'Mock';
+        if (kind === 'standalone' && standaloneId) {
+          const selected = (standalones || []).find((s) => s.id === standaloneId);
+          const label = (selected?.name || '').trim();
+          nextTitle = label || 'Mock';
+        } else if (kind === 'request' && requestId) {
+          const found = (groups || [])
+            .flatMap((g) => g.entries || [])
+            .find((e) => e.request?.id === requestId);
+          const label = (found?.request?.title || '').trim();
+          nextTitle = label || 'Mock';
+        }
+        void this.applyMockTabTitle(nextTitle);
+        this.cdr.markForCheck();
+      });
+  }
+
+  private async applyMockTabTitle(title: string): Promise<void> {
+    let changed = false;
+    const patch = (tabs: TabItem[]) => {
+      const i = tabs.findIndex((t) => t.id === MOCK_SERVER_TAB_ID);
+      if (i !== -1 && tabs[i].title !== title) {
+        tabs[i] = { ...tabs[i], title };
+        changed = true;
+      }
+    };
+    patch(this.primaryTabs);
+    patch(this.secondaryTabs);
+    if (!changed) return;
+    this.primaryTabs = [...this.primaryTabs];
+    this.secondaryTabs = [...this.secondaryTabs];
+    await this.persistWorkspace();
   }
 
   private async applyTitlePatchEverywhere(id: string, title: string) {

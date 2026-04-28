@@ -16,9 +16,7 @@ describe('TabPaneComponent', () => {
       'isWebSocketTab',
       'isMockServerTab',
       'isLoadTestTab',
-      'isTestSuiteTab',
-      'isContractTestTab',
-      'isFlowTab',
+      'isCaptureTab',
     ]);
     tabServiceSpy.isRequestTab.and.returnValue(true);
     tabServiceSpy.isEnvironmentTab.and.returnValue(false);
@@ -27,9 +25,7 @@ describe('TabPaneComponent', () => {
     tabServiceSpy.isWebSocketTab.and.returnValue(false);
     tabServiceSpy.isMockServerTab.and.returnValue(false);
     tabServiceSpy.isLoadTestTab.and.returnValue(false);
-    tabServiceSpy.isTestSuiteTab.and.returnValue(false);
-    tabServiceSpy.isContractTestTab.and.returnValue(false);
-    tabServiceSpy.isFlowTab.and.returnValue(false);
+    tabServiceSpy.isCaptureTab.and.returnValue(false);
 
     await TestBed.configureTestingModule({
       imports: [TabPaneComponent],

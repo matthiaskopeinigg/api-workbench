@@ -9,9 +9,6 @@ import { HttpMethod, type Request } from '@models/request';
 import { Environment } from '@models/environment';
 import type { LoadTestArtifact } from '@models/testing/load-test';
 import { DEFAULT_LOAD_CONFIG, type LoadTestProfile } from '@models/testing/load-test';
-import type { TestSuiteArtifact } from '@models/testing/test-suite';
-import type { ContractTestArtifact } from '@models/testing/contract-test';
-import type { FlowArtifact, FlowNode } from '@models/testing/flow';
 
 /** Session flag so we only merge sample content once per profile. */
 const SAMPLE_WORKSPACE_V1 = 'apiWorkbenchSampleWorkspaceV1';
@@ -26,9 +23,6 @@ const IDS = {
   reqHttpbinDelay: 'a1000000-0000-4000-8000-000000000013',
   reqMockJson: 'a1000000-0000-4000-8000-000000000014',
   loadTest: 'a1000000-0000-4000-8000-000000000020',
-  testSuite: 'a1000000-0000-4000-8000-000000000021',
-  contractTest: 'a1000000-0000-4000-8000-000000000022',
-  flow: 'a1000000-0000-4000-8000-000000000023',
 } as const;
 
 const emptyScript = { preRequest: '', postRequest: '' };
@@ -260,114 +254,6 @@ export class SampleWorkspaceSeeder {
         config: light.config,
       };
       await this.testArtifacts.create('loadTests', lt);
-    }
-    if (!this.testArtifacts.testSuites().some((a) => a.id === IDS.testSuite)) {
-      const suite: TestSuiteArtifact = {
-        id: IDS.testSuite,
-        title: 'Sample: public API smoke',
-        updatedAt: now,
-        description: 'Hits JSONPlaceholder and httpbin; expects 2xx.',
-        variables: [],
-        cases: [
-          {
-            id: uuidv4(),
-            name: 'Post 1',
-            enabled: true,
-            target: { kind: 'saved', requestId: IDS.reqJsonPost },
-            assertions: [
-              { kind: 'status', expected: 200 },
-              { kind: 'body', path: '$.id', op: 'jsonpath-truthy' },
-            ],
-            extracts: [],
-          },
-          {
-            id: uuidv4(),
-            name: 'httpbin GET',
-            enabled: true,
-            target: { kind: 'saved', requestId: IDS.reqHttpbinGet },
-            assertions: [
-              { kind: 'status', expected: 200 },
-              { kind: 'body', path: '$.url', op: 'jsonpath-truthy' },
-            ],
-            extracts: [],
-          },
-        ],
-      };
-      await this.testArtifacts.create('testSuites', suite);
-    }
-    if (!this.testArtifacts.contractTests().some((a) => a.id === IDS.contractTest)) {
-      const specYaml = `openapi: 3.0.0
-info:
-  title: JSONPlaceholder
-  version: "1.0"
-servers:
-  - url: https://jsonplaceholder.typicode.com
-paths:
-  /posts/{id}:
-    get:
-      summary: Get post
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "200":
-          description: ok
-          content:
-            application/json:
-              schema:
-                type: object
-`;
-      const contract: ContractTestArtifact = {
-        id: IDS.contractTest,
-        title: 'Sample: OpenAPI (JSONPlaceholder posts)',
-        updatedAt: now,
-        spec: { kind: 'inline', format: 'yaml', body: specYaml, updatedAt: now },
-        scope: { collectionId: 'root', folderId: IDS.folder },
-      };
-      await this.testArtifacts.create('contractTests', contract);
-    }
-    if (!this.testArtifacts.flows().some((a) => a.id === IDS.flow)) {
-      const nStart = 'flow-start';
-      const n1 = 'flow-req-1';
-      const n2 = 'flow-assert-1';
-      const n3 = 'flow-end-ok';
-      const nodes: FlowNode[] = [
-        { id: nStart, kind: 'start', label: 'Start', x: 40, y: 120 },
-        {
-          id: n1,
-          kind: 'request',
-          label: 'GET post 1',
-          x: 220,
-          y: 100,
-          target: { kind: 'saved', requestId: IDS.reqJsonPost },
-        },
-        {
-          id: n2,
-          kind: 'assert',
-          label: 'status 200',
-          x: 420,
-          y: 100,
-          expression: 'input && input.status === 200',
-          message: 'Expected 200 from JSONPlaceholder',
-        },
-        { id: n3, kind: 'terminate', label: 'OK', x: 620, y: 100, outcome: 'success' },
-      ];
-      const flow: FlowArtifact = {
-        id: IDS.flow,
-        title: 'Sample: fetch post then assert',
-        updatedAt: now,
-        description: 'Minimal flow using JSONPlaceholder.',
-        nodes,
-        edges: [
-          { id: 'e1', fromNodeId: nStart, fromPort: 'out', toNodeId: n1 },
-          { id: 'e2', fromNodeId: n1, fromPort: 'out', toNodeId: n2 },
-          { id: 'e3', fromNodeId: n2, fromPort: 'out', toNodeId: n3 },
-        ],
-        viewport: { x: 0, y: 0, zoom: 1 },
-      };
-      await this.testArtifacts.create('flows', flow);
     }
   }
 }

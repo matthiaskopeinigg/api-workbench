@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Environment } from '@models/environment';
 import { EnvironmentsService } from '@core/environments/environments.service';
 import { TabItem, TabService, TabType } from '@core/tabs/tab.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -21,14 +22,25 @@ export class EnvironmentComponent implements OnInit, OnDestroy {
 
   newEnvTitle = '';
 
+  /** Inline rename in the list (double-click title or context menu). */
+  editingEnvironmentId: string | null = null;
+
+  contextMenuVisible = false;
+  contextMenuEnv: Environment | null = null;
+  menuX = 0;
+  menuY = 0;
+
   private dragIndex: number | null = null;
   private dragOverIndex: number | null = null;
 
   private destroy$ = new Subject<void>();
 
-  constructor(private environmentsService: EnvironmentsService,
+  constructor(
+    private environmentsService: EnvironmentsService,
     private tabService: TabService,
-    private cdr: ChangeDetectorRef) { }
+    private cdr: ChangeDetectorRef,
+    private confirmDialog: ConfirmDialogService,
+  ) {}
 
   async ngOnInit() {
     this.environmentsService.getEnvironmentsObservable()
@@ -102,6 +114,54 @@ export class EnvironmentComponent implements OnInit, OnDestroy {
   }
 
   
+  openContextMenu(event: MouseEvent, env: Environment): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextMenuEnv = env;
+    this.contextMenuVisible = true;
+    const pad = 8;
+    const mw = 200;
+    const mh = 44;
+    let x = event.clientX;
+    let y = event.clientY;
+    if (typeof window !== 'undefined') {
+      x = Math.min(x, window.innerWidth - mw - pad);
+      y = Math.min(y, window.innerHeight - mh - pad);
+      x = Math.max(pad, x);
+      y = Math.max(pad, y);
+    }
+    this.menuX = x;
+    this.menuY = y;
+    this.cdr.markForCheck();
+  }
+
+  closeContextMenu(): void {
+    this.contextMenuVisible = false;
+    this.contextMenuEnv = null;
+    this.cdr.markForCheck();
+  }
+
+  async deleteEnvironmentFromContext(): Promise<void> {
+    const env = this.contextMenuEnv;
+    this.closeContextMenu();
+    if (!env) {
+      return;
+    }
+    const ok = await this.confirmDialog.confirm({
+      title: 'Delete environment',
+      message: `Delete "${env.title}"? This cannot be undone.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) {
+      return;
+    }
+    const index = this.environments.findIndex((e) => e.id === env.id);
+    if (index >= 0) {
+      await this.deleteEnvironment(index);
+    }
+  }
+
   async deleteEnvironment(index: number) {
     const removed = this.environments[index];
 
@@ -118,7 +178,7 @@ export class EnvironmentComponent implements OnInit, OnDestroy {
 
   
   async selectEnvironment(env: Environment) {
-    if (this.dragIndex) {
+    if (this.dragIndex != null) {
       this.dragIndex = null;
     }
 
@@ -135,12 +195,52 @@ export class EnvironmentComponent implements OnInit, OnDestroy {
   @HostListener('document:click', ['$event'])
   onClickOutside(event: Event) {
     const target = event.target as HTMLElement;
+    const editingId = this.editingEnvironmentId;
+    if (editingId) {
+      const renameInput = document.querySelector<HTMLInputElement>(`input#environment-${editingId}`);
+      if (renameInput && !renameInput.contains(target)) {
+        const env = this.environments.find((e) => e.id === editingId);
+        if (env) {
+          void this.finishRenameEnvironment(env, renameInput.value);
+        }
+      }
+    }
+
+    this.closeContextMenu();
     const inputContainer = document.querySelector('.input-group');
 
     if (inputContainer && !inputContainer.contains(target)) {
 
       this.newEnvTitle = '';
     }
+  }
+
+  startRenameEnvironment(envId: string): void {
+    this.closeContextMenu();
+    this.editingEnvironmentId = envId;
+    this.cdr.markForCheck();
+  }
+
+  cancelRenameEnvironment(): void {
+    this.editingEnvironmentId = null;
+    this.cdr.markForCheck();
+  }
+
+  async finishRenameEnvironment(env: Environment, raw: string): Promise<void> {
+    if (this.editingEnvironmentId !== env.id) {
+      return;
+    }
+    this.editingEnvironmentId = null;
+    const trimmed = (raw ?? '').trim();
+    const nextTitle = trimmed || env.title;
+    if (nextTitle === env.title) {
+      this.cdr.markForCheck();
+      return;
+    }
+    env.title = nextTitle;
+    await this.saveEnvironments();
+    this.environmentsService.emitEnvironmentTitleUpdated(env.id, env.title);
+    this.cdr.markForCheck();
   }
 
   

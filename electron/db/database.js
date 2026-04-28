@@ -3,196 +3,356 @@ const fs = require('fs');
 const { app } = require('electron');
 const { logInfo, logError } = require('../services/logger.service');
 
-let db = null;
+/** @type {boolean} */
+let workspaceReady = false;
 
+/** Document id → file name under workspace/ */
+const DOC_FILES = {
+  settings: 'settings.json',
+  collections: 'collections.json',
+  environments: 'environments.json',
+  cookieJar: 'cookie-jar.json',
+  loadTests: 'load-tests.json',
+  contractTests: 'contract-tests.json',
+  flows: 'flows.json',
+};
+
+const SESSION_FILE = 'session.json';
+const RESPONSE_HISTORY_FILE = 'response-history.json';
+
+function getWorkspaceDir() {
+  const root = app.getPath('userData');
+  if (!fs.existsSync(root)) {
+    fs.mkdirSync(root, { recursive: true });
+  }
+  return path.join(root, 'workspace');
+}
+
+/** @deprecated name — returns workspace directory (JSON files), not SQLite. */
 function getDbPath() {
-  const dir = app.getPath('userData');
+  return getWorkspaceDir();
+}
+
+function docFileName(id) {
+  if (DOC_FILES[id]) return DOC_FILES[id];
+  const safe = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${safe || 'doc'}.json`;
+}
+
+function atomicWrite(filePath, contents) {
+  const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  return path.join(dir, 'workbench.sqlite');
+  const tmp = `${filePath}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, contents, 'utf8');
+  fs.renameSync(tmp, filePath);
+}
+
+function jsonWorkspaceHasAnyFile() {
+  const dir = getWorkspaceDir();
+  if (!fs.existsSync(dir)) return false;
+  for (const f of Object.values(DOC_FILES)) {
+    if (fs.existsSync(path.join(dir, f))) return true;
+  }
+  return (
+    fs.existsSync(path.join(dir, SESSION_FILE)) ||
+    fs.existsSync(path.join(dir, RESPONSE_HISTORY_FILE))
+  );
+}
+
+/**
+ * One-time export from legacy workbench.sqlite into workspace/*.json
+ */
+function migrateSqliteToJsonIfNeeded() {
+  if (jsonWorkspaceHasAnyFile()) {
+    return;
+  }
+  const sqlitePath = path.join(app.getPath('userData'), 'workbench.sqlite');
+  if (!fs.existsSync(sqlitePath)) {
+    return;
+  }
+  try {
+    const Database = require('better-sqlite3');
+    const sq = new Database(sqlitePath, { readonly: true });
+    const dir = getWorkspaceDir();
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    let rows = [];
+    try {
+      rows = sq.prepare('SELECT id, json FROM documents').all();
+    } catch {
+      rows = [];
+    }
+    for (const r of rows) {
+      if (!r || !r.id) continue;
+      const fname = docFileName(r.id);
+      atomicWrite(path.join(dir, fname), String(r.json ?? '{}'));
+    }
+
+    let sessions = [];
+    try {
+      sessions = sq.prepare('SELECT key, json FROM session_kv').all();
+    } catch {
+      sessions = [];
+    }
+    const sessObj = {};
+    for (const s of sessions) {
+      if (!s || !s.key) continue;
+      try {
+        sessObj[s.key] = JSON.parse(s.json);
+      } catch {
+        sessObj[s.key] = null;
+      }
+    }
+    if (Object.keys(sessObj).length > 0) {
+      atomicWrite(path.join(dir, SESSION_FILE), JSON.stringify(sessObj, null, 2));
+    }
+
+    let histRows = [];
+    try {
+      histRows = sq
+        .prepare(
+          `
+      SELECT id, request_id, received_at, status_code, status_text, time_ms, size, http_version,
+             content_type, headers_json, body, is_binary
+      FROM response_history ORDER BY id ASC
+    `,
+        )
+        .all();
+    } catch {
+      histRows = [];
+    }
+    const items = [];
+    let nextId = 1;
+    for (const row of histRows) {
+      let headers = [];
+      try {
+        headers = JSON.parse(row.headers_json || '[]');
+      } catch {
+        headers = [];
+      }
+      const rid = Number(row.id);
+      const id = Number.isFinite(rid) ? rid : nextId;
+      if (!Number.isFinite(rid)) {
+        nextId += 1;
+      }
+      nextId = Math.max(nextId, id + 1);
+      items.push({
+        id,
+        requestId: row.request_id,
+        receivedAt: row.received_at,
+        statusCode: row.status_code,
+        statusText: row.status_text,
+        timeMs: row.time_ms,
+        size: row.size,
+        httpVersion: row.http_version,
+        contentType: row.content_type,
+        headers,
+        body: row.body,
+        isBinary: row.is_binary === 1,
+      });
+    }
+    if (items.length > 0) {
+      atomicWrite(path.join(dir, RESPONSE_HISTORY_FILE), JSON.stringify({ nextId, items }, null, 2));
+    }
+
+    sq.close();
+    const bak = `${sqlitePath}.migrated.${Date.now()}.bak`;
+    fs.renameSync(sqlitePath, bak);
+    void logInfo('Migrated SQLite workbench to JSON workspace files', { workspace: dir, backup: bak });
+  } catch (e) {
+    logError('SQLite → JSON migration failed', e);
+  }
+}
+
+function ensureWorkspace() {
+  if (workspaceReady) {
+    return;
+  }
+  const dir = getWorkspaceDir();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  migrateSqliteToJsonIfNeeded();
+  workspaceReady = true;
+  void logInfo('JSON workspace ready', { workspace: dir });
 }
 
 function openDatabase() {
-  if (db) {
-    return db;
-  }
-  const Database = require('better-sqlite3');
-  const dbPath = getDbPath();
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  migrate(db);
-  logInfo('SQLite opened', { dbPath });
-  return db;
+  ensureWorkspace();
+  return true;
 }
 
-function migrate(database) {
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS app_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS documents (
-      id TEXT PRIMARY KEY,
-      json TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS session_kv (
-      key TEXT PRIMARY KEY,
-      json TEXT NOT NULL
-    );
-  `);
-  const row = database.prepare('SELECT value FROM app_meta WHERE key = ?').get('schema_version');
-  const version = row ? parseInt(row.value, 10) : 0;
-  if (version < 1) {
-    database.prepare('INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)').run('schema_version', '1');
+function closeDatabase() {
+  workspaceReady = false;
+}
+
+function getDocument(id) {
+  ensureWorkspace();
+  const file = path.join(getWorkspaceDir(), docFileName(id));
+  if (!fs.existsSync(file)) {
+    return null;
   }
-  if (version < 2) {
-    database.exec(`
-      CREATE TABLE IF NOT EXISTS response_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        request_id TEXT NOT NULL,
-        received_at INTEGER NOT NULL,
-        status_code INTEGER,
-        status_text TEXT,
-        time_ms INTEGER,
-        size INTEGER,
-        http_version TEXT,
-        content_type TEXT,
-        headers_json TEXT,
-        body TEXT,
-        is_binary INTEGER DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS idx_response_history_request
-        ON response_history(request_id, received_at DESC);
-    `);
-    database.prepare('INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)').run('schema_version', '2');
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    logError(`getDocument(${id}) read failed`, e);
+    return null;
   }
+}
+
+function setDocument(id, jsonString) {
+  ensureWorkspace();
+  const file = path.join(getWorkspaceDir(), docFileName(id));
+  atomicWrite(file, typeof jsonString === 'string' ? jsonString : JSON.stringify(jsonString ?? {}, null, 2));
+}
+
+function readSessionStore() {
+  const p = path.join(getWorkspaceDir(), SESSION_FILE);
+  if (!fs.existsSync(p)) {
+    return {};
+  }
+  try {
+    const o = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSessionStore(obj) {
+  atomicWrite(path.join(getWorkspaceDir(), SESSION_FILE), JSON.stringify(obj, null, 2));
+}
+
+function getSessionKey(key) {
+  ensureWorkspace();
+  return readSessionStore()[key];
+}
+
+function setSessionKey(key, value) {
+  ensureWorkspace();
+  const all = readSessionStore();
+  all[key] = value;
+  writeSessionStore(all);
+}
+
+function readHistoryStore() {
+  const p = path.join(getWorkspaceDir(), RESPONSE_HISTORY_FILE);
+  if (!fs.existsSync(p)) {
+    return { nextId: 1, items: [] };
+  }
+  try {
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const items = Array.isArray(raw.items) ? raw.items : [];
+    let nextId = Number(raw.nextId) || 1;
+    for (const it of items) {
+      if (it && it.id != null) {
+        nextId = Math.max(nextId, Number(it.id) + 1);
+      }
+    }
+    return { nextId, items };
+  } catch {
+    return { nextId: 1, items: [] };
+  }
+}
+
+function writeHistoryStore(data) {
+  atomicWrite(path.join(getWorkspaceDir(), RESPONSE_HISTORY_FILE), JSON.stringify(data, null, 2));
+}
+
+function trimHistoryForRequest(items, requestId, keep = 50) {
+  const same = items
+    .filter((e) => e && e.requestId === requestId)
+    .sort((a, b) => (Number(b.receivedAt) || 0) - (Number(a.receivedAt) || 0));
+  if (same.length <= keep) {
+    return items;
+  }
+  const drop = new Set(same.slice(keep).map((e) => e.id));
+  return items.filter((e) => !drop.has(e.id));
 }
 
 function appendResponseHistory(entry) {
-  const database = openDatabase();
-  const stmt = database.prepare(`
-    INSERT INTO response_history
-      (request_id, received_at, status_code, status_text, time_ms, size, http_version, content_type, headers_json, body, is_binary)
-    VALUES
-      (@request_id, @received_at, @status_code, @status_text, @time_ms, @size, @http_version, @content_type, @headers_json, @body, @is_binary)
-  `);
-  const info = stmt.run({
-    request_id: String(entry.requestId || ''),
-    received_at: Number(entry.receivedAt) || Date.now(),
-    status_code: entry.statusCode == null ? null : Number(entry.statusCode),
-    status_text: entry.statusText == null ? null : String(entry.statusText),
-    time_ms: entry.timeMs == null ? null : Number(entry.timeMs),
+  ensureWorkspace();
+  const data = readHistoryStore();
+  const id = data.nextId++;
+  const row = {
+    id,
+    requestId: String(entry.requestId || ''),
+    receivedAt: Number(entry.receivedAt) || Date.now(),
+    statusCode: entry.statusCode == null ? null : Number(entry.statusCode),
+    statusText: entry.statusText == null ? null : String(entry.statusText),
+    timeMs: entry.timeMs == null ? null : Number(entry.timeMs),
     size: entry.size == null ? null : Number(entry.size),
-    http_version: entry.httpVersion == null ? null : String(entry.httpVersion),
-    content_type: entry.contentType == null ? null : String(entry.contentType),
-    headers_json: JSON.stringify(entry.headers || []),
+    httpVersion: entry.httpVersion == null ? null : String(entry.httpVersion),
+    contentType: entry.contentType == null ? null : String(entry.contentType),
+    headers: Array.isArray(entry.headers) ? entry.headers : [],
     body: entry.body == null ? null : String(entry.body),
-    is_binary: entry.isBinary ? 1 : 0,
-  });
-  database.prepare(`
-    DELETE FROM response_history
-    WHERE request_id = ?
-      AND id NOT IN (
-        SELECT id FROM response_history
-        WHERE request_id = ?
-        ORDER BY received_at DESC
-        LIMIT 50
-      )
-  `).run(entry.requestId, entry.requestId);
-  return info.lastInsertRowid;
+    isBinary: !!entry.isBinary,
+  };
+  data.items.push(row);
+  data.items = trimHistoryForRequest(data.items, row.requestId, 50);
+  writeHistoryStore(data);
+  return id;
 }
 
 function listResponseHistory(requestId, limit = 20) {
-  const rows = openDatabase().prepare(`
-    SELECT id, request_id, received_at, status_code, status_text, time_ms, size, http_version, content_type, is_binary
-    FROM response_history
-    WHERE request_id = ?
-    ORDER BY received_at DESC
-    LIMIT ?
-  `).all(String(requestId || ''), Number(limit) || 20);
-  return rows.map((r) => ({
-    id: r.id,
-    requestId: r.request_id,
-    receivedAt: r.received_at,
-    statusCode: r.status_code,
-    statusText: r.status_text,
-    timeMs: r.time_ms,
-    size: r.size,
-    httpVersion: r.http_version,
-    contentType: r.content_type,
-    isBinary: r.is_binary === 1,
-  }));
+  ensureWorkspace();
+  const data = readHistoryStore();
+  const lim = Number(limit) || 20;
+  return data.items
+    .filter((r) => r && r.requestId === String(requestId || ''))
+    .sort((a, b) => (Number(b.receivedAt) || 0) - (Number(a.receivedAt) || 0))
+    .slice(0, lim)
+    .map((r) => ({
+      id: r.id,
+      requestId: r.requestId,
+      receivedAt: r.receivedAt,
+      statusCode: r.statusCode,
+      statusText: r.statusText,
+      timeMs: r.timeMs,
+      size: r.size,
+      httpVersion: r.httpVersion,
+      contentType: r.contentType,
+      isBinary: !!r.isBinary,
+    }));
 }
 
 function getResponseHistoryEntry(id) {
-  const row = openDatabase().prepare(`
-    SELECT id, request_id, received_at, status_code, status_text, time_ms, size, http_version, content_type, headers_json, body, is_binary
-    FROM response_history WHERE id = ?
-  `).get(Number(id));
+  ensureWorkspace();
+  const data = readHistoryStore();
+  const row = data.items.find((r) => r && Number(r.id) === Number(id));
   if (!row) return null;
-  let headers = [];
-  try { headers = JSON.parse(row.headers_json || '[]'); } catch { headers = []; }
   return {
     id: row.id,
-    requestId: row.request_id,
-    receivedAt: row.received_at,
-    statusCode: row.status_code,
-    statusText: row.status_text,
-    timeMs: row.time_ms,
+    requestId: row.requestId,
+    receivedAt: row.receivedAt,
+    statusCode: row.statusCode,
+    statusText: row.statusText,
+    timeMs: row.timeMs,
     size: row.size,
-    httpVersion: row.http_version,
-    contentType: row.content_type,
-    headers,
+    httpVersion: row.httpVersion,
+    contentType: row.contentType,
+    headers: Array.isArray(row.headers) ? row.headers : [],
     body: row.body,
-    isBinary: row.is_binary === 1,
+    isBinary: !!row.isBinary,
   };
 }
 
 function deleteResponseHistory(requestId) {
-  openDatabase().prepare('DELETE FROM response_history WHERE request_id = ?').run(String(requestId || ''));
-}
-
-function getDocument(id) {
-  const row = openDatabase().prepare('SELECT json FROM documents WHERE id = ?').get(id);
-  return row ? row.json : null;
-}
-
-function setDocument(id, jsonString) {
-  openDatabase().prepare('INSERT OR REPLACE INTO documents (id, json) VALUES (?, ?)').run(id, jsonString);
-}
-
-function getSessionKey(key) {
-  const row = openDatabase().prepare('SELECT json FROM session_kv WHERE key = ?').get(key);
-  if (!row) {
-    return undefined;
-  }
-  try {
-    return JSON.parse(row.json);
-  } catch {
-    return undefined;
-  }
-}
-
-function setSessionKey(key, value) {
-  const json = JSON.stringify(value ?? null);
-  openDatabase().prepare('INSERT OR REPLACE INTO session_kv (key, json) VALUES (?, ?)').run(key, json);
-}
-
-function closeDatabase() {
-  if (db) {
-    try {
-      db.close();
-    } catch (e) {
-      logError('SQLite close failed', e);
-    }
-    db = null;
-  }
+  ensureWorkspace();
+  const data = readHistoryStore();
+  const rid = String(requestId || '');
+  data.items = data.items.filter((r) => !r || r.requestId !== rid);
+  writeHistoryStore(data);
 }
 
 module.exports = {
   openDatabase,
   getDbPath,
+  getWorkspaceDir,
   getDocument,
   setDocument,
   getSessionKey,

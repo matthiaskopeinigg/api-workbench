@@ -1,72 +1,142 @@
 <div class="tests-panel" (click)="closeContextMenu()">
+
   <header class="panel-header">
-    <h3>Tests</h3>
+
+    <h3>Load tests</h3>
+
   </header>
 
-  <div class="sections">
-    <div class="section" *ngFor="let s of sections">
-      <button type="button" class="section-header" (click)="toggle(s)">
-        <span class="caret">{{ s.collapsed ? '▸' : '▾' }}</span>
-        <span class="section-title">{{ s.label }}</span>
-        <span class="section-count">{{ s.items.length }}</span>
-        <button type="button" class="section-add" title="Create new"
-                (click)="createNew(s); $event.stopPropagation()">+</button>
-      </button>
 
-      <ul class="items" *ngIf="!s.collapsed">
-        <li class="empty" *ngIf="!s.items.length">
-          No {{ s.label.toLowerCase() }} yet.
+
+  <div class="sections">
+
+    <div class="section">
+
+      <div class="section-header">
+
+        <span class="section-title">Load tests</span>
+
+        <span class="section-count">{{ items.length }}</span>
+
+        <button type="button" class="section-add" title="Create new load test"
+
+                (click)="createNewLoadTest()">+</button>
+
+      </div>
+
+
+
+      <ul class="items">
+
+        <li class="empty" *ngIf="!items.length">
+
+          No load tests yet.
+
         </li>
+
+
 
         <li
-          *ngFor="let item of s.items; trackBy: trackById"
+
+          *ngFor="let item of items; trackBy: trackById"
+
           class="item"
-          (dblclick)="openItem(s, item)"
-          (contextmenu)="openContextMenu($event, s, item)">
-          <div class="item-inner" [class.item-inner--loadtest]="s.key === 'loadTests'">
-            <button type="button" class="item-btn" (click)="openItem(s, item)">
+
+          (dblclick)="openItem(item)"
+
+          (contextmenu)="openContextMenu($event, item)">
+
+          <div class="item-inner item-inner--loadtest">
+
+            <button type="button" class="item-btn" (click)="openItem(item)">
+
               <span class="item-dot"></span>
+
               <span class="item-title" *ngIf="editingId !== item.id">{{ item.title }}</span>
+
               <input
+
                 *ngIf="editingId === item.id"
+
                 class="item-rename"
+
                 [(ngModel)]="editingTitle"
-                (blur)="commitRename(s, item)"
-                (keydown.enter)="commitRename(s, item)"
+
+                (blur)="commitRename(item)"
+
+                (keydown.enter)="commitRename(item)"
+
                 (keydown.escape)="cancelRename()"
+
                 (click)="$event.stopPropagation()"
+
                 autofocus
+
               />
+
             </button>
 
-            <div *ngIf="s.key === 'loadTests'" class="item-lt-profile-add" (click)="$event.stopPropagation()">
+
+
+            <div class="item-lt-profile-add" (click)="$event.stopPropagation()">
+
               <select
+
                 [id]="'ltadd-' + item.id"
+
                 class="tests-lt-add-profile"
+
                 [attr.aria-label]="'Add load profile to ' + (item.title || 'load test')"
+
                 (change)="onAddLoadTestProfile($event, item)"
+
                 title="Add a load profile (template or empty) to this test"
+
               >
+
                 <option value="">＋</option>
+
                 <optgroup label="Template">
+
                   <option *ngFor="let t of loadTestTemplatesAvailable(item)" [value]="loadTestTplPrefix + t.id">{{ t.name }}</option>
+
                 </optgroup>
+
                 <option [value]="loadTestEmptyVal">Empty</option>
+
               </select>
+
             </div>
+
           </div>
 
+
+
           <div
-            *ngIf="contextMenuFor === item.id && contextMenuKind === s.key"
+
+            *ngIf="contextMenuFor === item.id"
+
             class="ctx-menu"
+
             (click)="$event.stopPropagation()">
-            <button type="button" (click)="openItem(s, item); closeContextMenu()">Open</button>
+
+            <button type="button" (click)="openItem(item); closeContextMenu()">Open</button>
+
             <button type="button" (click)="beginRename(item)">Rename</button>
-            <button type="button" (click)="duplicateItem(s, item)">Duplicate</button>
-            <button type="button" class="danger" (click)="deleteItem(s, item)">Delete</button>
+
+            <button type="button" (click)="duplicateItem(item)">Duplicate</button>
+
+            <button type="button" class="danger" (click)="deleteItem(item)">Delete</button>
+
           </div>
+
         </li>
+
       </ul>
+
     </div>
+
   </div>
+
 </div>
+

@@ -29,9 +29,9 @@ function applyRendererCachePath() {
 }
 
 /**
- * If present, the first line is an absolute (or home-relative) directory used as
- * app.getPath("userData") (database, config). Must run before app.ready / DB open.
- * Env API_WORKBENCH_USER_DATA wins over the marker file.
+ * `API_WORKBENCH_USER_DATA` wins; otherwise the first line of
+ * `~/.api-workbench/user-data-path.txt` (if present) sets `userData`.
+ * Must run before app.ready / DB open.
  */
 function applyUserDataOverride() {
   if (process.env.API_WORKBENCH_USER_DATA) {
@@ -40,7 +40,7 @@ function applyUserDataOverride() {
       if (resolved) {
         app.setPath('userData', resolved);
       }
-    } catch (e) {
+    } catch {
       /**/
     }
     return;
@@ -58,14 +58,18 @@ function applyUserDataOverride() {
         }
       }
     }
-  } catch (e) {
+  } catch {
     /**/
   }
 }
 
 function readOverrideTargetFromDisk() {
   if (process.env.API_WORKBENCH_USER_DATA) {
-    return { source: 'env', path: path.resolve(process.env.API_WORKBENCH_USER_DATA) };
+    try {
+      return { source: 'env', path: path.resolve(process.env.API_WORKBENCH_USER_DATA) };
+    } catch {
+      return { source: 'env', path: String(process.env.API_WORKBENCH_USER_DATA) };
+    }
   }
   const marker = getMarkerFilePath();
   if (!fs.existsSync(marker)) {
@@ -82,7 +86,7 @@ function readOverrideTargetFromDisk() {
       source: 'marker',
       path: path.isAbsolute(line) ? line : path.resolve(os.homedir(), line),
     };
-  } catch (e) {
+  } catch {
     return { source: 'marker', path: null };
   }
 }
@@ -109,9 +113,9 @@ function clearDataDirectoryOverride() {
 module.exports = {
   applyUserDataOverride,
   applyRendererCachePath,
-  getMarkerFilePath,
-  getMarkerDir,
   readOverrideTargetFromDisk,
   writeDataDirectoryOverride,
   clearDataDirectoryOverride,
+  getMarkerFilePath,
+  getMarkerDir,
 };

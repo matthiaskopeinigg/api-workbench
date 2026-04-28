@@ -127,7 +127,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
 
   HttpMethod = HttpMethod;
 
-  activeRequestTab: RequestEditorSection = 'body';
+  activeRequestTab: RequestEditorSection = 'params';
   activeResponseTab: 'body' | 'preview' | 'headers' | 'cookies' | 'raw' | 'tests' | 'diff' = 'body';
   isLoading = false;
   showSnippets = false;
@@ -262,7 +262,7 @@ export class RequestComponent implements OnInit, OnChanges, OnDestroy {
     const valid: readonly RequestEditorSection[] = [
       'params', 'headers', 'body', 'scripts', 'auth', 'settings',
     ];
-    this.activeRequestTab = (section && valid.includes(section)) ? section : 'body';
+    this.activeRequestTab = (section && valid.includes(section)) ? section : 'params';
   }
 
   private restoreViewState() {

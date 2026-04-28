@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { MockServerService } from '@core/mock-server/mock-server.service';
+import { SessionService } from '@core/session/session.service';
 import { Collection, Folder } from '@models/collection';
 import { Request as RequestModel } from '@models/request';
 
@@ -14,6 +15,7 @@ function requestHasServedMocks(req: RequestModel): boolean {
 }
 import type { MockServerStatus, StandaloneMockEndpoint } from '@models/electron';
 import { v4 as uuidv4 } from 'uuid';
+import { MockStandaloneSidebarLayoutService } from './mock-standalone-sidebar-layout.service';
 
 export interface MockEndpointEntry {
   request: RequestModel;
@@ -33,6 +35,12 @@ export interface MockEndpointGroup {
 
 export type MockSelectionKind = 'request' | 'standalone' | null;
 
+interface MockUiSessionSelection {
+  kind: MockSelectionKind;
+  requestId: string | null;
+  standaloneId: string | null;
+}
+
 const DEFAULT_STATUS: MockServerStatus = {
   host: '127.0.0.1',
   port: 0,
@@ -45,10 +53,11 @@ const DEFAULT_STATUS: MockServerStatus = {
 
 /**
  * Shared mock-server UI state: endpoint list + selection. Used by the main
- * {@link MockServerComponent} tab and the activity-bar {@link MockServerEndpointsSidebarComponent}.
+ * {@link MockComponent} tab and the activity-bar {@link MockServerEndpointsSidebarComponent}.
  */
 @Injectable({ providedIn: 'root' })
 export class MockServerUiStateService {
+  private readonly selectionSessionKey = 'mockServer.ui.selection';
   private collections: Collection[] = [];
   private status: MockServerStatus = DEFAULT_STATUS;
 
@@ -61,6 +70,8 @@ export class MockServerUiStateService {
   constructor(
     private mockServer: MockServerService,
     private confirmDialog: ConfirmDialogService,
+    private standaloneSidebarLayout: MockStandaloneSidebarLayoutService,
+    private sessionService: SessionService,
   ) {}
 
   get groupsSnapshot(): MockEndpointGroup[] {
@@ -100,24 +111,28 @@ export class MockServerUiStateService {
       name: typeof e.name === 'string' ? e.name : '',
     }));
     this.standalones$.next(mapped);
+    this.standaloneSidebarLayout.syncWithEndpointIds(mapped.map((e) => e.id));
   }
 
   selectRequest(request: RequestModel): void {
     this.selectedRequestId$.next(request.id);
     this.selectionKind$.next('request');
     this.selectedStandaloneId$.next(null);
+    void this.persistSelection();
   }
 
   selectStandalone(endpoint: StandaloneMockEndpoint): void {
     this.selectedStandaloneId$.next(endpoint.id);
     this.selectionKind$.next('standalone');
     this.selectedRequestId$.next(null);
+    void this.persistSelection();
   }
 
   clearSelection(): void {
     this.selectionKind$.next(null);
     this.selectedRequestId$.next(null);
     this.selectedStandaloneId$.next(null);
+    void this.persistSelection();
   }
 
   clearStandaloneSelectionIfDeleted(id: string): void {
@@ -135,11 +150,46 @@ export class MockServerUiStateService {
     this.selectionKind$.next(kind);
     this.selectedRequestId$.next(requestId);
     this.selectedStandaloneId$.next(standaloneId);
+    void this.persistSelection();
   }
 
-  async addStandalone(): Promise<void> {
+  async loadSelectionFromSession(): Promise<void> {
+    await this.sessionService.load<MockUiSessionSelection>(this.selectionSessionKey);
+    const saved = this.sessionService.get<MockUiSessionSelection>(this.selectionSessionKey);
+    if (!saved) return;
+    const kind =
+      saved.kind === 'request' || saved.kind === 'standalone' || saved.kind === null
+        ? saved.kind
+        : null;
+    this.selectionKind$.next(kind);
+    this.selectedRequestId$.next(saved.requestId ?? null);
+    this.selectedStandaloneId$.next(saved.standaloneId ?? null);
+  }
+
+  private async persistSelection(): Promise<void> {
+    const snapshot: MockUiSessionSelection = {
+      kind: this.selectionKind$.value,
+      requestId: this.selectedRequestId$.value,
+      standaloneId: this.selectedStandaloneId$.value,
+    };
+    await this.sessionService.save(this.selectionSessionKey, snapshot);
+  }
+
+  async addStandalone(): Promise<StandaloneMockEndpoint | null> {
     const standalones = this.standalones$.value;
     const used = new Set(standalones.map((s) => s.path));
+    const usedNames = new Set(
+      standalones
+        .map((s) => (s.name || '').trim().toLowerCase())
+        .filter((n) => n.length > 0),
+    );
+    const baseName = 'StandaloneMock';
+    let defaultName = baseName;
+    if (usedNames.has(defaultName.toLowerCase())) {
+      let i = 2;
+      while (usedNames.has(`${baseName.toLowerCase()} ${i}`)) i += 1;
+      defaultName = `${baseName} ${i}`;
+    }
     let path = '/mock/new';
     let n = 1;
     while (used.has(path)) {
@@ -148,7 +198,7 @@ export class MockServerUiStateService {
     }
     const variantId = uuidv4();
     const created = await this.mockServer.registerStandalone({
-      name: '',
+      name: defaultName,
       method: 'GET',
       path,
       variants: [
@@ -168,6 +218,7 @@ export class MockServerUiStateService {
     if (created) {
       this.selectStandalone(created);
     }
+    return created;
   }
 
   async removeStandalone(endpoint: StandaloneMockEndpoint): Promise<void> {

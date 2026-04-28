@@ -1,0 +1,129 @@
+<div class="sec-container">
+  <header class="sec-header">
+    <div class="header-left">
+      <h1 class="sec-title">
+        @if (isReportScoped()) {
+          Security Report: {{ selectedScan()?.name }}
+        } @else {
+          Security Overview
+        }
+      </h1>
+      <p class="sec-lead">
+        @if (isReportScoped()) {
+          Scan status: {{ selectedScan()?.status | uppercase }}
+        } @else {
+          Monitor and scan your API surfaces for vulnerabilities.
+        }
+      </p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-primary" (click)="startNewScan()" [disabled]="isReportScoped()">
+        <span class="icon">🔍</span> Run New Scan
+      </button>
+    </div>
+  </header>
+
+  <main class="sec-content">
+    @if (!isReportScoped()) {
+      <!-- Dashboard Overview -->
+      <section class="sec-dashboard">
+        <div class="metrics-row">
+          <div class="metric-card">
+            <span class="m-label">Critical Issues</span>
+            <span class="m-value sev-critical">{{ summary().criticalIssues }}</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">High Severity</span>
+            <span class="m-value sev-high">{{ summary().highIssues }}</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">Security Score</span>
+            <div class="score-circle" [style.--score]="summary().avgScore">
+              <span class="score-value">{{ summary().avgScore }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="scans-list-card card">
+          <h2 class="card-title">Recent Scans</h2>
+          <div class="table-container">
+            <table class="sec-table">
+              <thead>
+                <tr>
+                  <th>Scan Name</th>
+                  <th>Status</th>
+                  <th>Vulnerabilities</th>
+                  <th>Score</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (scan of scans(); track scan.id) {
+                  <tr class="scan-row">
+                    <td>{{ scan.name }}</td>
+                    <td>
+                      <span class="badge" [class]="'status-' + scan.status">
+                        {{ scan.status }}
+                      </span>
+                      @if (scan.status === 'running') {
+                        <div class="mini-progress">
+                          <div class="bar" [style.width.%]="scan.progress"></div>
+                        </div>
+                      }
+                    </td>
+                    <td>
+                      <div class="vuln-counts">
+                        <span class="count sev-critical">{{ scan.vulnerabilities.length }}</span>
+                      </div>
+                    </td>
+                    <td><span class="score-tag">{{ scan.score }}</span></td>
+                    <td>{{ scan.startedAt | date:'short' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <!-- Individual Report View -->
+      @if (selectedScan(); as scan) {
+        <section class="sec-report">
+          <div class="report-summary card">
+            <div class="report-meta">
+              <div class="meta-item">
+                <span class="label">Target</span>
+                <span class="value">{{ scan.targetType | uppercase }} ({{ scan.targetId }})</span>
+              </div>
+              <div class="meta-item">
+                <span class="label">Time</span>
+                <span class="value">{{ scan.startedAt | date:'medium' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="vulnerabilities-grid">
+            @for (v of scan.vulnerabilities; track v.id) {
+              <div class="v-card card" [class]="getSeverityClass(v.severity)">
+                <div class="v-header">
+                  <span class="v-severity">{{ v.severity | uppercase }}</span>
+                  <h3 class="v-title">{{ v.title }}</h3>
+                </div>
+                <p class="v-desc">{{ v.description }}</p>
+                <div class="v-footer">
+                  <span class="v-cat">{{ v.category }}</span>
+                  <button class="btn-text">View Details →</button>
+                </div>
+              </div>
+            } @empty {
+              <div class="empty-state">
+                <span class="icon">🛡️</span>
+                <p>No vulnerabilities found in this scan. Great job!</p>
+              </div>
+            }
+          </div>
+        </section>
+      }
+    }
+  </main>
+</div>

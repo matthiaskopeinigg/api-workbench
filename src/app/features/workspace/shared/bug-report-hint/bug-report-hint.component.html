@@ -1,0 +1,41 @@
+<section class="bug-hint" [class.bug-hint--prominent]="prominent" aria-labelledby="bug-hint-title">
+  <h3 id="bug-hint-title" class="bug-hint__title">Report a bug on GitHub</h3>
+  <ol class="bug-hint__steps">
+    <li>
+      In <strong>Settings → Logging</strong>, turn on <strong>Write application logs to a file</strong>, reproduce the problem,
+      then attach or paste relevant lines from the log folder below (remove secrets).
+    </li>
+    <li>
+      Open
+      <button type="button" class="bug-hint__link" (click)="openIssues()">GitHub Issues</button>
+      or
+      <button type="button" class="bug-hint__link" (click)="openNewIssue()">start a new issue</button>.
+    </li>
+    <li>
+      Include app version, your OS, what you expected, and what happened. If the app will not start, say so; a maintainer may ask for
+      terminal output from a dev build.
+    </li>
+  </ol>
+
+  <dl class="bug-hint__meta" *ngIf="appVersion || storage?.logsDir || storage?.userData">
+    <div *ngIf="appVersion" class="bug-hint__meta-row">
+      <dt>App version</dt>
+      <dd>{{ appVersion }}</dd>
+    </div>
+    <div *ngIf="storage?.logsDir as logDir" class="bug-hint__meta-row">
+      <dt>Log folder</dt>
+      <dd class="bug-hint__mono">{{ logDir }}</dd>
+    </div>
+    <div *ngIf="storage?.userData as dataDir" class="bug-hint__meta-row">
+      <dt>Data directory</dt>
+      <dd class="bug-hint__mono">{{ dataDir }}</dd>
+    </div>
+  </dl>
+
+  <div class="bug-hint__actions">
+    <button *ngIf="canOpenLogs" type="button" class="bug-hint__btn" (click)="openLogsFolder()">Open log folder</button>
+    <button type="button" class="bug-hint__btn bug-hint__btn--secondary" (click)="copyReportPreamble()">
+      {{ copyDone ? 'Copied' : 'Copy issue template' }}
+    </button>
+  </div>
+</section>

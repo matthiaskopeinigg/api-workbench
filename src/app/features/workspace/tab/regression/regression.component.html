@@ -1,0 +1,584 @@
+<div class="reg" [class.is-editor]="view() === 'editor'">
+  @if (view() === 'dashboard') {
+    <div class="dash-view">
+      <header class="reg-header">
+        <div class="header-left">
+          <h1 class="reg-title">
+            @if (isRunScoped()) {
+              Run: {{ selectedRun()?.versionTag }}
+            } @else {
+              {{ isProjectScoped() ? selectedProject()?.name : 'Regression' }}
+            }
+          </h1>
+          <p class="reg-lead">
+            @if (isRunScoped()) {
+              Executed on {{ selectedRun()?.createdAt | date:'short' }}
+            } @else {
+              {{ isProjectScoped() ? selectedProject()?.description : 'Manage automated flow sequences.' }}
+            }
+          </p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" (click)="openCreateProjectDialog()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            New Project
+          </button>
+          <button class="btn-primary" (click)="openCreateRunDialog()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Release Planner
+          </button>
+        </div>
+      </header>
+
+      <section class="reg-dashboard">
+        <!-- Merged Dashboard Content -->
+        <div class="metrics-row" *ngIf="isRunScoped()">
+          <div class="metric-card">
+            <span class="m-label">Total Tests</span>
+            <span class="m-value">{{ summary().totalTests | number }}</span>
+            <span class="m-trend positive">↑ 12%</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">Success Rate</span>
+            <span class="m-value">{{ summary().successRate }}%</span>
+            <div class="mini-bar"><div class="fill" [style.width.%]="summary().successRate"></div></div>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">Avg. Duration</span>
+            <span class="m-value">{{ summary().avgDurationMs }}ms</span>
+            <span class="m-trend">Stable</span>
+          </div>
+          <div class="metric-card">
+            <span class="m-label">Active Projects</span>
+            <span class="m-value">{{ projects().length }}</span>
+            <span class="m-trend positive">+{{ projects().length }} new</span>
+          </div>
+        </div>
+
+        <div class="dash-grid" *ngIf="isRunScoped()">
+          <section class="card breakdown-card">
+            <h2 class="card-title">Testing Modes</h2>
+            <div class="breakdown-list">
+              @for (m of summary().modes; track m.mode) {
+                <div class="breakdown-item">
+                  <div class="item-info">
+                    <span class="dot" [style.background]="m.colorVar"></span>
+                    <span class="label">{{ m.label }}</span>
+                  </div>
+                  <div class="item-stats">
+                    <span class="val">{{ m.count | number }}</span>
+                    <span class="pct">{{ pct(m.count, summary().totalTests) }}%</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <section class="card usage-card">
+            <h2 class="card-title">System Resources</h2>
+            <div class="quota-grid">
+              <div class="quota-item">
+                <div class="q-head">
+                  <span>Sessions</span>
+                  <span>{{ summary().liveSessionsUsed }}/{{ summary().liveSessionsLimit }}</span>
+                </div>
+                <div class="q-bar"><div class="q-fill" [style.width.%]="sessionsGauge(summary())"></div></div>
+              </div>
+              @for (q of summary().quotas; track q.id) {
+                <div class="quota-item">
+                  <div class="q-head">
+                    <span>{{ q.label }}</span>
+                    <span>{{ q.used }}/{{ q.limit }}</span>
+                  </div>
+                  <div class="q-bar"><div class="q-fill" [style.width.%]="pct(q.used, q.limit)"></div></div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <section class="card chart-card">
+            <h2 class="card-title">Recent Activity</h2>
+            <div class="mini-chart">
+              <div class="bar-mock" style="height: 40%"></div>
+              <div class="bar-mock" style="height: 60%"></div>
+              <div class="bar-mock" style="height: 45%"></div>
+              <div class="bar-mock" style="height: 80%"></div>
+              <div class="bar-mock" style="height: 55%"></div>
+              <div class="bar-mock" style="height: 30%"></div>
+              <div class="bar-mock" style="height: 70%"></div>
+              <div class="bar-mock" style="height: 50%"></div>
+              <div class="bar-mock" style="height: 65%"></div>
+              <div class="bar-mock" style="height: 40%"></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <div class="reg-content-tabs">
+        <nav class="content-nav">
+          <button class="nav-btn" [class.active]="activeTab() === 'flows'" (click)="activeTab.set('flows')">
+            Projects & Flows
+          </button>
+          <button class="nav-btn" [class.active]="activeTab() === 'runs'" (click)="activeTab.set('runs')">
+            Test Runs History
+          </button>
+        </nav>
+
+        <div class="project-tabs" *ngIf="activeTab() === 'flows' && !isProjectScoped()">
+          <button class="project-tab" [class.active]="selectedProjectId() === null" (click)="selectProject(null)">
+            All Projects
+          </button>
+          @for (p of projects(); track p.id) {
+            <button class="project-tab" [class.active]="selectedProjectId() === p.id" (click)="selectProject(p.id)">
+              {{ p.name }}
+            </button>
+          }
+        </div>
+
+        <div class="tab-body">
+          @if (activeTab() === 'flows') {
+            <div class="browser-container">
+              @if (selectedProjectId()) {
+                <div class="project-header-row">
+                  <div class="project-info">
+                    <h2>{{ selectedProject()?.name }}</h2>
+                    <p>{{ selectedProject()?.description }}</p>
+                  </div>
+                  <div class="project-actions">
+                    <button class="btn-ghost btn-sm" (click)="deleteProject(selectedProjectId()!)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                    <button class="btn-secondary btn-sm" (click)="openCreateFlowDialog(selectedProjectId()!)">
+                      + New Flow
+                    </button>
+                  </div>
+                </div>
+              }
+
+              @for (p of (selectedProjectId() ? [selectedProject()!] : projects()); track p.id) {
+                <div class="project-section">
+                  <div class="project-section-header">
+                    <span class="project-section-title">{{ p.name }}</span>
+                    <button class="btn-ghost btn-xs" (click)="openCreateGroupDialog(p.id)">+ Folder</button>
+                  </div>
+                  <app-flow-browser
+                    [items]="p.flows"
+                    (selectFlow)="selectFlow($event)"
+                    (deleteFlow)="deleteFlow($event)"
+                    (toggleGroup)="toggleFlowGroup(p.id, $event)"
+                    (deleteGroup)="deleteFlowGroup(p.id, $event)"
+                    (addFlowToGroup)="openCreateFlowDialog(p.id, $event)"
+                    (addGroupToGroup)="openCreateGroupDialog(p.id, $event)">
+                  </app-flow-browser>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="runs-container">
+              <table class="runs-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Results</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (run of runs(); track run.id) {
+                    <tr>
+                      <td (click)="selectRun(run.id)" style="cursor: pointer">
+                        <div class="run-tag">
+                          <span class="tag-label">{{ run.versionTag }}</span>
+                          <span class="tag-desc">{{ run.description }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="status-badge" [class]="'badge--' + run.status">
+                          {{ run.status }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="run-date">
+                          <span class="date">{{ run.createdAt | date:'shortDate' }}</span>
+                          <span class="time">{{ run.createdAt | date:'shortTime' }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="run-results">
+                          <span class="res-count">{{ run.results.length }}/{{ run.flowIds.length }}</span>
+                          <div class="res-bar">
+                            @for (res of run.results; track res.flowId) {
+                              <div class="res-dot" [class]="'res--' + res.status" [title]="res.flowName"></div>
+                            }
+                          </div>
+                        </div>
+                      </td>
+                      <td class="actions-cell">
+                        <button class="btn-icon" (click)="executeRun(run.id)" title="Run All" *ngIf="run.status !== 'running'">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </button>
+                        <button class="btn-icon" (click)="rerunFailed(run.id)" title="Rerun Failed" *ngIf="hasFailures(run) && run.status !== 'running'">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        </button>
+                        <button class="btn-icon btn-icon--danger" (click)="deleteRun(run.id)" title="Delete">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  } @else if (view() === 'run-details') {
+    @if (selectedRun(); as run) {
+      <header class="editor-header">
+        <div class="header-left">
+          <button class="btn-back" (click)="backToDashboard()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <div class="header-info">
+            <h2 class="editor-title">{{ run.versionTag }}</h2>
+            <span class="status-badge" [class]="'badge--' + run.status">{{ run.status }}</span>
+            <span class="muted-info">{{ run.createdAt | date:'medium' }}</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" (click)="rerunFailed(run.id)" *ngIf="hasFailures(run)">
+            Rerun Failed
+          </button>
+          <button class="btn-primary" (click)="executeRun(run.id)" [disabled]="run.status === 'running'">
+            {{ run.status === 'running' ? 'Running...' : 'Run All Flows' }}
+          </button>
+        </div>
+      </header>
+
+      <div class="run-details-layout">
+        <div class="run-summary-grid">
+          <div class="summary-card">
+            <span class="label">Total Flows</span>
+            <span class="value">{{ run.flowIds.length }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Passed</span>
+            <span class="value success">{{ countByStatus(run.results, 'passed') }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Failed</span>
+            <span class="value error">{{ countByStatus(run.results, 'failed') }}</span>
+          </div>
+        </div>
+
+        <div class="run-flows-list">
+          <h3>Flow Results</h3>
+          <div class="results-table-wrap">
+            <table class="results-table">
+              <thead>
+                <tr>
+                  <th>Flow Name</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (flowId of run.flowIds; track flowId) {
+                  @let result = getResult(run, flowId);
+                  <tr>
+                    <td>{{ getFlowName(flowId) }}</td>
+                    <td>
+                      @if (result) {
+                        <span class="status-badge" [class]="'badge--' + result.status">{{ result.status }}</span>
+                      } @else {
+                        <span class="status-badge badge--queued">Queued</span>
+                      }
+                    </td>
+                    <td>{{ result?.durationMs ? (result.durationMs | number) + 'ms' : '-' }}</td>
+                    <td>
+                      <button class="btn-icon" (click)="svc.runFlow(flowId)" title="Run this flow individually">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
+  } @else {
+    <header class="editor-header">
+      <div class="header-left">
+        <button class="btn-back" (click)="backToDashboard()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <div class="header-info">
+          <h2 class="editor-title">{{ selectedFlow()?.name }}</h2>
+          <span class="editor-status" [class]="'status--' + selectedFlow()?.lastRunStatus">
+            {{ selectedFlow()?.lastRunStatus }}
+          </span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <label class="e2e-toggle">
+          <input type="checkbox" [ngModel]="svc.showE2eBrowser()" (ngModelChange)="svc.showE2eBrowser.set($event)">
+          <span>Show E2E Browser</span>
+        </label>
+        <label class="e2e-toggle">
+          <input type="checkbox" [ngModel]="svc.keepE2eBrowserOpen()" (ngModelChange)="svc.keepE2eBrowserOpen.set($event)">
+          <span>Keep Open</span>
+        </label>
+        <button class="btn-primary btn-run" (click)="onRunFlow()" [disabled]="selectedFlow()?.lastRunStatus === 'running'">
+          @if (selectedFlow()?.lastRunStatus === 'running') {
+            <div class="btn-spinner"></div>
+          } @else {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          }
+          {{ selectedFlow()?.lastRunStatus === 'running' ? 'Running...' : 'Run Flow' }}
+        </button>
+      </div>
+    </header>
+
+    <div class="editor-layout">
+      <div class="editor-sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Flow Steps</span>
+          <div class="sidebar-actions">
+            <button class="btn-icon" (click)="openAddNodeDialog()" title="Add to root">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+          </div>
+        </div>
+        <app-flow-tree
+          [nodes]="selectedFlow()?.nodes || []"
+          [selectedNodeId]="selectedNode()?.id || null"
+          (nodeSelected)="onNodeSelected($event)"
+          (toggleFolder)="onToggleFolder($event)"
+          (addToFolder)="openAddNodeDialog($event)"
+          (deleteNode)="onDeleteNode($event)">
+        </app-flow-tree>
+      </div>
+      <div class="editor-main">
+        @if (selectedNode()) {
+          <app-flow-node-editor 
+            [node]="selectedNode()!" 
+            (nodeChange)="onNodeChanged($event)">
+          </app-flow-node-editor>
+
+          @if (selectedNode()?.type === 'step' && asStep(selectedNode()!).lastRunStatus === 'failed') {
+            <div class="diagnostics-panel">
+              <div class="diag-header">
+                <span class="diag-label">🚨 FAILURE DIAGNOSTICS</span>
+                <span class="diag-error">{{ asStep(selectedNode()!).error }}</span>
+              </div>
+
+              @if (asStep(selectedNode()!).errorDetails) {
+                <div class="diag-body">
+                  <div class="diag-row">
+                    <span class="label">Status Code:</span>
+                    <span class="badge" [class.badge-error]="asStep(selectedNode()!).errorDetails.status >= 400">
+                      {{ asStep(selectedNode()!).errorDetails.status }}
+                    </span>
+                  </div>
+                  <div class="diag-section">
+                    <span class="label">Response Body:</span>
+                    <pre class="json-viewer">{{ asStep(selectedNode()!).errorDetails.body | json }}</pre>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <div class="empty-editor">
+            <div class="empty-icon">📂</div>
+            <p>Select a step or folder to edit configuration</p>
+          </div>
+        }
+
+        <!-- Execution Logs -->
+        <!-- Execution Logs -->
+        @if (executionLogs().length > 0) {
+          <div class="log-panel" [class.is-collapsed]="!showLogPanel()">
+            <div class="log-header" (click)="showLogPanel.set(!showLogPanel())">
+              <div class="log-title-group">
+                <span class="log-title">Execution Log</span>
+                <span class="log-count">{{ executionLogs().length }}</span>
+              </div>
+              <div class="log-header-actions">
+                <button class="btn-icon" (click)="showLogPanel.set(!showLogPanel()); $event.stopPropagation()" [title]="showLogPanel() ? 'Hide' : 'Show'">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" [style.transform]="showLogPanel() ? '' : 'rotate(180deg)'">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <button class="btn-icon" (click)="clearLogs(); $event.stopPropagation()" title="Clear Logs">✕</button>
+              </div>
+            </div>
+            <div class="log-body" #logBody *ngIf="showLogPanel()">
+              @for (log of executionLogs(); track $index) {
+                <div class="log-entry" [class]="'log--' + log.type">
+                  <span class="log-time">{{ log.timestamp }}</span>
+                  <span class="log-msg">{{ log.message }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Modals -->
+  @if (showCreateProjectDialog()) {
+    <div class="modal-overlay" (click)="showCreateProjectDialog.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h3>Create New Project</h3>
+        <div class="modal-form">
+          <div class="form-group">
+            <label>Project Name</label>
+            <input type="text" [(ngModel)]="newProjectName" placeholder="e.g. Mobile API" class="modal-input" autofocus (keyup.enter)="createProject()">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="showCreateProjectDialog.set(false)">Cancel</button>
+          <button class="btn-primary" (click)="createProject()">Create Project</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showCreateFlowDialog()) {
+    <div class="modal-overlay" (click)="showCreateFlowDialog.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h3>Create New Flow</h3>
+        <div class="modal-form">
+          <div class="form-group">
+            <label>Flow Name</label>
+            <input type="text" [(ngModel)]="newFlowName" placeholder="e.g. Login Flow" class="modal-input" autofocus (keyup.enter)="createFlow()">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="showCreateFlowDialog.set(false)">Cancel</button>
+          <button class="btn-primary" (click)="createFlow()">Create Flow</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showCreateGroupDialog()) {
+    <div class="modal-overlay" (click)="showCreateGroupDialog.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h3>Create New Folder</h3>
+        <div class="modal-form">
+          <div class="form-group">
+            <label>Folder Name</label>
+            <input type="text" [(ngModel)]="newGroupName" placeholder="e.g. Authentication" class="modal-input" autofocus (keyup.enter)="createGroup()">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="showCreateGroupDialog.set(false)">Cancel</button>
+          <button class="btn-primary" (click)="createGroup()">Create Folder</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showCreateRunDialog()) {
+    <app-release-planner
+      [projects]="projects()"
+      (cancel)="showCreateRunDialog.set(false)"
+      (plan)="onPlanRelease($event)">
+    </app-release-planner>
+  }
+
+  @if (showDeleteConfirm()) {
+    <div class="modal-overlay" (click)="closeDeleteConfirm()">
+      <div class="modal modal--danger" (click)="$event.stopPropagation()">
+        <h3>{{ deleteTitle() }}</h3>
+        <p class="modal-msg">{{ deleteMessage() }}</p>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="closeDeleteConfirm()">Cancel</button>
+          <button class="btn-primary btn-danger" (click)="executeDelete()">Delete</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showAddNodeDialog()) {
+    <div class="modal-overlay" (click)="showAddNodeDialog.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h3>Add Flow Element</h3>
+        <div class="add-node-grid">
+          <button class="add-node-btn" (click)="addFolder('New Folder')">
+            <span class="icon">📂</span>
+            <span class="label">Folder</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('REQUEST')">
+            <span class="icon">⇄</span>
+            <span class="label">HTTP Request</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('VALIDATION')">
+            <span class="icon">✓</span>
+            <span class="label">Validation</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('DATABASE')">
+            <span class="icon">⛁</span>
+            <span class="label">DB Query</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('E2E')">
+            <span class="icon">🖥</span>
+            <span class="label">Browser</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('INTERCEPT')">
+            <span class="icon">🛰️</span>
+            <span class="label">Intercept</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('WAIT')">
+            <span class="icon">⏳</span>
+            <span class="label">Wait</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('SECURITY')">
+            <span class="icon">🛡️</span>
+            <span class="label">Security</span>
+          </button>
+          <button class="add-node-btn" (click)="addStep('MANUAL')">
+            <span class="icon">⌨️</span>
+            <span class="label">Manual Input</span>
+          </button>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="showAddNodeDialog.set(false)">Cancel</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (svc.manualInputRequest(); as req) {
+    <div class="modal-overlay" (click)="cancelManualInput()">
+      <div class="modal modal--manual" (click)="$event.stopPropagation()">
+        <div class="manual-icon">⌨️</div>
+        <h3>User Input Required</h3>
+        <p class="manual-prompt">{{ req.prompt }}</p>
+        <div class="modal-form">
+          <div class="form-group">
+            <input type="text" 
+                   [(ngModel)]="manualInputValue" 
+                   placeholder="Enter value here..." 
+                   class="modal-input" 
+                   autofocus 
+                   (keyup.enter)="submitManualInput()">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="cancelManualInput()">Cancel Run</button>
+          <button class="btn-primary" (click)="submitManualInput()">Continue Flow</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

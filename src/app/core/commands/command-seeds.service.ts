@@ -17,14 +17,6 @@ import { Request } from '@models/request';
 import { TestArtifactService } from '@core/testing/test-artifact.service';
 import type { LoadTestArtifact } from '@models/testing/load-test';
 import { DEFAULT_LOAD_CONFIG, ensureLoadTestProfiles } from '@models/testing/load-test';
-import type { TestSuiteArtifact } from '@models/testing/test-suite';
-import { NEW_TEST_SUITE } from '@models/testing/test-suite';
-import { TestSuiteRunnerService } from '@core/testing/test-suite-runner.service';
-import type { ContractTestArtifact } from '@models/testing/contract-test';
-import { NEW_CONTRACT_TEST } from '@models/testing/contract-test';
-import type { FlowArtifact } from '@models/testing/flow';
-import { NEW_FLOW } from '@models/testing/flow';
-
 /**
  * Seeds the command palette with a baseline set of always-available commands.
  * Feature modules can register additional commands through
@@ -46,7 +38,6 @@ export class CommandSeedsService {
     private shortcutsPanel: ShortcutsPanelService,
     private environmentsService: EnvironmentsService,
     private testArtifacts: TestArtifactService,
-    private suiteRunner: TestSuiteRunnerService,
     private confirmDialog: ConfirmDialogService,
   ) {}
 
@@ -97,6 +88,13 @@ export class CommandSeedsService {
         category: 'Mock',
         hint: 'Open the Mock Server tab',
         run: () => this.tabService.openMockServerTab(),
+      },
+      {
+        id: 'workbench.openCapture',
+        label: 'Open Capture',
+        category: 'Testing',
+        hint: 'Record HTTP(S) from a capture browser window for release-suite steps',
+        run: () => this.tabService.openCaptureTab(),
       },
       {
         id: 'workbench.mockServer.start',
@@ -213,25 +211,18 @@ export class CommandSeedsService {
         run: () => this.createAndOpenLoadTest(),
       },
       {
-        id: 'workbench.new.testSuite',
-        label: 'New test suite',
+        id: 'workbench.openRegression',
+        label: 'Open Regression',
         category: 'Testing',
-        hint: 'Create an API test suite artifact and open it',
-        run: () => this.createAndOpenSuite(),
+        hint: 'Manage and run automated regression tests',
+        run: () => this.tabService.openRegressionTab(),
       },
       {
-        id: 'workbench.new.contractTest',
-        label: 'New contract test',
+        id: 'workbench.openSecurity',
+        label: 'Open Security Test',
         category: 'Testing',
-        hint: 'Validate a collection against an OpenAPI spec',
-        run: () => this.createAndOpenContract(),
-      },
-      {
-        id: 'workbench.new.flow',
-        label: 'New flow',
-        category: 'Testing',
-        hint: 'Build a request chain on a visual canvas',
-        run: () => this.createAndOpenFlow(),
+        hint: 'Scan for vulnerabilities and security flaws',
+        run: () => this.tabService.openSecurityTab(),
       },
     ]);
 
@@ -242,13 +233,11 @@ export class CommandSeedsService {
     const initial = this.collectionService.getCollections?.() || [];
     if (initial.length > 0) this.syncRequestCommands(initial);
 
-    this.testArtifacts.loadTests$().subscribe((items) => this.syncTestArtifactCommands('loadTest', items, (a) => this.tabService.openLoadTestTab(a.id, a.title)));
-    this.testArtifacts.testSuites$().subscribe((items) => {
-      this.syncTestArtifactCommands('testSuite', items, (a) => this.tabService.openTestSuiteTab(a.id, a.title));
-      this.syncRegressionCommands(items as TestSuiteArtifact[]);
-    });
-    this.testArtifacts.contractTests$().subscribe((items) => this.syncTestArtifactCommands('contractTest', items, (a) => this.tabService.openContractTestTab(a.id, a.title)));
-    this.testArtifacts.flows$().subscribe((items) => this.syncTestArtifactCommands('flow', items, (a) => this.tabService.openFlowTab(a.id, a.title)));
+    this.testArtifacts
+      .loadTests$()
+      .subscribe((items) =>
+        this.syncLoadTestOpenCommands(items, (a) => this.tabService.openLoadTestTab(a.id, a.title)),
+      );
   }
 
   private async createAndOpenLoadTest(): Promise<void> {
@@ -263,72 +252,23 @@ export class CommandSeedsService {
     this.tabService.openLoadTestTab(artifact.id, artifact.title);
   }
 
-  private async createAndOpenSuite(): Promise<void> {
-    const artifact = NEW_TEST_SUITE(uuidv4()) as TestSuiteArtifact;
-    artifact.title = 'New test suite';
-    await this.testArtifacts.create('testSuites', artifact);
-    this.tabService.openTestSuiteTab(artifact.id, artifact.title);
-  }
-
-  private async createAndOpenContract(): Promise<void> {
-    const artifact = NEW_CONTRACT_TEST(uuidv4()) as ContractTestArtifact;
-    artifact.title = 'New contract test';
-    await this.testArtifacts.create('contractTests', artifact);
-    this.tabService.openContractTestTab(artifact.id, artifact.title);
-  }
-
-  private async createAndOpenFlow(): Promise<void> {
-    const artifact = NEW_FLOW(uuidv4()) as FlowArtifact;
-    artifact.title = 'New flow';
-    await this.testArtifacts.create('flows', artifact);
-    this.tabService.openFlowTab(artifact.id, artifact.title);
-  }
-
-  /**
-   * Mirror every saved test suite as a "run in regression mode" command.
-   * The command opens the suite tab (so results are visible), flips
-   * `regressionMode` on, persists, and kicks off Run All via the runner.
-   */
-  private syncRegressionCommands(suites: TestSuiteArtifact[]): void {
-    const prefix = 'testSuite.regression.';
-    this.registry.unregisterPrefix(prefix);
-    if (!suites.length) return;
-    this.registry.registerAll(suites.map((a) => ({
-      id: `${prefix}${a.id}`,
-      label: `Run in regression mode: ${a.title || '(untitled)'}`,
-      category: 'Test Suites',
-      hint: 'Compare responses against stored snapshot baselines',
-      run: async () => {
-        const fresh = this.testArtifacts.testSuites().find((s) => s.id === a.id);
-        if (!fresh) return;
-        fresh.regressionMode = true;
-        await this.testArtifacts.update('testSuites', { ...fresh, updatedAt: Date.now() });
-        this.tabService.openTestSuiteTab(fresh.id, fresh.title);
-        const updated = this.testArtifacts.testSuites().find((s) => s.id === a.id);
-        if (updated) void this.suiteRunner.run(updated);
-      },
-    })));
-  }
-
-  private syncTestArtifactCommands(
-    kindLabel: 'loadTest' | 'testSuite' | 'contractTest' | 'flow',
+  private syncLoadTestOpenCommands(
     items: ReadonlyArray<{ id: string; title: string }>,
     open: (a: { id: string; title: string }) => void,
   ): void {
-    const prefix = `${kindLabel}.open.`;
+    const prefix = 'loadTest.open.';
     this.registry.unregisterPrefix(prefix);
     if (!items.length) return;
-    const category =
-      kindLabel === 'loadTest' ? 'Load Tests' :
-      kindLabel === 'testSuite' ? 'Test Suites' :
-      kindLabel === 'contractTest' ? 'Contract Tests' : 'Flows';
-    this.registry.registerAll(items.map((a) => ({
-      id: `${prefix}${a.id}`,
-      label: a.title || '(untitled)',
-      category,
-      hint: `Open this ${category.slice(0, -1).toLowerCase()}`,
-      run: () => open(a),
-    })));
+    const category = 'Load Tests';
+    this.registry.registerAll(
+      items.map((a) => ({
+        id: `${prefix}${a.id}`,
+        label: a.title || '(untitled)',
+        category,
+        hint: 'Open this load test',
+        run: () => open(a),
+      })),
+    );
   }
 
   private syncRequestCommands(collections: Collection[]): void {

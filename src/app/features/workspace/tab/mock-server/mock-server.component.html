@@ -1,151 +1,5 @@
 <div class="mock-tab">
 
-  
-  <header class="mock-tab-header">
-    <div class="header-row">
-      <div class="server-pill"
-           [class.running]="status.status === 'running'"
-           [class.starting]="status.status === 'starting'"
-           [class.error]="status.status === 'error'">
-        <span class="server-dot" aria-hidden="true"></span>
-        <div class="server-info">
-          <span class="server-state">
-            {{ status.status === 'running' ? 'Server running'
-                : (status.status === 'starting' ? 'Starting…'
-                : (status.status === 'error' ? 'Server error' : 'Server stopped')) }}
-          </span>
-          <span class="server-meta" *ngIf="status.status === 'running'">
-            {{ status.baseUrl }}
-          </span>
-          <span class="server-meta error-text" *ngIf="status.status === 'error' && status.error">
-            {{ status.error }}
-          </span>
-        </div>
-      </div>
-
-      <div class="header-actions">
-        <button type="button" class="btn-primary"
-                *ngIf="status.status !== 'running'"
-                (click)="startServer()">Start</button>
-        <button type="button" class="btn-secondary"
-                *ngIf="status.status === 'running'"
-                (click)="stopServer()">Stop</button>
-        <button type="button" class="btn-ghost"
-                *ngIf="status.status === 'running'"
-                (click)="restartServer()">Restart</button>
-        <button type="button" class="btn-ghost btn-icon"
-                *ngIf="status.status === 'running'"
-                (click)="copyValue(status.baseUrl)"
-                [title]="'Copy base URL'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <span *ngIf="copied === 'baseUrl'">Copied</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="header-row config-row">
-      <label class="config-field">
-        <span class="config-label">Port</span>
-        <input type="number" min="1" max="65535"
-               [(ngModel)]="portInput"
-               placeholder="auto"
-               [disabled]="status.status === 'starting'" />
-      </label>
-
-      <div class="config-field">
-        <span class="config-label">Bind</span>
-        <div class="segmented">
-          <button type="button"
-                  [class.active]="options.bindAddress === '127.0.0.1'"
-                  (click)="setBindAddress('127.0.0.1')">127.0.0.1</button>
-          <button type="button"
-                  [class.active]="options.bindAddress === '0.0.0.0'"
-                  (click)="setBindAddress('0.0.0.0')">0.0.0.0</button>
-        </div>
-      </div>
-
-      <label class="config-field">
-        <span class="config-label">Default delay</span>
-        <div class="suffix-input">
-          <input type="number" min="0" step="50"
-                 [ngModel]="options.defaultDelayMs"
-                 (ngModelChange)="onOptionChange('defaultDelayMs', $event)" />
-          <span class="suffix">ms</span>
-        </div>
-      </label>
-
-      <button type="button"
-              class="advanced-toggle"
-              [class.expanded]="showAdvanced"
-              [attr.aria-expanded]="showAdvanced"
-              (click)="toggleAdvanced()">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-        <span>Advanced</span>
-      </button>
-    </div>
-
-    <div class="config-row advanced-row" *ngIf="showAdvanced">
-      <div class="advanced-fields">
-        <label class="config-field advanced-field-cors">
-          <span class="config-label">CORS</span>
-          <app-dropdown
-            class="advanced-dd"
-            [options]="corsModeOptions"
-            [value]="options.corsMode"
-            align="right"
-            [menuMaxWidth]="'min(100%, 20rem)'"
-            ariaLabel="Cross-origin resource sharing (CORS)"
-            (valueChange)="onCorsModeChange($event)"
-          />
-        </label>
-        <label class="config-field advanced-field-ct">
-          <span class="config-label">Default Content-Type</span>
-          <input
-            type="text"
-            class="advanced-ct-input"
-            [ngModel]="options.defaultContentType"
-            (ngModelChange)="onOptionChange('defaultContentType', $event)"
-            [title]="options.defaultContentType"
-            spellcheck="false"
-            autocomplete="off"
-            placeholder="e.g. application/json; charset=utf-8"
-          />
-        </label>
-      </div>
-      <div class="advanced-toggles">
-        <label class="config-checkbox">
-          <input type="checkbox"
-                 [ngModel]="options.captureBodies"
-                 (ngModelChange)="onOptionChange('captureBodies', $event)" />
-          <span>Capture request &amp; response bodies in activity log</span>
-        </label>
-        <label class="config-checkbox">
-          <input type="checkbox"
-                 [ngModel]="options.autoStart"
-                 (ngModelChange)="onOptionChange('autoStart', $event)" />
-          <span>Auto-start server on app launch</span>
-        </label>
-      </div>
-      <div class="advanced-footer">
-        <button type="button" class="btn-ghost danger btn-small" (click)="resetAllVariants()">
-          Reset all variants
-        </button>
-      </div>
-    </div>
-
-    <div class="bind-warning" *ngIf="options.bindAddress === '0.0.0.0' && status.status === 'running'">
-      ⚠ Server is reachable from your local network at {{ status.baseUrl }}.
-    </div>
-  </header>
-
-  
   <div class="mock-tab-body">
 
     <section class="mock-main"
@@ -188,8 +42,9 @@
           <div class="variant-list" *ngIf="req.mockVariants && req.mockVariants.length > 0">
             <div class="variant-card"
                  *ngFor="let variant of req.mockVariants; let i = index; trackBy: trackByVariant"
-                 [class.is-active]="isRequestVariantServed(variant.id)">
-              <div class="variant-head">
+                 [class.is-active]="isRequestVariantServed(variant.id)"
+                 [class.variant-card--compact]="!isVariantDetailsOpen(variant.id)">
+              <div class="variant-head" (click)="onVariantHeadClick(variant.id, $event)">
                 <label class="variant-served"
                        title="When checked, this variant participates in unpinned /mock/… URLs (matchers + fallbacks). Uncheck to keep it saved but excluded.">
                   <input type="checkbox"
@@ -237,6 +92,7 @@
                 </div>
               </div>
 
+              <ng-container *ngIf="isVariantDetailsOpen(variant.id)">
               <div class="variant-url"
                    *ngIf="status.status === 'running'"
                    [class.is-active]="isRequestVariantServed(variant.id)">
@@ -268,7 +124,10 @@
                           : bt === 'xml' ? 'XML'
                           : bt === 'html' ? 'HTML'
                           : bt === 'text' ? 'Text'
-                          : bt === 'form' ? 'Form'
+                          : bt === 'graphql' ? 'GraphQL'
+                          : bt === 'formdata' ? 'Form Data'
+                          : bt === 'urlencoded' ? 'URL Encoded'
+                          : bt === 'binary' ? 'Binary'
                           : bt === 'none' ? 'None'
                           : 'Custom' }}
                     </button>
@@ -309,12 +168,24 @@
                   </button>
                 </div>
 
-                <textarea class="variant-body" rows="4" spellcheck="false"
-                          [(ngModel)]="variant.body"
-                          (ngModelChange)="onVariantChanged()"
-                          [placeholder]="bodyPlaceholder(variant)"></textarea>
-                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Activity log body capture is controlled separately in Advanced.</span></p>
+                <app-code-editor
+                  *ngIf="!isBinaryBodyType(variant)"
+                  class="variant-body-editor"
+                  [content]="variant.body || ''"
+                  (contentChange)="variant.body = $event; onVariantChanged()"
+                  [language]="responseEditorLanguage(variant)"
+                  [title]="bodyPlaceholder(variant)"
+                  [placeholderAutocomplete]="true"
+                  [placeholderCompletions]="responsePlaceholderCompletions"
+                />
+                <div *ngIf="isBinaryBodyType(variant)" class="response-binary-picker">
+                  <div class="response-binary-path" [title]="variant.body || ''">{{ variant.body || 'No file selected' }}</div>
+                  <button type="button" class="btn-ghost btn-small" (click)="pickResponseBinaryFile(variant, 'request')">Choose file...</button>
+                  <button type="button" class="icon-button danger sm" *ngIf="variant.body" (click)="clearResponseBinaryFile(variant, 'request')" title="Clear file">×</button>
+                </div>
+                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Use $uuid for generated ids. Activity log body capture is controlled separately in Advanced.</span></p>
               </div>
+              </ng-container>
             </div>
           </div>
 
@@ -326,23 +197,6 @@
 
         
         <ng-container *ngIf="selectionKind === 'standalone' && selectedStandalone as endpoint">
-          <div class="editor-head">
-            <div class="editor-title-block standalone-title-block">
-              <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
-              <div class="editor-title-text">
-                <div class="editor-title">{{ standalonePrimaryLabel(endpoint) }}</div>
-                <div class="editor-subtitle standalone-editor-subtitle">
-                  <code class="standalone-head-path">{{ endpoint.method }} {{ endpoint.path }}</code>
-                  <span>Only in this mock server (not a collection request).</span>
-                </div>
-              </div>
-            </div>
-            <button type="button" class="btn-ghost btn-small danger"
-                    (click)="removeStandalone(endpoint)">
-              Delete
-            </button>
-          </div>
-
           <div class="standalone-route">
             <label class="standalone-field standalone-name-field">
               <span class="config-label">Name</span>
@@ -354,26 +208,28 @@
                      spellcheck="true"
                      autocomplete="off" />
             </label>
-            <label class="standalone-field method-field">
-              <span class="config-label">Method</span>
-              <app-dropdown
-                class="standalone-method-dd"
-                [options]="standaloneMethodOptions"
-                [value]="endpoint.method"
-                [menuMaxWidth]="'min(100%, 12rem)'"
-                ariaLabel="HTTP method for this mock"
-                (valueChange)="onStandaloneMethodSelect($event)"
-              />
-            </label>
-            <label class="standalone-field path-field">
-              <span class="config-label">Path</span>
-              <input type="text" placeholder="/v1/health  or  /test/*  or  /api/**"
-                     [(ngModel)]="endpoint.path"
-                     (ngModelChange)="onStandaloneFieldChange()" />
-              <p class="standalone-path-hint">
-                Exact path, or a suffix <code>/*</code> (one extra path segment) or <code>/**</code> (this path and any subpaths), e.g. <code>/test/users/*</code>, <code>/api/**</code>.
-              </p>
-            </label>
+            <div class="standalone-route-row">
+              <label class="standalone-field method-field">
+                <span class="config-label">Method</span>
+                <app-dropdown
+                  class="standalone-method-dd"
+                  [options]="standaloneMethodOptions"
+                  [value]="endpoint.method"
+                  [menuMaxWidth]="'min(100%, 12rem)'"
+                  ariaLabel="HTTP method for this mock"
+                  (valueChange)="onStandaloneMethodSelect($event)"
+                />
+              </label>
+              <label class="standalone-field path-field">
+                <span class="config-label">Path</span>
+                <input type="text" placeholder="/v1/health  or  /test/*  or  /api/**"
+                       [(ngModel)]="endpoint.path"
+                       (ngModelChange)="onStandaloneFieldChange()" />
+                <p class="standalone-path-hint">
+                  Exact path, or a suffix <code>/*</code> (one extra path segment) or <code>/**</code> (this path and any subpaths), e.g. <code>/test/users/*</code>, <code>/api/**</code>.
+                </p>
+              </label>
+            </div>
             <div class="standalone-url-wrap" *ngIf="status.status === 'running'">
               <span class="config-label">Full URL</span>
               <div class="standalone-url">
@@ -399,8 +255,9 @@
           <div class="variant-list" *ngIf="endpoint.variants && endpoint.variants.length > 0">
             <div class="variant-card"
                  *ngFor="let variant of endpoint.variants; let i = index; trackBy: trackByVariant"
-                 [class.is-active]="isStandaloneVariantServed(variant.id)">
-              <div class="variant-head">
+                 [class.is-active]="isStandaloneVariantServed(variant.id)"
+                 [class.variant-card--compact]="!isVariantDetailsOpen(variant.id)">
+              <div class="variant-head" (click)="onVariantHeadClick(variant.id, $event)">
                 <label class="variant-served"
                        title="When checked, this variant is used for this standalone path without a variant id in the URL.">
                   <input type="checkbox"
@@ -450,6 +307,7 @@
                 </div>
               </div>
 
+              <ng-container *ngIf="isVariantDetailsOpen(variant.id)">
               <app-mock-variant-match-section [variant]="variant"
                                               (changed)="onStandaloneFieldChange()" />
 
@@ -465,7 +323,10 @@
                           : bt === 'xml' ? 'XML'
                           : bt === 'html' ? 'HTML'
                           : bt === 'text' ? 'Text'
-                          : bt === 'form' ? 'Form'
+                          : bt === 'graphql' ? 'GraphQL'
+                          : bt === 'formdata' ? 'Form Data'
+                          : bt === 'urlencoded' ? 'URL Encoded'
+                          : bt === 'binary' ? 'Binary'
                           : bt === 'none' ? 'None'
                           : 'Custom' }}
                     </button>
@@ -506,12 +367,24 @@
                   </button>
                 </div>
 
-                <textarea class="variant-body" rows="4" spellcheck="false"
-                          [(ngModel)]="variant.body"
-                          (ngModelChange)="onStandaloneFieldChange()"
-                          [placeholder]="bodyPlaceholder(variant)"></textarea>
-                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Activity log body capture is controlled separately in Advanced.</span></p>
+                <app-code-editor
+                  *ngIf="!isBinaryBodyType(variant)"
+                  class="variant-body-editor"
+                  [content]="variant.body || ''"
+                  (contentChange)="variant.body = $event; onStandaloneFieldChange()"
+                  [language]="responseEditorLanguage(variant)"
+                  [title]="bodyPlaceholder(variant)"
+                  [placeholderAutocomplete]="true"
+                  [placeholderCompletions]="responsePlaceholderCompletions"
+                />
+                <div *ngIf="isBinaryBodyType(variant)" class="response-binary-picker">
+                  <div class="response-binary-path" [title]="variant.body || ''">{{ variant.body || 'No file selected' }}</div>
+                  <button type="button" class="btn-ghost btn-small" (click)="pickResponseBinaryFile(variant, 'standalone')">Choose file...</button>
+                  <button type="button" class="icon-button danger sm" *ngIf="variant.body" (click)="clearResponseBinaryFile(variant, 'standalone')" title="Clear file">×</button>
+                </div>
+                <p class="mock-dynamic-hint"><span ngNonBindable>Per request: {{headerJson.Authorization}} in JSON (or {{header.Authorization}} as raw text); {{bodyJson}} / {{body}} use the incoming body (read up to 64KB for matching and templates); {{bodyJson.accessToken}} (dot path on parsed JSON body, JSON-safe). Use $uuid for generated ids. Activity log body capture is controlled separately in Advanced.</span></p>
               </div>
+              </ng-container>
             </div>
           </div>
 
@@ -568,7 +441,7 @@
             <ng-container *ngIf="status.status === 'running'; else stopped">
               Waiting for the first request to come in…
             </ng-container>
-            <ng-template #stopped>Start the server to begin capturing requests.</ng-template>
+            <ng-template #stopped>Start the mock server from the <strong>Mock Server</strong> sidebar to begin capturing requests.</ng-template>
           </div>
         </div>
 
@@ -600,7 +473,7 @@
                   </button>
                 </div>
                 <p class="activity-caption" *ngIf="!options.captureBodies && hit.reqBody == null && hit.method !== 'GET' && hit.method !== 'HEAD'">
-                  Request body is empty: turn on <strong>Capture bodies</strong> in server options to log payloads (max 64 KB each).
+                  Request body is empty: enable <strong>Capture bodies in activity log</strong> under <strong>Advanced</strong> in the <strong>Mock Server</strong> sidebar to log payloads (max 64 KB each).
                 </p>
               </div>
 

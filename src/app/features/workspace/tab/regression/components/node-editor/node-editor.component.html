@@ -1,0 +1,225 @@
+<div class="node-editor" *ngIf="node">
+  <header class="node-header">
+    <div class="node-title-group">
+      <div class="node-type-icon" [ngSwitch]="node.type === 'step' ? asStep(node).stepType : 'FOLDER'">
+        <span *ngSwitchCase="'REQUEST'">🌐</span>
+        <span *ngSwitchCase="'VALIDATION'">⚖️</span>
+        <span *ngSwitchCase="'DATABASE'">💾</span>
+        <span *ngSwitchCase="'E2E'">🖥️</span>
+        <span *ngSwitchCase="'INTERCEPT'">🛰️</span>
+        <span *ngSwitchCase="'MANUAL'">⌨️</span>
+        <span *ngSwitchDefault>📁</span>
+      </div>
+      <input class="node-name-input" [(ngModel)]="node.name" (ngModelChange)="onChanged()" placeholder="Name your step...">
+    </div>
+    <div class="node-actions" *ngIf="node.type === 'step'">
+      <label class="toggle-enabled">
+        <input type="checkbox" [(ngModel)]="asStep(node).enabled" (ngModelChange)="onChanged()">
+        <span>Enabled</span>
+      </label>
+    </div>
+  </header>
+
+  <div class="node-content">
+    <!-- Folder View -->
+    <div *ngIf="node.type === 'folder'" class="folder-editor">
+      <p class="muted">This is a folder. You can organize steps within it using the sidebar.</p>
+    </div>
+
+    <!-- Step View -->
+    <div *ngIf="node.type === 'step'" [ngSwitch]="asStep(node).stepType" class="step-editor">
+      
+      <!-- REQUEST STEP -->
+      <div *ngSwitchCase="'REQUEST'" class="config-grid">
+        <div class="config-row main-row">
+          <app-dropdown [options]="httpMethods" [(value)]="asRequestConfig(asStep(node).config).method" (valueChange)="onChanged()"></app-dropdown>
+          <app-variable-input class="url-input" [(ngModel)]="asRequestConfig(asStep(node).config).url" (ngModelChange)="onChanged()" placeholder="https://api.example.com"></app-variable-input>
+        </div>
+
+        <section class="config-section">
+          <h5>Headers</h5>
+          <div class="kv-list">
+            <div *ngFor="let h of asRequestConfig(asStep(node).config).headers; let i = index" class="kv-row">
+              <input type="checkbox" [(ngModel)]="h.enabled" (ngModelChange)="onChanged()">
+              <input type="text" placeholder="Key" [(ngModel)]="h.key" (ngModelChange)="onChanged()">
+              <input type="text" placeholder="Value" [(ngModel)]="h.value" (ngModelChange)="onChanged()">
+              <button class="btn-remove" (click)="removeHeader(i)">×</button>
+            </div>
+            <button class="btn-add" (click)="addHeader()">+ Add Header</button>
+          </div>
+        </section>
+
+        <section class="config-section">
+          <h5>Body</h5>
+          <div class="body-config">
+            <app-dropdown [options]="bodyTypes" [(value)]="asRequestConfig(asStep(node).config).bodyType" (valueChange)="onChanged()"></app-dropdown>
+            <textarea *ngIf="asRequestConfig(asStep(node).config).bodyType !== 'none'" 
+                      class="body-textarea" 
+                      [(ngModel)]="asRequestConfig(asStep(node).config).body" 
+                      (ngModelChange)="onChanged()" 
+                      placeholder='{ "key": "value" }'></textarea>
+          </div>
+        </section>
+      </div>
+
+      <!-- VALIDATION STEP -->
+      <div *ngSwitchCase="'VALIDATION'" class="config-grid">
+        <div class="config-row">
+          <label class="field">
+            <span>Source</span>
+            <app-dropdown [options]="validationSources" [(value)]="asValidationConfig(asStep(node).config).source" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+          <label class="field flex-2">
+            <span>Expression (JSONPath / Key)</span>
+            <input type="text" [(ngModel)]="asValidationConfig(asStep(node).config).expression" (ngModelChange)="onChanged()" placeholder="$.data.id">
+          </label>
+        </div>
+        <div class="config-row">
+          <label class="field">
+            <span>Operator</span>
+            <app-dropdown [options]="validationOperators" [(value)]="asValidationConfig(asStep(node).config).operator" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+          <label class="field flex-2">
+            <span>Expected Value</span>
+            <input type="text" [(ngModel)]="asValidationConfig(asStep(node).config).expected" (ngModelChange)="onChanged()" placeholder="value">
+          </label>
+        </div>
+      </div>
+
+      <!-- DATABASE STEP -->
+      <div *ngSwitchCase="'DATABASE'" class="config-grid">
+        <div class="config-row">
+          <label class="field">
+            <span>DB Type</span>
+            <app-dropdown [options]="dbTypes" [(value)]="asDatabaseConfig(asStep(node).config).dbType" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+          <label class="field flex-2">
+            <span>Connection Reference</span>
+            <input type="text" [(ngModel)]="asDatabaseConfig(asStep(node).config).connectionRef" (ngModelChange)="onChanged()" placeholder="my-db-conn">
+          </label>
+        </div>
+        <div class="config-section">
+          <h5>Query</h5>
+          <textarea class="query-textarea" [(ngModel)]="asDatabaseConfig(asStep(node).config).query" (ngModelChange)="onChanged()" placeholder="SELECT * FROM users WHERE id = 1"></textarea>
+        </div>
+        <div class="config-row">
+          <label class="field">
+            <span>Store result as</span>
+            <input type="text" [(ngModel)]="asDatabaseConfig(asStep(node).config).cacheAs" (ngModelChange)="onChanged()" placeholder="variableName">
+          </label>
+        </div>
+      </div>
+
+      <!-- E2E STEP -->
+      <div *ngSwitchCase="'E2E'" class="config-grid">
+        <div class="config-row">
+          <label class="field">
+            <span>Action</span>
+            <app-dropdown [options]="e2eActions" [(value)]="asE2eConfig(asStep(node).config).action" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+          <label class="field flex-2">
+            <span>Selector / URL</span>
+            <input type="text" [(ngModel)]="asE2eConfig(asStep(node).config).selector" (ngModelChange)="onChanged()" placeholder=".submit-btn">
+          </label>
+        </div>
+        <div class="config-row">
+          <label class="field">
+            <span>Value</span>
+            <input type="text" [(ngModel)]="asE2eConfig(asStep(node).config).value" (ngModelChange)="onChanged()" placeholder="text to type or expected value">
+          </label>
+          <label class="field">
+            <span>Timeout (ms)</span>
+            <input type="number" [(ngModel)]="asE2eConfig(asStep(node).config).timeout" (ngModelChange)="onChanged()">
+          </label>
+        </div>
+      </div>
+
+      <!-- INTERCEPT STEP -->
+      <div *ngSwitchCase="'INTERCEPT'" class="config-grid">
+        <div class="config-row">
+          <label class="field flex-2">
+            <span>URL Pattern (Regex or partial URL)</span>
+            <input type="text" [(ngModel)]="asInterceptConfig(asStep(node).config).urlPattern" (ngModelChange)="onChanged()" placeholder="/api/v1/login">
+          </label>
+          <label class="field">
+            <span>Method</span>
+            <app-dropdown [options]="httpMethods" [(value)]="asInterceptConfig(asStep(node).config).method" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+        </div>
+        
+        <div class="config-section">
+          <h5>Trigger Action (Optional)</h5>
+          <div class="config-row">
+            <label class="field">
+              <span>Action</span>
+              <app-dropdown [options]="e2eActions" [(value)]="asInterceptConfig(asStep(node).config).triggerAction" (valueChange)="onChanged()"></app-dropdown>
+            </label>
+            <label class="field flex-2">
+              <span>Selector</span>
+              <input type="text" [(ngModel)]="asInterceptConfig(asStep(node).config).selector" (ngModelChange)="onChanged()" placeholder=".submit-btn">
+            </label>
+          </div>
+        </div>
+
+        <div class="config-row">
+          <label class="field">
+            <span>Cache result as variable</span>
+            <input type="text" [(ngModel)]="asInterceptConfig(asStep(node).config).variableName" (ngModelChange)="onChanged()" placeholder="lastApiResponse">
+          </label>
+          <label class="field">
+            <span>Timeout (ms)</span>
+            <input type="number" [(ngModel)]="asInterceptConfig(asStep(node).config).timeout" (ngModelChange)="onChanged()">
+          </label>
+        </div>
+      </div>
+
+      <!-- WAIT STEP -->
+      <div *ngSwitchCase="'WAIT'" class="config-grid">
+        <div class="config-row">
+          <label class="field">
+            <span>Wait Duration (ms)</span>
+            <input type="number" [(ngModel)]="asWaitConfig(asStep(node).config).durationMs" (ngModelChange)="onChanged()" placeholder="2000">
+          </label>
+        </div>
+        <p class="muted">Pauses the execution for the specified duration.</p>
+      </div>
+
+      <!-- SECURITY STEP -->
+      <div *ngSwitchCase="'SECURITY'" class="config-grid">
+        <div class="config-row">
+          <label class="field">
+            <span>Scan Type</span>
+            <app-dropdown [options]="[
+              { label: 'DAST (Dynamic)', value: 'dast' },
+              { label: 'SAST (Static)', value: 'sast' },
+              { label: 'Security Audit', value: 'audit' }
+            ]" [(value)]="asSecurityConfig(asStep(node).config).scanType" (valueChange)="onChanged()"></app-dropdown>
+          </label>
+        </div>
+        <p class="muted">Executes a security scan on the current application state or the preceding request.</p>
+      </div>
+
+      <!-- MANUAL STEP -->
+      <div *ngSwitchCase="'MANUAL'" class="config-grid">
+        <div class="config-row main-row">
+          <label class="field flex-2">
+            <span>Prompt Message</span>
+            <input type="text" [(ngModel)]="asManualConfig(asStep(node).config).prompt" (ngModelChange)="onChanged()" placeholder="Enter OTP from SMS">
+          </label>
+        </div>
+        <div class="config-row">
+          <label class="field">
+            <span>Store result as</span>
+            <input type="text" [(ngModel)]="asManualConfig(asStep(node).config).variableName" (ngModelChange)="onChanged()" placeholder="otpValue">
+          </label>
+          <label class="field">
+            <span>Timeout (ms)</span>
+            <input type="number" [(ngModel)]="asManualConfig(asStep(node).config).timeout" (ngModelChange)="onChanged()">
+          </label>
+        </div>
+        <p class="muted">Pauses the flow and asks the user for input. The value is stored in a variable.</p>
+      </div>
+
+    </div>
+  </div>
+</div>

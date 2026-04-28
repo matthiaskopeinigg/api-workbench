@@ -90,18 +90,6 @@
               </svg>
               <span>Paste cURL</span>
             </button>
-
-            <button class="cta cta-ghost"
-                    (click)="openWebSocketPlayground()"
-                    [disabled]="isImporting"
-                    type="button">
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M6.5 8.5L10 12l-3.5 3.5M17.5 8.5L14 12l3.5 3.5M10 12h4"
-                      stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
-                      stroke-linejoin="round" fill="none"/>
-              </svg>
-              <span>WebSocket / SSE</span>
-            </button>
           </div>
         </header>
 
@@ -149,7 +137,7 @@
               </svg>
             </span>
             <h3>Local first</h3>
-            <p>SQLite-backed storage, offline-ready, with an encrypted-friendly cookie jar and client certs.</p>
+            <p>JSON workspace files under your data directory, offline-ready, with an encrypted-friendly cookie jar and client certs.</p>
           </article>
         </section>
 
@@ -169,7 +157,10 @@
            [class.is-error]="toast.tone === 'error'"
            role="status"
            aria-live="polite">
-        {{ toast.message }}
+        <span class="landing-toast-message">{{ toast.message }}</span>
+        <p *ngIf="toast.tone === 'error'" class="landing-toast-foot">
+          For GitHub reports and log locations, open <strong>Settings</strong> (<kbd class="kbd">Ctrl</kbd><span class="plus" aria-hidden="true">+</span><kbd class="kbd">,</kbd>) → <strong>Logging</strong>.
+        </p>
       </div>
 
       <div class="curl-modal-overlay" *ngIf="isCurlModalOpen" (click)="closeCurlModal()">

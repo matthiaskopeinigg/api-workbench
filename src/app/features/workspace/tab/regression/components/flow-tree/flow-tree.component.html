@@ -1,0 +1,71 @@
+<div class="tree" [style.--depth]="depth">
+  @for (node of nodes; track node.id) {
+    <div class="tree-node"
+         [class.tree-node--selected]="selectedNodeId === node.id"
+         [class.tree-node--folder]="node.type === 'folder'"
+         [class.tree-node--running]="node.type === 'step' && $any(node).lastRunStatus === 'running'"
+         [class.tree-node--waiting]="node.type === 'step' && $any(node).lastRunStatus === 'waiting'"
+         [class.tree-node--disabled]="node.type === 'step' && !$any(node).enabled">
+
+      <div class="tree-node__row"
+           [style.padding-left.px]="depth * 20 + 8"
+           (click)="onSelect(node.id, $event)">
+
+        <!-- Folder chevron -->
+        @if (node.type === 'folder') {
+          <button class="tree-node__chevron"
+                  [class.tree-node__chevron--open]="$any(node).expanded"
+                  (click)="onToggle(node.id, $event)"
+                  title="Toggle folder">
+            ›
+          </button>
+          <span class="tree-node__icon tree-node__icon--folder">📁</span>
+        } @else {
+          <span class="tree-node__icon" [ngClass]="getStepTypeClass($any(node).stepType)">
+            {{ getStepTypeIcon($any(node).stepType) }}
+          </span>
+          @if ($any(node).lastRunStatus && $any(node).lastRunStatus !== 'never') {
+            <span class="tree-node__status-dot" [class]="'status--' + $any(node).lastRunStatus" [title]="$any(node).error || $any(node).lastRunStatus"></span>
+          }
+        }
+
+        <span class="tree-node__name">{{ node.name }}</span>
+
+        @if (node.type === 'step') {
+          <span class="tree-node__type-badge">{{ $any(node).stepType }}</span>
+        }
+
+        <!-- Actions on hover -->
+        <div class="tree-node__actions">
+          @if (node.type === 'folder') {
+            <button class="tree-node__action-btn" (click)="onAdd(node.id, $event)" title="Add to folder">+</button>
+          }
+          <button class="tree-node__action-btn tree-node__action-btn--danger" (click)="onDelete(node.id, $event)" title="Delete">✕</button>
+        </div>
+      </div>
+
+      <!-- Error message for failed steps -->
+      @if (node.type === 'step' && $any(node).lastRunStatus === 'failed' && $any(node).error) {
+        <div class="tree-node__error" [style.margin-left.px]="depth * 20 + 36">
+          <span class="error-icon">⚠️</span>
+          {{ $any(node).error }}
+        </div>
+      }
+
+      <!-- Recursive children for folders -->
+      @if (node.type === 'folder' && $any(node).expanded && $any(node).children.length) {
+        <div class="tree-node__children">
+          <app-flow-tree
+            [nodes]="$any(node).children"
+            [selectedNodeId]="selectedNodeId"
+            [depth]="depth + 1"
+            (nodeSelected)="onChildNodeSelected($event)"
+            (toggleFolder)="onChildToggleFolder($event)"
+            (addToFolder)="onChildAddToFolder($event)"
+            (deleteNode)="onChildDeleteNode($event)">
+          </app-flow-tree>
+        </div>
+      }
+    </div>
+  }
+</div>

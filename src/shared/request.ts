@@ -134,6 +134,27 @@ export interface MockVariantMatchRules {
   bodyJsonMatches?: string;
 }
 
+/** DB interaction step before the final mock response; result stored in `cache[assignTo]`. */
+export interface MockResponseStepDb {
+  id: string;
+  kind: 'db';
+  /** Saved connection id from Settings → Databases. */
+  connectionId: string;
+  /** SQL, Redis command, etc. */
+  command: string;
+  /** Name for `{{cache.name}}` templates in the final response. */
+  assignTo: string;
+}
+
+/** Optional script between DB steps; mutates the shared `cache` object. */
+export interface MockResponseStepScript {
+  id: string;
+  kind: 'script';
+  script: string;
+}
+
+export type MockResponseStep = MockResponseStepDb | MockResponseStepScript;
+
 /**
  * A single mock response variant owned by a request. Variants are keyed by
  * their stable `id`, so switching the active variant is a lightweight
@@ -150,6 +171,10 @@ export interface MockVariant {
   delayMs?: number;
   /** Optional request matchers (see {@link MockVariantMatchRules}). */
   matchOn?: MockVariantMatchRules;
+  /**
+   * Ordered steps (DB, then script) run before the static response; use `{{cache.key}}` in body/headers.
+   */
+  responseSteps?: MockResponseStep[];
 }
 
 /** Deep-clone {@link MockVariantMatchRules} for duplicate-variant flows. */

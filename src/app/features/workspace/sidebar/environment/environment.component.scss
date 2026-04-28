@@ -153,6 +153,26 @@
       overflow: hidden;
       text-overflow: ellipsis;
       font-weight: 500;
+      min-width: 0;
+    }
+
+    .env-name-input {
+      flex: 1;
+      min-width: 0;
+      height: 26px;
+      padding: 0 8px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: var(--aw-radius-sm, 6px);
+      border: 1px solid color-mix(in srgb, var(--secondary-color), transparent 45%);
+      background: var(--aw-bg, var(--background));
+      color: var(--text-color);
+      outline: none;
+
+      &:focus {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--secondary-color), transparent 75%);
+      }
     }
 
     .env-meta {
@@ -223,5 +243,46 @@
     font-size: 12px;
     line-height: 1.45;
     opacity: 0.85;
+  }
+}
+
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: transparent;
+}
+
+.context-menu {
+  position: fixed;
+  background: var(--aw-surface, var(--surface));
+  border: 1px solid var(--aw-border, var(--border-color));
+  border-radius: var(--aw-radius-md, 8px);
+  box-shadow: var(--aw-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.2));
+  padding: 4px;
+  min-width: 160px;
+
+  .menu-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--aw-text, var(--text-color));
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color var(--aw-duration-fast, 120ms) ease,
+      color var(--aw-duration-fast, 120ms) ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--secondary-color), transparent 90%);
+      color: var(--secondary-color);
+    }
+
+    &.danger {
+      color: var(--aw-status-error, #ef4444);
+
+      &:hover {
+        background: color-mix(in srgb, var(--aw-status-error, #ef4444), transparent 90%);
+        color: var(--aw-status-error, #ef4444);
+      }
+    }
   }
 }

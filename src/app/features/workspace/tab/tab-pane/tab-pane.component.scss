@@ -230,16 +230,16 @@
   flex-direction: column;
   position: relative;
 
-  app-request,
-  app-history,
-  app-folder,
-  app-environment,
-  app-websocket,
-  app-mock-server,
-  app-load-test,
-  app-test-suite,
-  app-contract-test,
-  app-flow {
+  > app-request,
+  > app-history,
+  > app-folder,
+  > app-environment,
+  > app-websocket,
+  > app-mock,
+  > app-load-test,
+  > app-capture,
+  > app-regression,
+  > app-security {
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
@@ -247,7 +247,7 @@
     min-width: 0;
     height: 100%;
     min-height: 0;
-    overflow: hidden;
+    // We let the component internal layout decide if it scrolls or not
   }
 }
 

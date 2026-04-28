@@ -4,7 +4,7 @@ import { Environment } from './environment';
 import { FileDialogResult, OpenFilesDialogResult, ReadImportFolderOptions, SaveFileOptions, WriteFilesToDirectoryResult } from './file-dialog';
 import type { IpcHttpRequest } from './ipc-http-request';
 import type { IpcHttpResponse } from './ipc-http-response';
-import type { MockVariantMatchRules } from './request';
+import type { MockResponseStep, MockVariantMatchRules } from './request';
 
 export interface OAuth2AuthConfig {
   authUrl: string;
@@ -63,11 +63,42 @@ export interface UpdaterStatus {
   };
 }
 
+/** One HTTP exchange recorded from the capture BrowserWindow session. */
+export interface CaptureSessionEntry {
+  id: string;
+  runId: string;
+  method: string;
+  url: string;
+  resourceType?: string;
+  requestHeaders: Array<{ key: string; value: string }>;
+  responseHeaders: Array<{ key: string; value: string }>;
+  statusCode: number | null;
+  statusLine?: string;
+  timeMs: number | null;
+  body: string;
+  bodyTruncated: boolean;
+  bodyIsBinary: boolean;
+  /** Outbound body from `uploadData` when Electron provides it (GET often empty). */
+  requestBody?: string;
+  requestBodyTruncated?: boolean;
+  requestBodyIsBinary?: boolean;
+  startedAt: number;
+  completedAt?: number;
+}
+
 export interface StorageInfo {
   userData: string;
+  /** Path to the `workspace/` folder (JSON files: collections, settings, …). */
   databasePath: string;
+  /** Mock server JSON and other small files (under user data). */
+  appConfigDir: string;
+  /** File log directory (under user data). */
+  logsDir: string;
+  /** Path to `user-data-path.txt` (written when using Change work directory). */
   markerFile: string;
+  /** Directory containing the marker file (`~/.api-workbench`). */
   markerDir: string;
+  /** `env` = `API_WORKBENCH_USER_DATA`; `marker` = file override (wins after env check at startup). */
   overrideSource: 'env' | 'marker' | null;
   overrideTarget: string | null;
   env: string | null;
@@ -76,6 +107,8 @@ export interface StorageInfo {
 export interface AwElectronApi {
   /** True in production installers; false in `ng serve` / `electron .` dev. */
   isPackaged: boolean;
+  /** Semantic version from package.json (main process); empty string if unavailable. */
+  appVersion: string;
 
   getSettings: () => Promise<Settings | undefined>;
   saveSettings: (settings: Settings) => Promise<void>;
@@ -132,6 +165,8 @@ export interface AwElectronApi {
   installUpdate: () => void;
   onUpdaterStatus: (listener: (status: UpdaterStatus) => void) => () => void;
   dbQuery: (payload: { connection: DatabaseConnection; query: string }) => Promise<any>;
+  /** Probe saved or inline connection (Settings → Test connection). */
+  dbTestConnection: (connection: DatabaseConnection) => Promise<unknown>;
 
   mockStart: (port?: number) => Promise<MockServerStatus>;
   mockStop: () => Promise<MockServerStatus>;
@@ -184,24 +219,46 @@ export interface AwElectronApi {
     listener: (result: import('./testing/load-test').LoadRunResult) => void,
   ) => () => void;
 
+  /** Embedded capture browser (Electron main process); absent in web-only builds. */
+  captureStart?: (options?: { initialUrl?: string }) => Promise<
+    | { ok: true; runId: string; initialUrl?: string }
+    | { ok: false; error?: string; runId?: string | null }
+  >;
+  captureStop?: () => Promise<{ ok: boolean; runId?: string | null; error?: string }>;
+  captureStatus?: () => Promise<{
+    active: boolean;
+    runId: string | null;
+    initialUrl: string | null;
+    entryCount: number;
+  }>;
+  captureList?: () => Promise<CaptureSessionEntry[]>;
+  /** Remove all rows from the in-memory capture log (capture window may stay open). */
+  captureClear?: () => Promise<{ ok: boolean; error?: string }>;
+  onCaptureEntry?: (listener: (entry: CaptureSessionEntry) => void) => () => void;
+  onCaptureStopped?: (listener: (data: { runId: string | null }) => void) => () => void;
+
   getStorageInfo: () => Promise<StorageInfo>;
   openUserDataDirectory: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Opens the configured log directory in the system file manager. */
+  openLogsDirectory: () => Promise<{ ok: boolean; path?: string; error?: string }>;
+  /** Opens the folder that contains `user-data-path.txt` (`.api-workbench` under the user profile). */
   openConfigMarkerDirectory: () => Promise<{ ok: boolean; path?: string; error?: string }>;
   chooseDataDirectory: () => Promise<
-    | { ok: true; path: string; needsRestart: true }
+    | { ok: true; path: string; relaunching: true }
     | { ok: false; cancelled?: boolean; error?: string }
   >;
   resetDataDirectoryOverride: () => Promise<
-    { ok: true; needsRestart: true } | { ok: false; error?: string }
+    { ok: true; relaunching: true } | { ok: false; error?: string }
   >;
+  e2eExecute: (payload: {
+    action: string;
+    selector?: string;
+    value?: string;
+    timeout?: number;
+  }) => Promise<{ success: boolean; error?: string }>;
 }
 
-export type TestingArtifactKind =
-  | 'loadTests'
-  | 'testSuites'
-  | 'contractTests'
-  | 'flows'
-  | 'testSuiteSnapshots';
+export type TestingArtifactKind = 'loadTests';
 
 export type MockServerState = 'stopped' | 'starting' | 'running' | 'error';
 
@@ -280,6 +337,8 @@ export interface StandaloneMockEndpointInput {
     headers?: Array<{ key: string; value: string }>;
     body?: string;
     delayMs?: number;
+    matchOn?: MockVariantMatchRules;
+    responseSteps?: MockResponseStep[];
   }>;
   activeVariantId?: string | null;
   /** When set, only these variant ids participate in unpinned URL resolution (see app docs). */
@@ -301,6 +360,7 @@ export interface StandaloneMockEndpoint {
     body: string;
     delayMs: number;
     matchOn?: MockVariantMatchRules;
+    responseSteps?: MockResponseStep[];
   }>;
   activeVariantId: string | null;
   /** When set, only these variant ids participate in unpinned URL resolution. */
@@ -318,6 +378,7 @@ export interface MockRegisterPayload {
     body?: string;
     delayMs?: number;
     matchOn?: MockVariantMatchRules;
+    responseSteps?: MockResponseStep[];
   }>;
   activeVariantId?: string;
   activeVariantIds?: string[] | null;

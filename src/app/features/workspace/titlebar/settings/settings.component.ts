@@ -4,7 +4,7 @@ import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, For
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, takeUntil } from 'rxjs/operators';
 import { v4 as uuidv4 } from 'uuid';
-import { Certificate, RequestEditorSection, Settings, Theme } from '@models/settings';
+import { Certificate, DatabaseConnection, RequestEditorSection, Settings, Theme } from '@models/settings';
 import {
   KEYBOARD_SHORTCUT_CATALOG,
   type KeyboardShortcutDefinition,
@@ -28,13 +28,14 @@ import { EnvironmentsService } from '@core/environments/environments.service';
 import { SessionService } from '@core/session/session.service';
 import { cleanKv } from '@core/utils/kv-utils';
 import { VariableInputComponent } from '@shared-app/components/variable-input/variable-input.component';
+import { BugReportHintComponent } from '../../shared/bug-report-hint/bug-report-hint.component';
 
 /** Same key as {@link RequestComponent} — values merged into default-header placeholder map. */
 const SESSION_SCRIPT_VARS_KEY = 'awScriptRuntimeVariables';
 
 @Component({
   selector: 'app-settings',
-  imports: [CommonModule, ReactiveFormsModule, DropdownComponent, VariableInputComponent],
+  imports: [CommonModule, ReactiveFormsModule, DropdownComponent, VariableInputComponent, BugReportHintComponent],
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.scss'],
   standalone: true,
@@ -99,6 +100,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         { id: 'requests', label: 'Requests', icon: 'M2 21l21-9L2 3v7l15 2-15 2z' },
         { id: 'retries', label: 'Retries', icon: 'M17.65 6.35A8 8 0 1 0 19.73 14h-2.07A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z' },
+        {
+          id: 'logging',
+          label: 'Logging',
+          icon: 'M4 4h16v2H4zm0 5h10v2H4zm0 5h16v2H4zm0 5h10v2H4z',
+        },
       ],
     },
     {
@@ -141,8 +147,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
   importFailed = false;
   isLoading = false;
 
+  /** DB row index currently running "Test connection" (inline spinner only). */
+  testingDbIndex: number | null = null;
+  /** Inline success/error for the last test, scoped to `index`. */
+  dbTestFeedback: { index: number; message: string; error: boolean } | null = null;
+
   storageInfo: StorageInfo | null = null;
+  /** Messages from Change / Reset work directory (separate from settings Save). */
   dataMessage: string | null = null;
+  /** Which path row last triggered a successful clipboard copy (`userData` | `workspace` | …). */
+  pathCopyFeedbackKey: string | null = null;
+  private pathCopyClearTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Serialized baseline after load or successful auto-save — form + keyboard (non-database sections). */
+  private settingsBaselineJson: string | null = null;
+  /** Baseline for the Databases tab only (explicit Save / Cancel). */
+  private databasesBaselineJson: string | null = null;
+  private themePreviewSub?: Subscription;
+  private compactPreviewSub?: Subscription;
+  private autoSaveSub?: Subscription;
+  saveInProgress = false;
 
   /** Active environment + session script vars — drives `{{name}}` completion and highlighting in default headers. */
   headerFieldVariables: Record<string, string> = {};
@@ -183,7 +207,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       });
     void this.refreshStorageInfo();
-    await this.subscribeToChanges();
     this.updaterSub = this.updateService.statusStream.subscribe((status) => {
       this.updaterStatus = status;
       this.cdr.markForCheck();
@@ -200,6 +223,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.endBindingCapture();
+    if (this.pathCopyClearTimer) {
+      clearTimeout(this.pathCopyClearTimer);
+      this.pathCopyClearTimer = null;
+    }
+    this.autoSaveSub?.unsubscribe();
+    this.themePreviewSub?.unsubscribe();
+    this.compactPreviewSub?.unsubscribe();
     this.destroy$.next();
     this.destroy$.complete();
     this.updaterSub?.unsubscribe();
@@ -310,9 +340,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
       }),
 
       requests: this.fb.group({
-        defaultHttpMethod: [settings?.requests?.defaultHttpMethod ?? 'GET'],
+        defaultHttpMethod: [this.normalizeDefaultHttpMethodForForm(settings?.requests?.defaultHttpMethod)],
         defaultRequestEditorSection: [
-          (settings?.requests?.defaultRequestEditorSection ?? 'body') as RequestEditorSection,
+          (settings?.requests?.defaultRequestEditorSection ?? 'params') as RequestEditorSection,
         ],
         timeoutMs: [settings?.requests?.timeoutMs ?? 0],
         useCookies: [settings?.requests?.useCookies ?? true],
@@ -360,6 +390,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
         password: [settings?.proxy?.password ?? ''],
         noProxy: [settings?.proxy?.noProxy ?? []]
       }),
+      logging: this.fb.group({
+        enableRequestLogging: [settings?.logging?.enableRequestLogging ?? false],
+        enableResponseLogging: [settings?.logging?.enableResponseLogging ?? false],
+        logToFile: [settings?.logging?.logToFile ?? false],
+        logFilePath: [settings?.logging?.logFilePath ?? ''],
+        maxLogFileSizeKb: [settings?.logging?.maxLogFileSizeKb ?? 1024],
+      }),
       databases: this.fb.group({
         connections: this.fb.array(
           (settings?.databases?.connections || []).map(c => this.createDatabaseConnectionGroup(c))
@@ -372,6 +409,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     await this.themeService.setTheme(this.settingsForm.get('ui.theme')?.value, false);
     this.keyboardBindings = { ...(settings.keyboard?.bindings ?? {}) };
+    this.bindSettingsPreviewSubscriptions();
+    this.subscribeToDebouncedAutoSave();
+    this.captureSettingsBaseline();
+    this.captureDatabasesBaseline();
     this.cdr.markForCheck();
   }
 
@@ -429,7 +470,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.keyboardBindings = this.pruneEmptyBindings(tentative);
     this.bindingError = null;
     this.endBindingCapture();
-    void this.persistKeyboardBindings();
+    void this.saveFromFormAuto();
     this.cdr.markForCheck();
   }
 
@@ -441,13 +482,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   resetBinding(actionId: string): void {
     delete this.keyboardBindings[actionId];
-    void this.persistKeyboardBindings();
+    void this.saveFromFormAuto();
     this.cdr.markForCheck();
   }
 
   resetAllKeyboardBindings(): void {
     this.keyboardBindings = {};
-    void this.persistKeyboardBindings();
+    void this.saveFromFormAuto();
     this.cdr.markForCheck();
   }
 
@@ -459,30 +500,217 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  private async persistKeyboardBindings(): Promise<void> {
-    const formValue = JSON.parse(JSON.stringify(this.settingsForm.value));
-    const next: Settings = { ...this.config.getSettings(), ...formValue };
-    next.keyboard = { bindings: this.pruneEmptyBindings({ ...this.keyboardBindings }) };
-    await this.config.saveSettings(next);
+  private applyDensityPreview(compact: boolean): void {
+    document.documentElement.setAttribute('data-density', compact ? 'compact' : 'comfortable');
   }
 
-  private async subscribeToChanges() {
-    this.settingsForm.get('ui.theme')?.valueChanges.subscribe(async (theme: Theme) => {
-      await this.themeService.setTheme(theme, false);
-    });
+  private bindSettingsPreviewSubscriptions(): void {
+    this.themePreviewSub?.unsubscribe();
+    this.compactPreviewSub?.unsubscribe();
 
-    this.settingsForm.valueChanges
-      .pipe(debounceTime(300))
-      .subscribe(value => {
-        const settings = JSON.parse(JSON.stringify(value)) as Settings;
-
-        if (settings.headers?.defaultHeaders) {
-          settings.headers.defaultHeaders = settings.headers.defaultHeaders.filter((h: any) => h.key?.trim());
-        }
-
-        settings.keyboard = { bindings: this.pruneEmptyBindings({ ...this.keyboardBindings }) };
-        this.config.saveSettings(settings);
+    const themeCtrl = this.settingsForm.get('ui.theme');
+    if (themeCtrl) {
+      this.themePreviewSub = themeCtrl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((theme: Theme) => {
+        void this.themeService.setTheme(theme, false);
       });
+    }
+
+    const compactCtrl = this.settingsForm.get('ui.compactMode');
+    if (compactCtrl) {
+      this.compactPreviewSub = compactCtrl.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((compact) => {
+        this.applyDensityPreview(compact === true);
+      });
+    }
+
+    this.settingsForm.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.cdr.markForCheck();
+    });
+  }
+
+  private subscribeToDebouncedAutoSave(): void {
+    this.autoSaveSub?.unsubscribe();
+    this.autoSaveSub = this.settingsForm.valueChanges
+      .pipe(debounceTime(300), takeUntil(this.destroy$))
+      .subscribe(() => {
+        void this.saveFromFormAuto();
+      });
+  }
+
+  /**
+   * Settings as they would be written by auto-save: when the Databases tab is active,
+   * connection rows from the form are ignored and on-disk profiles are kept instead.
+   */
+  private buildPersistableSettings(): Settings {
+    const settings = this.buildPendingSettings();
+    if (this.selectedTab === 'databases') {
+      const disk = this.config.getSettings();
+      settings.databases = disk.databases
+        ? (JSON.parse(JSON.stringify(disk.databases)) as NonNullable<Settings['databases']>)
+        : { connections: [] };
+    }
+    return settings;
+  }
+
+  private serializePersistableDraft(): string {
+    return JSON.stringify(this.buildPersistableSettings());
+  }
+
+  private captureSettingsBaseline(): void {
+    this.settingsBaselineJson = this.serializePersistableDraft();
+  }
+
+  private captureDatabasesBaseline(): void {
+    this.databasesBaselineJson = this.serializeDatabases();
+  }
+
+  private serializeDatabases(): string {
+    const raw = this.settingsForm?.get('databases')?.getRawValue();
+    return JSON.stringify(raw ?? { connections: [] });
+  }
+
+  isDatabasesDirty(): boolean {
+    if (this.databasesBaselineJson == null) return false;
+    return this.serializeDatabases() !== this.databasesBaselineJson;
+  }
+
+  private async saveFromFormAuto(): Promise<void> {
+    if (this.saveInProgress || !this.settingsForm) return;
+    const nextJson = this.serializePersistableDraft();
+    if (nextJson === this.settingsBaselineJson) return;
+    this.saveInProgress = true;
+    this.cdr.markForCheck();
+    try {
+      const settings = JSON.parse(nextJson) as Settings;
+      await this.config.saveSettings(settings);
+      await this.themeService.setTheme(settings.ui?.theme ?? Theme.SYSTEM, false);
+      this.captureSettingsBaseline();
+      if (this.selectedTab !== 'databases') {
+        this.captureDatabasesBaseline();
+      }
+    } finally {
+      this.saveInProgress = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Builds the settings object from the form (same normalization as the former auto-save path). */
+  buildPendingSettings(): Settings {
+    const value = JSON.parse(JSON.stringify(this.settingsForm.getRawValue())) as Settings;
+
+    if (value.headers?.defaultHeaders) {
+      value.headers.defaultHeaders = value.headers.defaultHeaders.filter((h) => String(h.key ?? '').trim());
+    }
+
+    if (value.databases?.connections?.length) {
+      value.databases.connections = value.databases.connections.map((c) => {
+        const row: Record<string, unknown> = { ...c };
+        const cmd = Number(row['commandTimeoutMs']);
+        if (!Number.isFinite(cmd) || cmd <= 0) {
+          delete row['commandTimeoutMs'];
+        } else {
+          row['commandTimeoutMs'] = cmd;
+        }
+        return row as unknown as (typeof value.databases)['connections'][number];
+      });
+    }
+
+    value.keyboard = { bindings: this.pruneEmptyBindings({ ...this.keyboardBindings }) };
+    this.applyDefaultHttpMethodEnum(value);
+    return value;
+  }
+
+  async onSaveDatabaseSection(): Promise<void> {
+    if (this.saveInProgress || !this.settingsForm) return;
+    this.saveInProgress = true;
+    this.cdr.markForCheck();
+    try {
+      const settings = this.buildPendingSettings();
+      await this.config.saveSettings(settings);
+      await this.themeService.setTheme(settings.ui?.theme ?? Theme.SYSTEM, false);
+      this.settingsForm.get('databases')?.markAsPristine();
+      this.captureDatabasesBaseline();
+      this.captureSettingsBaseline();
+    } finally {
+      this.saveInProgress = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  onCancelDatabaseSection(): void {
+    if (!this.isDatabasesDirty()) return;
+    this.revertDatabasesFromDisk();
+  }
+
+  private revertDatabasesFromDisk(): void {
+    const saved = this.config.getSettings();
+    const fa = this.databaseConnections;
+    while (fa.length) {
+      fa.removeAt(0);
+    }
+    for (const c of saved.databases?.connections || []) {
+      fa.push(this.createDatabaseConnectionGroup(c));
+    }
+    this.captureDatabasesBaseline();
+    this.settingsForm.get('databases')?.markAsPristine();
+    this.cdr.markForCheck();
+  }
+
+  async onCloseSettings(): Promise<void> {
+    if (this.selectedTab === 'databases' && this.isDatabasesDirty()) {
+      const discard = await this.confirmDialog.confirm({
+        title: 'Discard database changes?',
+        message: 'Database connection profiles are not saved. Close settings without saving them?',
+        destructive: true,
+        confirmLabel: 'Discard',
+      });
+      if (!discard) return;
+      this.revertDatabasesFromDisk();
+    } else {
+      await this.saveFromFormAuto();
+    }
+    this.close.emit();
+  }
+
+  /**
+   * Dropdown uses method name strings; persisted settings use numeric {@link HttpMethod}.
+   * `?? 'GET'` is wrong for GET because enum value is `0` (nullish coalescing keeps `0`).
+   */
+  private normalizeDefaultHttpMethodForForm(raw: unknown): string {
+    if (raw === null || raw === undefined) {
+      return 'GET';
+    }
+    if (typeof raw === 'number') {
+      const label = HttpMethod[raw as HttpMethod];
+      return typeof label === 'string' ? label : 'GET';
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+      const key = raw.trim().toUpperCase() as keyof typeof HttpMethod;
+      if (typeof HttpMethod[key] === 'number') {
+        return key;
+      }
+    }
+    return 'GET';
+  }
+
+  private parseDefaultHttpMethodToEnum(raw: unknown): HttpMethod {
+    if (typeof raw === 'number' && HttpMethod[raw as HttpMethod] !== undefined) {
+      return raw as HttpMethod;
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+      const key = raw.trim().toUpperCase() as keyof typeof HttpMethod;
+      if (typeof HttpMethod[key] === 'number') {
+        return HttpMethod[key] as HttpMethod;
+      }
+    }
+    return HttpMethod.GET;
+  }
+
+  private applyDefaultHttpMethodEnum(settings: Settings): void {
+    if (settings.requests) {
+      settings.requests.defaultHttpMethod = this.parseDefaultHttpMethodToEnum(
+        settings.requests.defaultHttpMethod,
+      );
+    }
   }
 
   get defaultHeaders(): FormArray {
@@ -530,37 +758,235 @@ export class SettingsComponent implements OnInit, OnDestroy {
       id: [conn?.id ?? uuidv4()],
       name: [conn?.name ?? '', Validators.required],
       type: [conn?.type ?? 'redis', Validators.required],
-      host: [conn?.host ?? 'localhost', Validators.required],
-      port: [conn?.port ?? 6379, Validators.required],
+      host: [conn?.host ?? 'localhost'],
+      port: [conn?.port ?? 6379],
       user: [conn?.user ?? ''],
       password: [conn?.password ?? ''],
       database: [conn?.database ?? ''],
-      tls: [conn?.tls ?? false]
+      filePath: [conn?.filePath ?? ''],
+      tls: [conn?.tls ?? false],
+      connectTimeoutMs: [conn?.connectTimeoutMs ?? 10_000],
+      commandTimeoutMs: [conn?.commandTimeoutMs ?? null],
+      busyTimeoutMs: [conn?.busyTimeoutMs ?? 5000],
     });
   }
 
-  addDatabaseConnection() {
+  /** Which database row shows the full editor (compact list + expandable detail). */
+  expandedDbIndex: number | null = null;
+
+  addDatabaseConnection(): void {
     this.databaseConnections.push(this.createDatabaseConnectionGroup());
+    this.expandedDbIndex = this.databaseConnections.length - 1;
+    this.cdr.markForCheck();
   }
 
-  removeDatabaseConnection(index: number) {
+  removeDatabaseConnection(index: number): void {
     this.databaseConnections.removeAt(index);
+    if (this.expandedDbIndex === index) {
+      this.expandedDbIndex = null;
+    } else if (this.expandedDbIndex != null && index < this.expandedDbIndex) {
+      this.expandedDbIndex -= 1;
+    }
+    this.cdr.markForCheck();
+  }
+
+  toggleDbExpand(index: number): void {
+    const prev = this.expandedDbIndex;
+    const closing = prev === index;
+    this.expandedDbIndex = closing ? null : index;
+    if (closing && this.dbTestFeedback?.index === index) {
+      this.dbTestFeedback = null;
+    }
+    if (!closing && this.dbTestFeedback != null && this.dbTestFeedback.index !== index) {
+      this.dbTestFeedback = null;
+    }
+    this.cdr.markForCheck();
+  }
+
+  readonly databaseTypeOptions: DropdownOption[] = [
+    { label: 'Redis', value: 'redis' },
+    { label: 'SQLite (file)', value: 'sqlite' },
+    { label: 'PostgreSQL', value: 'postgresql' },
+    { label: 'MySQL / MariaDB', value: 'mysql' },
+    { label: 'SQL Server', value: 'mssql' },
+  ];
+
+  onDatabaseTypeChange(index: number, type: string): void {
+    const g = this.databaseConnections.at(index);
+    if (!g || g.get('type')?.value === type) return;
+    const prevPort = Number(g.get('port')?.value);
+    g.patchValue({ type });
+    if (type === 'sqlite') {
+      this.cdr.markForCheck();
+      return;
+    }
+    const defaultPort: Record<string, number> = {
+      redis: 6379,
+      postgresql: 5432,
+      mysql: 3306,
+      mssql: 1433,
+    };
+    const expected = defaultPort[type];
+    if (!Number.isFinite(expected)) {
+      this.cdr.markForCheck();
+      return;
+    }
+    const wrongPorts: Record<string, number[]> = {
+      redis: [5432, 3306, 1433],
+      postgresql: [6379, 3306, 1433],
+      mysql: [6379, 5432, 1433],
+      mssql: [6379, 5432, 3306],
+    };
+    if (!Number.isFinite(prevPort) || (wrongPorts[type] || []).includes(prevPort)) {
+      g.patchValue({ port: expected });
+    }
+    this.cdr.markForCheck();
+  }
+
+  databaseTypeLabel(type: string | null | undefined): string {
+    switch (type) {
+      case 'redis':
+        return 'Redis';
+      case 'sqlite':
+        return 'SQLite';
+      case 'postgresql':
+        return 'PostgreSQL';
+      case 'mysql':
+        return 'MySQL';
+      case 'mssql':
+        return 'SQL Server';
+      default:
+        return type ? String(type) : '—';
+    }
+  }
+
+  databaseConnectionSummary(index: number): string {
+    const g = this.databaseConnections.at(index);
+    if (!g) return '';
+    const t = g.get('type')?.value;
+    if (t === 'sqlite') {
+      const fp = String(g.get('filePath')?.value || '').trim();
+      if (!fp) return 'No file set';
+      return fp.length > 42 ? `${fp.slice(0, 40)}…` : fp;
+    }
+    const host = String(g.get('host')?.value || '').trim() || 'localhost';
+    const port = g.get('port')?.value;
+    const p = port != null && port !== '' ? `:${port}` : '';
+    return `${host}${p}`;
   }
 
   async testDatabaseConnection(index: number) {
-    const conn = this.databaseConnections.at(index).value;
-    this.isLoading = true;
+    this.dbTestFeedback = null;
+    this.testingDbIndex = index;
+    this.cdr.markForCheck();
     try {
-      // We can use a special "ping" command or just a basic query
-      const query = conn.type === 'redis' ? 'PING' : 'SELECT 1';
-      const result = await window.awElectron.dbQuery({ connection: conn, query });
-      this.showImportPopup(`Connection successful: ${JSON.stringify(result)}`);
-    } catch (err: any) {
-      this.showImportPopup(`Connection failed: ${err.message}`, true);
+      const api = window.awElectron;
+      if (!api?.dbTestConnection) {
+        this.dbTestFeedback = {
+          index,
+          message: 'Database test is only available in the desktop app.',
+          error: true,
+        };
+        return;
+      }
+      const raw = this.databaseConnections.at(index).value;
+      const conn = this.normalizeDatabaseConnectionForIpc(raw);
+      const result = await this.raceDbTestIpc(() => api.dbTestConnection(conn), conn);
+      const detail = this.summarizeDbTestResult(result);
+      this.dbTestFeedback = {
+        index,
+        message: detail ? `Connected successfully. ${detail}` : 'Connected successfully.',
+        error: false,
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Connection failed';
+      this.dbTestFeedback = { index, message, error: true };
     } finally {
-      this.isLoading = false;
+      this.testingDbIndex = null;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * Never leave the UI stuck on "Testing…" if the main-process driver ignores a short
+   * connect timeout (IPC would otherwise hang indefinitely).
+   */
+  private raceDbTestIpc<T>(ipc: () => Promise<T>, conn: DatabaseConnection): Promise<T> {
+    const connectMs = Number(conn.connectTimeoutMs);
+    const commandMs = Number(conn.commandTimeoutMs);
+    const base = Number.isFinite(connectMs) && connectMs > 0 ? connectMs : 10_000;
+    const cmdPad = Number.isFinite(commandMs) && commandMs > 0 ? commandMs : 0;
+    /** Upper bound so the spinner clears even if IPC / driver never rejects (common with very low connect timeouts). */
+    const budgetMs = Math.min(120_000, Math.max(800, base + cmdPad + 600));
+    return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(
+          new Error(
+            `Test did not finish within ${budgetMs}ms (renderer limit). The driver may be ignoring connect timeout.`,
+          ),
+        );
+      }, budgetMs);
+      ipc()
+        .then((v) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          resolve(v);
+        })
+        .catch((e) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          reject(e);
+        });
+    });
+  }
+
+  /** Strip empty optional timeouts so IPC gets numbers or omitted fields. */
+  private normalizeDatabaseConnectionForIpc(value: Record<string, unknown>): DatabaseConnection {
+    const cmd = Number(value['commandTimeoutMs']);
+    const out = { ...value } as unknown as DatabaseConnection;
+    if (!Number.isFinite(cmd) || cmd <= 0) {
+      delete (out as { commandTimeoutMs?: number }).commandTimeoutMs;
+    } else {
+      out.commandTimeoutMs = cmd;
+    }
+    const c = Number(value['connectTimeoutMs']);
+    if (!Number.isFinite(c) || c <= 0) {
+      out.connectTimeoutMs = 10_000;
+    } else {
+      out.connectTimeoutMs = c;
+    }
+    const b = Number(value['busyTimeoutMs']);
+    if (!Number.isFinite(b) || b < 0) {
+      out.busyTimeoutMs = 5000;
+    } else {
+      out.busyTimeoutMs = b;
+    }
+    return out;
+  }
+
+  private summarizeDbTestResult(result: unknown): string {
+    if (result === 'PONG') {
+      return 'Redis replied with PONG.';
+    }
+    if (Array.isArray(result)) {
+      if (result.length === 0) {
+        return 'Server returned no rows.';
+      }
+      return `Server returned ${result.length} row(s).`;
+    }
+    if (result != null && typeof result === 'object') {
+      return '';
+    }
+    if (result === 1 || result === true) {
+      return '';
+    }
+    const s = String(result);
+    return s.length > 120 ? `${s.slice(0, 118)}…` : s;
   }
 
   get certificates(): FormArray {
@@ -995,11 +1421,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  selectTab(tab: string) {
+  async selectTab(tab: string): Promise<void> {
+    if (this.selectedTab === 'databases' && tab !== 'databases' && this.isDatabasesDirty()) {
+      const discard = await this.confirmDialog.confirm({
+        title: 'Unsaved database changes',
+        message: 'Discard unsaved connection profile edits and leave this tab?',
+        destructive: true,
+        confirmLabel: 'Discard and leave',
+      });
+      if (!discard) return;
+      this.revertDatabasesFromDisk();
+    }
     this.selectedTab = tab;
-    if (tab === 'data') {
+    if (tab === 'databases') {
+      this.captureDatabasesBaseline();
+    }
+    if (tab === 'data' || tab === 'logging') {
       void this.refreshStorageInfo();
     }
+    if (tab !== 'databases') {
+      await this.saveFromFormAuto();
+    }
+    this.cdr.markForCheck();
   }
 
   async refreshStorageInfo(): Promise<void> {
@@ -1023,19 +1466,31 @@ export class SettingsComponent implements OnInit, OnDestroy {
     await api.openUserDataDirectory();
   }
 
-  async openConfigMarkerFolder(): Promise<void> {
-    const api = window.awElectron;
-    if (!api?.openConfigMarkerDirectory) return;
-    await api.openConfigMarkerDirectory();
+  async copyStoragePath(value: string | null | undefined, rowKey: string): Promise<void> {
+    const v = (value ?? '').trim();
+    if (!v) return;
+    try {
+      await navigator.clipboard.writeText(v);
+      this.pathCopyFeedbackKey = rowKey;
+      if (this.pathCopyClearTimer) clearTimeout(this.pathCopyClearTimer);
+      this.pathCopyClearTimer = setTimeout(() => {
+        this.pathCopyFeedbackKey = null;
+        this.pathCopyClearTimer = null;
+        this.cdr.markForCheck();
+      }, 1600);
+      this.cdr.markForCheck();
+    } catch {
+      /* clipboard denied or unavailable */
+    }
   }
 
-  async chooseCustomDataDirectory(): Promise<void> {
+  async chooseWorkDirectory(): Promise<void> {
     this.dataMessage = null;
     const api = window.awElectron;
     if (!api?.chooseDataDirectory) return;
     const r = await api.chooseDataDirectory();
-    if (r && 'ok' in r && r.ok && 'needsRestart' in r && r.needsRestart) {
-      this.dataMessage = 'Data folder will be used after you restart the app.';
+    if (r && 'ok' in r && r.ok && 'relaunching' in r && r.relaunching) {
+      this.dataMessage = 'Relaunching to apply the new work directory…';
     } else if (r && 'ok' in r && !r.ok && 'error' in r && r.error) {
       this.dataMessage = r.error;
     }
@@ -1043,22 +1498,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  async resetDataDirectoryOverride(): Promise<void> {
+  async resetWorkDirectoryToDefault(): Promise<void> {
     this.dataMessage = null;
     const api = window.awElectron;
     if (!api?.resetDataDirectoryOverride) return;
     const r = await api.resetDataDirectoryOverride();
-    if (r && 'ok' in r && r.ok && 'needsRestart' in r && r.needsRestart) {
-      this.dataMessage = 'Restart the app to use the default data location.';
+    if (r && 'ok' in r && r.ok && 'relaunching' in r && r.relaunching) {
+      this.dataMessage = 'Relaunching to use the default data location…';
     } else if (r && 'ok' in r && !r.ok && 'error' in r && r.error) {
       this.dataMessage = r.error;
     }
     void this.refreshStorageInfo();
     this.cdr.markForCheck();
-  }
-
-  closeSettings() {
-    this.close.emit();
   }
 
   togglePassphraseVisibility() {
@@ -1077,7 +1528,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   onBackdropClick(event: MouseEvent) {
     if ((event.target as HTMLElement).classList.contains('settings-container')) {
-      this.closeSettings();
+      void this.onCloseSettings();
     }
   }
 

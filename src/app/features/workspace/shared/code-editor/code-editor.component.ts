@@ -119,6 +119,10 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   @Input() autoFormat = true;
   /** When true, Ctrl+Space / typing `pm.` opens `pm.*` completions for JavaScript scripts. */
   @Input() scriptAutocomplete = false;
+  /** When true, Ctrl+Space / typing `{{` / `$` opens placeholder suggestions. */
+  @Input() placeholderAutocomplete = false;
+  /** Placeholder completion items inserted into the editor as-is. */
+  @Input() placeholderCompletions: ScriptCompletionItem[] = [];
 
   @Output() contentChange = new EventEmitter<string>();
 
@@ -129,6 +133,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
   completionVisible = false;
   completionFiltered: ScriptCompletionItem[] = [];
   completionActiveIndex = 0;
+  private completionMode: 'script' | 'placeholder' = 'script';
 
   private readonly autoFormatDebounceMs = 420;
   private autoFormatTimer: ReturnType<typeof setTimeout> | null = null;
@@ -141,7 +146,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
 
   @HostListener('document:mousedown', ['$event'])
   onDocumentMouseDown(ev: MouseEvent): void {
-    if (!this.completionVisible || !this.scriptAutocomplete) {
+    if (!this.completionVisible) {
       return;
     }
     const t = ev.target as Node | null;
@@ -279,10 +284,11 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
         this.updateHighlighting();
         this.scheduleAutoFormat();
         this.reconcileCaretAfterLengthChange(v.length);
-        if (this.completionVisible && this.scriptAutocomplete) {
+        if (this.completionVisible) {
           this.refreshCompletionFilter();
         }
         this.maybeOpenCompletionAfterPmDot();
+        this.maybeOpenPlaceholderCompletionAfterTrigger();
         return;
       }
     }
@@ -290,10 +296,11 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     this.contentChange.emit(v);
     this.updateHighlighting();
     this.scheduleAutoFormat();
-    if (this.completionVisible && this.scriptAutocomplete) {
+    if (this.completionVisible) {
       this.refreshCompletionFilter();
     }
     this.maybeOpenCompletionAfterPmDot();
+    this.maybeOpenPlaceholderCompletionAfterTrigger();
   }
 
   /**
@@ -865,13 +872,20 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       return;
     }
 
+    if (this.completionVisible && this.handleCompletionKeydown(event, ta)) {
+      return;
+    }
     if (this.scriptAutocomplete && this.language === 'javascript') {
-      if (this.completionVisible && this.handleCompletionKeydown(event, ta)) {
-        return;
-      }
       if (event.ctrlKey && !event.metaKey && event.code === 'Space') {
         event.preventDefault();
-        this.openCompletion(ta);
+        this.openCompletion(ta, 'script');
+        return;
+      }
+    }
+    if (this.placeholderAutocomplete) {
+      if (event.ctrlKey && !event.metaKey && event.code === 'Space') {
+        event.preventDefault();
+        this.openCompletion(ta, 'placeholder');
         return;
       }
     }
@@ -1225,12 +1239,34 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       const v = this.innerContent ?? '';
       const c = Math.max(0, Math.min(t.selectionStart, v.length));
       if (c >= 3 && v.substring(c - 3, c) === 'pm.') {
-        this.openCompletion(t);
+        this.openCompletion(t, 'script');
       }
     });
   }
 
-  private openCompletion(ta: HTMLTextAreaElement): void {
+  private maybeOpenPlaceholderCompletionAfterTrigger(): void {
+    if (!this.placeholderAutocomplete || this.readonly) {
+      return;
+    }
+    const ta = this.textarea?.nativeElement;
+    if (!ta) return;
+    requestAnimationFrame(() => {
+      if (!this.textarea || document.activeElement !== this.textarea.nativeElement) {
+        return;
+      }
+      const t = this.textarea.nativeElement;
+      const v = this.innerContent ?? '';
+      const c = Math.max(0, Math.min(t.selectionStart, v.length));
+      const before = v.substring(0, c);
+      const tail = v.substring(Math.max(0, c - 4), c);
+      if (tail.endsWith('{{') || tail.endsWith('{{ ') || /\$[A-Za-z0-9_]*$/.test(before)) {
+        this.openCompletion(t, 'placeholder');
+      }
+    });
+  }
+
+  private openCompletion(ta: HTMLTextAreaElement, mode: 'script' | 'placeholder'): void {
+    this.completionMode = mode;
     this.completionVisible = true;
     this.completionActiveIndex = 0;
     this.refreshCompletionFilter(ta);
@@ -1268,7 +1304,27 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     return { start, prefix: value.substring(start, c) };
   }
 
+  private getPlaceholderPrefixBeforeCaret(value: string, caret: number): { start: number; prefix: string } {
+    const c = Math.max(0, Math.min(caret, value.length));
+    const before = value.substring(0, c);
+    const braceMatch = /\{\{\s*([A-Za-z0-9._$-]*)$/.exec(before);
+    if (braceMatch) {
+      const prefix = braceMatch[1] ?? '';
+      return { start: c - prefix.length, prefix };
+    }
+    const dollarMatch = /\$([A-Za-z0-9_]*)$/.exec(before);
+    if (dollarMatch) {
+      const prefix = dollarMatch[1] ?? '';
+      return { start: c - prefix.length - 1, prefix: `$${prefix}` };
+    }
+    return { start: c, prefix: '' };
+  }
+
   private refreshCompletionFilter(ta?: HTMLTextAreaElement): void {
+    if (this.completionMode === 'placeholder') {
+      this.refreshPlaceholderCompletionFilter(ta);
+      return;
+    }
     const el = ta ?? this.textarea?.nativeElement;
     const v = this.innerContent ?? '';
     const caret = el ? Math.min(el.selectionStart, v.length) : v.length;
@@ -1283,6 +1339,28 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     );
     const ranked = this.rankCompletions(pl, matches);
     this.completionFiltered = ranked.slice(0, 50);
+    this.completionActiveIndex = Math.min(
+      this.completionActiveIndex,
+      Math.max(0, this.completionFiltered.length - 1),
+    );
+    this.cdr.markForCheck();
+  }
+
+  private refreshPlaceholderCompletionFilter(ta?: HTMLTextAreaElement): void {
+    const el = ta ?? this.textarea?.nativeElement;
+    const v = this.innerContent ?? '';
+    const caret = el ? Math.min(el.selectionStart, v.length) : v.length;
+    const { prefix } = this.getPlaceholderPrefixBeforeCaret(v, caret);
+    const pl = prefix.toLowerCase();
+    const items = this.placeholderCompletions || [];
+    const matches = items.filter(
+      (item) =>
+        !pl ||
+        item.label.toLowerCase().includes(pl) ||
+        item.insert.toLowerCase().includes(pl) ||
+        (item.detail && item.detail.toLowerCase().includes(pl)),
+    );
+    this.completionFiltered = this.rankCompletions(pl, matches).slice(0, 50);
     this.completionActiveIndex = Math.min(
       this.completionActiveIndex,
       Math.max(0, this.completionFiltered.length - 1),
@@ -1336,7 +1414,7 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
       if (this.completionFiltered.length) {
         const v = this.innerContent ?? '';
         const caret = Math.min(ta.selectionStart, v.length);
-        if (!this.canApplyScriptCompletion(v, caret)) {
+        if (this.completionMode === 'script' && !this.canApplyScriptCompletion(v, caret)) {
           this.closeCompletion();
           return false;
         }
@@ -1356,12 +1434,15 @@ export class CodeEditorComponent implements OnInit, OnChanges, AfterViewInit, On
     const v = this.innerContent ?? '';
     const caret = Math.min(textarea.selectionStart, v.length);
     const selEnd = Math.max(caret, textarea.selectionEnd);
-    if (!this.canApplyScriptCompletion(v, caret)) {
+    if (this.completionMode === 'script' && !this.canApplyScriptCompletion(v, caret)) {
       this.closeCompletion();
       this.cdr.markForCheck();
       return;
     }
-    const { start } = this.getScriptPrefixBeforeCaret(v, caret);
+    const { start } =
+      this.completionMode === 'script'
+        ? this.getScriptPrefixBeforeCaret(v, caret)
+        : this.getPlaceholderPrefixBeforeCaret(v, caret);
     const before = v.substring(0, start);
     const after = v.substring(selEnd);
     this.innerContent = before + item.insert + after;

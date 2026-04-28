@@ -108,7 +108,7 @@
         }
       } @else if (activeTab.type === TabType.MOCK_SERVER && isMockServerTab(activeTab)) {
         @defer {
-          <app-mock-server [tab]="activeTab" />
+          <app-mock [tab]="activeTab" />
         } @placeholder {
           <div class="tab-defer-placeholder" role="status" aria-live="polite">
             <div class="defer-skeleton">
@@ -120,30 +120,12 @@
         }
       } @else if (activeTab.type === TabType.LOAD_TEST && isLoadTestTab(activeTab)) {
         <app-load-test [tab]="activeTab" />
-      } @else if (activeTab.type === TabType.TEST_SUITE && isTestSuiteTab(activeTab)) {
-        @defer {
-          <app-test-suite [tab]="activeTab" />
-        } @placeholder {
-          <div class="tab-defer-placeholder" role="status" aria-live="polite">
-            <span class="defer-label">Loading Test Suite…</span>
-          </div>
-        }
-      } @else if (activeTab.type === TabType.CONTRACT_TEST && isContractTestTab(activeTab)) {
-        @defer {
-          <app-contract-test [tab]="activeTab" />
-        } @placeholder {
-          <div class="tab-defer-placeholder" role="status" aria-live="polite">
-            <span class="defer-label">Loading Contract Test…</span>
-          </div>
-        }
-      } @else if (activeTab.type === TabType.FLOW && isFlowTab(activeTab)) {
-        @defer {
-          <app-flow [tab]="activeTab" />
-        } @placeholder {
-          <div class="tab-defer-placeholder" role="status" aria-live="polite">
-            <span class="defer-label">Loading Flow…</span>
-          </div>
-        }
+      } @else if (activeTab.type === TabType.CAPTURE && isCaptureTab(activeTab)) {
+        <app-capture [tab]="activeTab" />
+      } @else if (activeTab.type === TabType.REGRESSION && isRegressionTab(activeTab)) {
+        <app-regression [tab]="activeTab" />
+      } @else if (activeTab.type === TabType.SECURITY && isSecurityTab(activeTab)) {
+        <app-security [tab]="activeTab" />
       } @else {
         <h3>{{ activeTab.title }}</h3>
         <p>No content defined for this tab type.</p>

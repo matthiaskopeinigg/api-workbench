@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed, fakeAsync, tick, flushMicrotasks } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { SettingsComponent } from './settings.component';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { SettingsService } from '@core/settings/settings.service';
@@ -42,11 +42,13 @@ describe('SettingsComponent', () => {
     dns: {},
     proxy: {},
     logging: {},
+    databases: { connections: [] },
   };
 
   beforeEach(async () => {
     settingsServiceSpy = jasmine.createSpyObj('SettingsService', ['getSettings', 'saveSettings']);
     themeServiceSpy = jasmine.createSpyObj('ThemeService', ['setTheme']);
+    themeServiceSpy.setTheme.and.resolveTo();
     fileDialogServiceSpy = jasmine.createSpyObj('FileDialogService', [
       'openFile',
       'saveFile',
@@ -93,6 +95,7 @@ describe('SettingsComponent', () => {
     confirmDialogSpy.alert.and.resolveTo();
 
     settingsServiceSpy.getSettings.and.returnValue(mockSettings as any);
+    settingsServiceSpy.saveSettings.and.resolveTo();
     collectionServiceSpy.getCollections.and.returnValue([]);
 
     await TestBed.configureTestingModule({
@@ -126,18 +129,31 @@ describe('SettingsComponent', () => {
     expect(component.settingsForm.get('ui.theme')?.value).toBe(Theme.DARK);
   });
 
-  it('should update theme when form changes', fakeAsync(() => {
+  it('should preview theme immediately and auto-save after debounce', fakeAsync(() => {
+    settingsServiceSpy.saveSettings.calls.reset();
     const themeControl = component.settingsForm.get('ui.theme');
     themeControl?.setValue(Theme.LIGHT);
-    flushMicrotasks();
-
-    expect(themeServiceSpy.setTheme).toHaveBeenCalledWith(Theme.LIGHT, false);
-
-    tick(300); 
     fixture.detectChanges();
 
+    expect(themeServiceSpy.setTheme).toHaveBeenCalledWith(Theme.LIGHT, false);
+    expect(settingsServiceSpy.saveSettings).not.toHaveBeenCalled();
+    tick(300);
     expect(settingsServiceSpy.saveSettings).toHaveBeenCalled();
   }));
+
+  it('should persist database connections when Save is clicked on Databases tab', async () => {
+    settingsServiceSpy.saveSettings.calls.reset();
+    await component.selectTab('databases');
+    component.addDatabaseConnection();
+    component.databaseConnections.at(0).patchValue({
+      name: 'Redis',
+      type: 'redis',
+      host: 'localhost',
+      port: 6379,
+    });
+    await component.onSaveDatabaseSection();
+    expect(settingsServiceSpy.saveSettings).toHaveBeenCalled();
+  });
 
   it('should switch tabs', () => {
     component.selectTab('proxy');

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { TabService, TabType } from './tab.service';
+import { CAPTURE_TAB_ID, TabService, TabType } from './tab.service';
+import type { TabItem } from './tab.service';
 import { SessionService } from '@core/session/session.service';
 import { SettingsService } from '@core/settings/settings.service';
 
@@ -59,5 +60,41 @@ describe('TabService workspace tabs', () => {
     const persisted = sessionStore['workspaceTabs'] as { split: boolean; ratio: number };
     expect(persisted.split).toBeTrue();
     expect(persisted.ratio).toBe(0.4);
+  });
+
+  it('openCaptureTab emits singleton capture tab', () => {
+    const received: TabItem[] = [];
+    const sub = service.getOpenTabAsObservable().subscribe((t) => received.push(t));
+    service.openCaptureTab();
+    service.openCaptureTab();
+    sub.unsubscribe();
+    expect(received.length).toBe(2);
+    expect(received[0]).toEqual(
+      jasmine.objectContaining({
+        id: CAPTURE_TAB_ID,
+        title: 'Capture',
+        type: TabType.CAPTURE,
+      }),
+    );
+    expect(received[1].id).toBe(CAPTURE_TAB_ID);
+  });
+
+  it('isCaptureTab recognizes capture tab type', () => {
+    expect(service.isCaptureTab({ id: CAPTURE_TAB_ID, title: 'Capture', type: TabType.CAPTURE })).toBeTrue();
+    expect(service.isCaptureTab({ id: 'x', title: 'X', type: TabType.REQUEST })).toBeFalse();
+  });
+
+  it('strips removed tab types from legacy activeTabs', async () => {
+    const legacy = [
+      { id: 'r1', title: 'One', type: TabType.REQUEST },
+      { id: 'ts:x', title: 'Suite', type: TabType.TEST_SUITE },
+      { id: '__regression_lab__', title: 'Regression', type: TabType.REGRESSION_LAB },
+    ];
+    sessionStore['activeTabs'] = legacy;
+    sessionStore['selectedTab'] = legacy[0];
+
+    const ws = await service.getWorkspaceTabsState();
+    expect(ws!.primary.tabs.map((t) => t.id)).toEqual(['r1']);
+    expect(ws!.primary.selectedTabId).toBe('r1');
   });
 });

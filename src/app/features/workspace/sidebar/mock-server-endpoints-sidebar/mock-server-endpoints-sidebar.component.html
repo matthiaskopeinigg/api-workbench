@@ -1,51 +1,329 @@
 <div class="mock-endpoints-sidebar">
+  <div class="mock-server-rail">
+    <div class="mock-server-rail-row">
+      <span class="mock-server-pill" [class.running]="mockStatus.status === 'running'"
+        [class.error]="mockStatus.status === 'error'"
+        [class.starting]="mockStatus.status === 'starting'">
+        {{ mockStatus.status === 'running' ? 'Mock on'
+          : (mockStatus.status === 'error' ? 'Error'
+          : (mockStatus.status === 'starting' ? 'Starting…' : 'Mock off')) }}
+      </span>
+      <div class="mock-server-url-row" *ngIf="mockUrlDisplayParts() as parts">
+        <div class="mock-server-url-chip" [title]="mockBaseUrlTooltip()">
+          <span class="mock-server-url-origin">{{ parts.schemeHost }}</span><span class="mock-server-url-colon">:</span><span class="mock-server-url-port">{{ parts.port }}</span>
+        </div>
+        <button
+          type="button"
+          class="mock-server-url-copy"
+          (click)="copyMockAddress()"
+          [attr.aria-label]="copiedMockAddress ? 'Address copied' : 'Copy server address'"
+          [title]="copiedMockAddress ? 'Copied' : 'Copy address'"
+        >
+          <svg *ngIf="!copiedMockAddress" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg *ngIf="copiedMockAddress" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="mock-rail-quick">
+      <label class="mock-rail-field">
+        <span class="mock-rail-label">Port</span>
+        <input
+          type="number"
+          min="1"
+          max="65535"
+          class="mock-rail-input mock-rail-input--port"
+          [(ngModel)]="portInput"
+          placeholder="auto"
+          [disabled]="portFieldDisabled"
+          title="Leave empty for an ephemeral port. Stop the server to change a fixed port."
+        />
+      </label>
+      <label class="mock-rail-field">
+        <span class="mock-rail-label">Delay</span>
+        <span class="mock-rail-suffix">
+          <input
+            type="number"
+            min="0"
+            step="50"
+            class="mock-rail-input mock-rail-input--delay"
+            [ngModel]="mockOptions.defaultDelayMs"
+            (ngModelChange)="onDefaultDelayChange($event)"
+            title="Default response delay when a variant does not set its own"
+          />
+          <span class="mock-rail-suffix-text">ms</span>
+        </span>
+      </label>
+    </div>
+
+    <button
+      type="button"
+      class="mock-rail-advanced-toggle"
+      [class.expanded]="showAdvanced"
+      [attr.aria-expanded]="showAdvanced"
+      (click)="toggleAdvanced()"
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+      <span>Advanced</span>
+    </button>
+
+    <div class="mock-rail-advanced" *ngIf="showAdvanced">
+      <div class="mock-rail-field mock-rail-field--block">
+        <span class="mock-rail-label">Bind address</span>
+        <div class="mock-rail-segmented">
+          <button type="button" [class.active]="mockOptions.bindAddress === '127.0.0.1'" (click)="setBindAddress('127.0.0.1')">
+            127.0.0.1
+          </button>
+          <button type="button" [class.active]="mockOptions.bindAddress === '0.0.0.0'" (click)="setBindAddress('0.0.0.0')">
+            0.0.0.0
+          </button>
+        </div>
+      </div>
+      <label class="mock-rail-field mock-rail-field--block">
+        <span class="mock-rail-label">CORS</span>
+        <app-dropdown
+          class="mock-rail-cors-dd"
+          [options]="corsModeOptions"
+          [value]="mockOptions.corsMode"
+          align="right"
+          [menuMaxWidth]="'min(100vw - 48px, 18rem)'"
+          ariaLabel="CORS policy"
+          (valueChange)="onCorsModeChange($event)"
+        />
+      </label>
+      <label class="mock-rail-field mock-rail-field--block">
+        <span class="mock-rail-label">Default Content-Type</span>
+        <input
+          type="text"
+          class="mock-rail-ct"
+          [ngModel]="mockOptions.defaultContentType"
+          (ngModelChange)="onOptionChange('defaultContentType', $event)"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="application/json; charset=utf-8"
+        />
+      </label>
+      <label class="mock-rail-toggle">
+        <span class="mock-rail-toggle-copy">
+          <span class="mock-rail-toggle-title">Capture bodies in activity log</span>
+        </span>
+        <span class="mock-rail-toggle-control">
+          <input
+            type="checkbox"
+            class="mock-rail-toggle-input"
+            [ngModel]="mockOptions.captureBodies"
+            (ngModelChange)="onOptionChange('captureBodies', $event)"
+          />
+          <span class="mock-rail-toggle-ui" aria-hidden="true"></span>
+        </span>
+      </label>
+      <label class="mock-rail-toggle">
+        <span class="mock-rail-toggle-copy">
+          <span class="mock-rail-toggle-title">Auto-start on app launch</span>
+        </span>
+        <span class="mock-rail-toggle-control">
+          <input
+            type="checkbox"
+            class="mock-rail-toggle-input"
+            [ngModel]="mockOptions.autoStart"
+            (ngModelChange)="onOptionChange('autoStart', $event)"
+          />
+          <span class="mock-rail-toggle-ui" aria-hidden="true"></span>
+        </span>
+      </label>
+      <p class="mock-rail-bind-warn" *ngIf="mockOptions.bindAddress === '0.0.0.0' && mockStatus.status === 'running'">
+        Reachable on your LAN at {{ mockStatus.baseUrl }}
+      </p>
+    </div>
+
+    <div class="mock-server-rail-actions">
+      <button type="button" class="mock-sidebar-btn mock-sidebar-btn--outline mock-sidebar-btn--block" *ngIf="mockStatus.status !== 'running'" (click)="startMock()"
+        [disabled]="mockStatus.status === 'starting'">Start</button>
+      <button type="button" class="mock-sidebar-btn mock-sidebar-btn--secondary mock-sidebar-btn--block" *ngIf="mockStatus.status === 'running'" (click)="stopMock()">Stop</button>
+    </div>
+  </div>
+
   <div class="rail-header">
     <span class="rail-title">Endpoints</span>
     <span class="rail-count">{{ totalRegistered() }}</span>
   </div>
 
-  <div class="rail-groups">
+  <div class="rail-groups" (contextmenu)="openStandaloneAreaContextMenu($event)">
     <div class="rail-group standalone-group">
       <div class="rail-group-title rail-group-title-row">
         <span>Standalone</span>
-        <button type="button" class="rail-add-btn" (click)="addStandalone()" title="Add standalone mock">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          <span>Add</span>
-        </button>
+        <div class="rail-group-title-actions">
+          <button type="button" class="mock-sidebar-btn mock-sidebar-btn--outline mock-sidebar-btn--pill" (click)="addStandaloneFolder()" title="Add folder">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Folder</span>
+          </button>
+          <button type="button" class="mock-sidebar-btn mock-sidebar-btn--outline mock-sidebar-btn--pill" (click)="addStandalone()" title="Add standalone mock">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add</span>
+          </button>
+        </div>
       </div>
 
-      <div class="rail-empty-inline" *ngIf="standalones.length === 0">
+      <div class="rail-empty-inline" *ngIf="standalones.length === 0 && standaloneLayoutTree.length === 0">
         No standalone mocks yet
       </div>
 
-      <button type="button" class="rail-entry standalone-entry"
-        *ngFor="let endpoint of standalones; trackBy: trackByStandalone"
-        [class.selected]="selectionKind === 'standalone' && selectedStandaloneId === endpoint.id"
-        (click)="selectStandalone(endpoint)" (contextmenu)="openContextMenu($event, endpoint)">
-        <span class="entry-method method-{{ endpoint.method }}">{{ endpoint.method }}</span>
-        <span class="entry-title" [title]="standaloneEntryTitle(endpoint)">
-          {{ standalonePrimaryLabel(endpoint) }}
-        </span>
-        <span class="entry-meta">
-          <span class="entry-badge" [class.has-active]="standaloneHasServedMocks(endpoint)">
-            {{ endpoint.variants.length }}
-          </span>
-          <button type="button" class="entry-remove" title="Delete" (click)="removeStandalone(endpoint, $event)">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-              <line x1="6" y1="18" x2="18" y2="6"></line>
-            </svg>
+      <div
+        class="standalone-tree"
+        *ngIf="standalones.length > 0 || standaloneLayoutTree.length > 0"
+        (dragover)="onStandaloneRowDragOver($event)"
+        (drop)="onDropStandaloneAtRoot($event)"
+      >
+        <ng-container *ngFor="let row of flatStandaloneRows; let i = index; trackBy: trackByFlatRow">
+          <div
+            class="standalone-insert-drop"
+            [class.active]="isDraggingStandalone"
+            [class.target]="dragInsertBeforeNodeId === row.node.id"
+            role="presentation"
+            (dragover)="onStandaloneInsertDragOver($event, row)"
+            (dragleave)="onStandaloneInsertDragLeave($event, row)"
+            (drop)="onStandaloneInsertDrop($event, row)"
+            aria-hidden="true"
+          ></div>
+
+          <div
+            *ngIf="row.node.kind === 'folder'"
+            class="standalone-folder-row"
+            [style.--standalone-depth.px]="row.depth * 12"
+            [class.drag-over]="dragOverStandaloneRowId === row.node.id"
+            [class.just-dropped]="recentlyDroppedStandaloneRowId === row.node.id"
+            draggable="true"
+            (dragstart)="onStandaloneDragStart($event, 'folder', row.node.id)"
+            (dragend)="onStandaloneDragEnd()"
+            (dragover)="onStandaloneRowDragOverWithTarget($event, row.node.id)"
+            (dragleave)="onStandaloneRowDragLeave($event, row.node.id)"
+            (drop)="onDropOnStandaloneFolder($event, row)"
+            (click)="onStandaloneFolderRowClick(row.node.id, $event)"
+            (contextmenu)="openFolderContextMenu($event, row.node.id)"
+          >
+            <button
+              type="button"
+              class="standalone-folder-chevron"
+              [attr.aria-expanded]="row.node.expanded"
+              [title]="row.node.expanded ? 'Collapse' : 'Expand'"
+              (click)="toggleStandaloneFolder(row.node.id, $event)"
+            >
+              <svg *ngIf="row.node.expanded" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+              <svg *ngIf="!row.node.expanded" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 6 15 12 9 18"></polyline>
+              </svg>
+            </button>
+            <input
+              *ngIf="renamingFolderId === row.node.id"
+              class="standalone-folder-rename-input"
+              [(ngModel)]="folderRenameDraft"
+              (keydown.enter)="commitFolderRename()"
+              (keydown.escape)="cancelFolderRename()"
+              (blur)="commitFolderRename()"
+              (click)="$event.stopPropagation()"
+            />
+            <span
+              *ngIf="renamingFolderId !== row.node.id"
+              class="standalone-folder-title"
+              (dblclick)="beginRenameFolder(row.node.id, row.node.title)"
+            >{{ row.node.title }}</span>
+          </div>
+
+          <button
+            *ngIf="row.node.kind === 'endpoint' && standaloneEndpointForRow(row) as ep"
+            type="button"
+            class="rail-entry standalone-entry"
+            [style.--standalone-depth.px]="row.depth * 12"
+            [class.drag-over]="dragOverStandaloneRowId === row.node.id"
+            [class.just-dropped]="recentlyDroppedStandaloneRowId === row.node.id"
+            draggable="true"
+            (dragstart)="onStandaloneDragStart($event, 'endpoint', row.node.id)"
+            (dragend)="onStandaloneDragEnd()"
+            (dragover)="onStandaloneRowDragOverWithTarget($event, row.node.id)"
+            (dragleave)="onStandaloneRowDragLeave($event, row.node.id)"
+            (drop)="onDropBeforeStandaloneEndpoint($event, row)"
+            [class.selected]="selectionKind === 'standalone' && selectedStandaloneId === ep.id"
+            (click)="selectStandalone(ep)"
+            (contextmenu)="openContextMenu($event, ep)"
+          >
+            <span class="entry-method method-{{ ep.method }}">{{ ep.method }}</span>
+            <input
+              *ngIf="renamingStandaloneId === ep.id"
+              class="standalone-entry-rename-input"
+              [(ngModel)]="standaloneRenameDraft"
+              (blur)="commitRenameStandalone(ep)"
+              (keydown.enter)="commitRenameStandalone(ep)"
+              (keydown.escape)="cancelRenameStandalone()"
+              (click)="$event.stopPropagation()"
+            />
+            <span
+              *ngIf="renamingStandaloneId !== ep.id"
+              class="entry-title"
+              [title]="standaloneEntryTitle(ep)"
+              (dblclick)="$event.stopPropagation(); startRenameStandalone(ep)"
+            >
+              {{ standalonePrimaryLabel(ep) }}
+            </span>
+            <span class="entry-meta">
+              <span class="entry-badge" [class.has-active]="standaloneHasServedMocks(ep)">
+                {{ ep.variants.length }}
+              </span>
+              <button type="button" class="entry-remove" title="Delete" (click)="removeStandalone(ep, $event)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                  <line x1="6" y1="18" x2="18" y2="6"></line>
+                </svg>
+              </button>
+            </span>
           </button>
-        </span>
-      </button>
+
+          <div
+            *ngIf="showStandaloneAppendLaneAfterIndex(i)"
+            class="standalone-insert-drop standalone-insert-drop--tail"
+            [class.active]="isDraggingStandalone"
+            [class.target]="dragInsertBeforeNodeId === standaloneAppendLaneKey(row.parentFolderId, row.node.id)"
+            role="presentation"
+            (dragover)="onStandaloneAppendDragOver($event, row.parentFolderId, row.node.id)"
+            (dragleave)="onStandaloneAppendDragLeave($event, row.parentFolderId, row.node.id)"
+            (drop)="onStandaloneAppendDrop($event, row.parentFolderId, row.node.id)"
+            aria-hidden="true"
+          ></div>
+        </ng-container>
+
+        <div
+          class="standalone-tail-drop"
+          [class.active]="isDraggingStandalone"
+          role="presentation"
+          (dragover)="onStandaloneRowDragOver($event)"
+          (drop)="onDropStandaloneAtRoot($event)"
+          aria-hidden="true"
+        ></div>
+      </div>
     </div>
 
-    <div class="rail-empty" *ngIf="groups.length === 0 && standalones.length === 0">
+    <div class="rail-empty" *ngIf="groups.length === 0 && standalones.length === 0 && standaloneLayoutTree.length === 0">
       <div class="empty-icon" aria-hidden="true">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
           stroke-linecap="round" stroke-linejoin="round">
@@ -85,6 +363,27 @@
 <div class="context-menu-overlay" *ngIf="contextMenuVisible" (click)="closeContextMenu()"
   (contextmenu)="closeContextMenu(); $event.preventDefault()">
   <div class="context-menu" [style.left.px]="menuX" [style.top.px]="menuY" (click)="$event.stopPropagation()">
+    <div class="menu-item" *ngIf="!contextMenuFolderId && !contextMenuEndpoint" (click)="addStandaloneFolder(); closeContextMenu()">
+      Create folder
+    </div>
+    <div class="menu-item" *ngIf="!contextMenuFolderId && !contextMenuEndpoint" (click)="addStandalone(); closeContextMenu()">
+      Create mock
+    </div>
+    <div class="menu-item" *ngIf="contextMenuFolderId" (click)="renameFolderFromContextMenu()">
+      Rename folder
+    </div>
+    <div class="menu-item" *ngIf="contextMenuFolderId" (click)="addStandaloneSubfolder(contextMenuFolderId)">
+      Create subfolder
+    </div>
+    <div class="menu-item" *ngIf="contextMenuFolderId" (click)="addStandaloneInFolder(contextMenuFolderId)">
+      Create mock in folder
+    </div>
+    <div class="menu-item danger" *ngIf="contextMenuFolderId" (click)="deleteFolderFromContextMenu()">
+      Remove folder
+    </div>
+    <div class="menu-item" *ngIf="contextMenuEndpoint" (click)="renameStandaloneFromContextMenu()">
+      Rename endpoint
+    </div>
     <div class="menu-item danger" *ngIf="contextMenuEndpoint" (click)="removeStandalone(contextMenuEndpoint)">
       Delete Endpoint
     </div>

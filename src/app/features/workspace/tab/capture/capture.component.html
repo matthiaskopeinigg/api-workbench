@@ -1,0 +1,199 @@
+<section class="aw-capture" role="region" aria-label="HTTP capture">
+  <header class="aw-capture-head">
+    <h1 class="aw-capture-title">Capture</h1>
+    <p class="aw-capture-lede">
+      Start opens a separate browser window. Only that window’s HTTP(S) traffic is listed here
+      (method, URL, status, timing, headers). Response bodies are not recorded—Electron’s
+      supported <code>webRequest</code> API does not expose response bytes. WebSockets are skipped.
+      Authorization and Cookie header values are redacted.
+    </p>
+  </header>
+
+  <div class="aw-capture-toolbar" *ngIf="captureSupported; else noBridge">
+    <label class="aw-capture-url-field">
+      <span class="aw-capture-label">Start URL</span>
+      <input
+        type="url"
+        class="aw-capture-url-input"
+        [(ngModel)]="initialUrl"
+        placeholder="https://… or leave blank for about:blank"
+        [disabled]="active"
+        [attr.aria-label]="'Initial URL for capture window'" />
+    </label>
+    <div class="aw-capture-actions">
+      <button type="button" class="aw-btn primary sm" (click)="start()" [disabled]="active">Start</button>
+      <button type="button" class="aw-btn sm ghost" (click)="stop()" [disabled]="!active">Stop</button>
+    </div>
+  </div>
+
+  <ng-template #noBridge>
+    <div class="aw-capture-banner" role="status">
+      Capture runs in the desktop app (Electron). Use <code>npm run dev</code> or a packaged build to record traffic.
+    </div>
+  </ng-template>
+
+  <p class="aw-capture-error" *ngIf="bridgeError">{{ bridgeError }}</p>
+
+  <div class="aw-capture-status" *ngIf="captureSupported">
+    <span *ngIf="active" class="aw-capture-pill live">Recording</span>
+    <span *ngIf="!active" class="aw-capture-pill muted">Idle</span>
+    <span class="aw-capture-count" *ngIf="!hasAnyListFilter">{{ entries.length }} exchanges</span>
+    <span class="aw-capture-count" *ngIf="hasAnyListFilter">
+      {{ filteredEntries.length }} of {{ entries.length }} shown
+    </span>
+    <button
+      type="button"
+      class="aw-btn sm ghost aw-capture-clear-requests"
+      [disabled]="entries.length === 0 || !captureClearSupported"
+      [title]="!captureClearSupported ? 'Reload the app after updating to use this action' : null"
+      (click)="clearCapturedRequests()"
+      [attr.aria-label]="'Clear all captured requests from the log'">
+      Clear requests
+    </button>
+  </div>
+
+  <div class="aw-capture-filter" *ngIf="captureSupported && entries.length">
+    <label class="aw-capture-filter-field">
+      <span class="aw-capture-label">Filter</span>
+      <input
+        type="search"
+        class="aw-capture-filter-input"
+        [(ngModel)]="listFilterText"
+        (ngModelChange)="onListFilterChange()"
+        placeholder="Substring — e.g. /api/v1, graphql, 404"
+        [attr.aria-label]="'Filter captured requests'" />
+    </label>
+    <label class="aw-capture-filter-field narrow resource">
+      <span class="aw-capture-label">Resource</span>
+      <app-dropdown
+        class="aw-capture-filter-dd"
+        [fullWidth]="true"
+        [options]="resourceCategoryOptions"
+        [value]="listResourceCategory"
+        align="right"
+        [menuMaxWidth]="'min(100vw - 48px, 16rem)'"
+        ariaLabel="Filter by resource type like DevTools Network"
+        (valueChange)="onResourceCategoryDropdownSelect($event)"
+      />
+    </label>
+    <label class="aw-capture-filter-field narrow">
+      <span class="aw-capture-label">Match in</span>
+      <app-dropdown
+        class="aw-capture-filter-dd"
+        [fullWidth]="true"
+        [options]="listFilterScopeOptions"
+        [value]="listFilterScope"
+        align="right"
+        [menuMaxWidth]="'min(100vw - 48px, 16rem)'"
+        ariaLabel="Field to match filter text against"
+        (valueChange)="onListFilterScopeDropdownSelect($event)"
+      />
+    </label>
+    <button
+      type="button"
+      class="aw-btn sm ghost aw-capture-filter-clear"
+      [disabled]="!hasAnyListFilter"
+      (click)="clearListFilter()"
+      [attr.aria-label]="'Clear text and resource filters'">
+      Clear
+    </button>
+  </div>
+
+  <div class="aw-capture-table-wrap" *ngIf="entries.length; else empty">
+    <div *ngIf="!filteredEntries.length" class="aw-capture-filter-empty" role="status">
+      <p>
+        No requests match the current filter.
+        <button
+          type="button"
+          class="aw-btn sm ghost aw-capture-filter-clear"
+          (click)="clearListFilter()"
+          [attr.aria-label]="'Clear text and resource filters'">
+          Clear
+        </button>
+      </p>
+    </div>
+    <table class="aw-capture-table" *ngIf="filteredEntries.length">
+      <colgroup>
+        <col class="aw-capture-col-method" />
+        <col class="aw-capture-col-url" />
+        <col class="aw-capture-col-status" />
+        <col class="aw-capture-col-time" />
+        <col class="aw-capture-col-size" />
+        <col class="aw-capture-col-actions" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Method</th>
+          <th scope="col">URL</th>
+          <th scope="col">Status</th>
+          <th scope="col">Time</th>
+          <th scope="col">Size</th>
+          <th scope="col" class="col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let e of filteredEntries; trackBy: trackById" [class.is-open]="isExpanded(e)">
+          <td>
+            <button type="button" class="aw-capture-method" (click)="toggleExpand(e)">{{ e.method }}</button>
+          </td>
+          <td class="aw-capture-url-cell">
+            <button type="button" class="aw-capture-url-btn" (click)="toggleExpand(e)" [title]="e.url">
+              {{ e.url }}
+            </button>
+          </td>
+          <td>{{ e.statusCode ?? '—' }}</td>
+          <td>{{ e.timeMs != null ? e.timeMs + ' ms' : '—' }}</td>
+          <td>{{ formatSize(e) }}</td>
+          <td class="col-actions">
+            <div class="aw-capture-row-actions">
+              <button
+                type="button"
+                class="aw-btn sm ghost"
+                [disabled]="!hasCollections"
+                [title]="!hasCollections ? 'Create a collection in the sidebar first' : 'Save a new request and open it in the editor'"
+                (click)="openAsRequestTab(e); $event.stopPropagation()">
+                Open request tab
+              </button>
+              <button type="button" class="aw-btn sm ghost" (click)="copyRequestStep(e); $event.stopPropagation()">
+                {{ copyDoneId === e.id ? 'Copied' : 'Copy request step' }}
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr class="aw-capture-detail" *ngIf="expandedId">
+          <td colspan="6">
+            <ng-container *ngFor="let e of filteredEntries">
+              <div class="aw-capture-detail-inner" *ngIf="e.id === expandedId">
+                <div class="aw-capture-detail-block">
+                  <h3 class="aw-capture-detail-h">Request headers</h3>
+                  <pre class="aw-capture-pre">{{ formatHeaders(e.requestHeaders) }}</pre>
+                </div>
+                <div class="aw-capture-detail-block" *ngIf="hasCapturedRequestBody(e)">
+                  <h3 class="aw-capture-detail-h">Request body</h3>
+                  <p class="aw-capture-meta" *ngIf="e.requestBodyTruncated">Truncated at capture (64 KB max).</p>
+                  <p class="aw-capture-meta" *ngIf="e.requestBodyIsBinary">Encoded as base64 (raw bytes contained NUL).</p>
+                  <pre class="aw-capture-pre body">{{ e.requestBody || '—' }}</pre>
+                </div>
+                <div class="aw-capture-detail-block">
+                  <h3 class="aw-capture-detail-h">Response headers</h3>
+                  <pre class="aw-capture-pre">{{ formatHeaders(e.responseHeaders) }}</pre>
+                </div>
+                <div class="aw-capture-detail-block">
+                  <h3 class="aw-capture-detail-h">Response body / errors</h3>
+                  <p class="aw-capture-meta" *ngIf="e.bodyTruncated">Truncated in log.</p>
+                  <pre class="aw-capture-pre body">{{ e.body || '—' }}</pre>
+                </div>
+              </div>
+            </ng-container>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #empty>
+    <div class="aw-capture-empty" *ngIf="captureSupported">
+      <p>No requests yet. Click <strong>Start</strong>, use the capture window, then rows appear here.</p>
+    </div>
+  </ng-template>
+</section>

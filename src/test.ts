@@ -11,6 +11,8 @@ getTestBed().initTestEnvironment(
 
 if (typeof window !== 'undefined' && !(window as any).awElectron) {
     (window as any).awElectron = {
+        isPackaged: false,
+        appVersion: '0.0.0-test',
         getSettings: () => Promise.resolve(undefined),
         saveSettings: () => Promise.resolve(),
         getCollections: () => Promise.resolve([]),
@@ -38,6 +40,8 @@ if (typeof window !== 'undefined' && !(window as any).awElectron) {
             Promise.resolve({
                 userData: '',
                 databasePath: '',
+                appConfigDir: '',
+                logsDir: '',
                 markerFile: '',
                 markerDir: '',
                 overrideSource: null,
@@ -45,9 +49,10 @@ if (typeof window !== 'undefined' && !(window as any).awElectron) {
                 env: null,
             }),
         openUserDataDirectory: () => Promise.resolve({ ok: true }),
+        openLogsDirectory: () => Promise.resolve({ ok: true }),
         openConfigMarkerDirectory: () => Promise.resolve({ ok: true }),
         chooseDataDirectory: () => Promise.resolve({ ok: false, cancelled: true }),
-        resetDataDirectoryOverride: () => Promise.resolve({ ok: true, needsRestart: true }),
+        resetDataDirectoryOverride: () => Promise.resolve({ ok: true, relaunching: true }),
     };
 }
 

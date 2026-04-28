@@ -1,0 +1,65 @@
+<div class="fb" [style.--depth]="depth">
+  @for (item of items; track isGroup(item) ? asGroup(item).id : asFlowEntry(item).flow.id) {
+
+    <!-- ── Group (folder) ── -->
+    @if (isGroup(item)) {
+      <div class="fb-group">
+        <div class="fb-group__row" [style.padding-left.px]="depth * 24 + 12">
+          <button class="fb-group__chevron"
+                  [class.fb-group__chevron--open]="asGroup(item).expanded"
+                  (click)="onToggleGroup(asGroup(item).id, $event)">›</button>
+          <span class="fb-group__icon">📁</span>
+          <span class="fb-group__name">{{ asGroup(item).name }}</span>
+          <span class="fb-group__count">{{ countFlowsInGroup(asGroup(item)) }} flows</span>
+
+          <div class="fb-group__actions">
+            <button class="fb-action-btn" (click)="onAddFlow(asGroup(item).id, $event)" title="Add flow">+ Flow</button>
+            <button class="fb-action-btn" (click)="onAddGroup(asGroup(item).id, $event)" title="Add sub-group">+ Group</button>
+            <button class="fb-action-btn fb-action-btn--danger" (click)="onDeleteGroup(asGroup(item).id, $event)" title="Delete group">✕</button>
+          </div>
+        </div>
+
+        @if (asGroup(item).expanded) {
+          <div class="fb-group__children">
+            <app-flow-browser
+              [items]="asGroup(item).children"
+              [depth]="depth + 1"
+              (selectFlow)="onChildSelectFlow($event)"
+              (deleteFlow)="onChildDeleteFlow($event)"
+              (toggleGroup)="onChildToggleGroup($event)"
+              (deleteGroup)="onChildDeleteGroup($event)"
+              (addFlowToGroup)="onChildAddFlowToGroup($event)"
+              (addGroupToGroup)="onChildAddGroupToGroup($event)">
+            </app-flow-browser>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Flow entry ── -->
+    @if (!isGroup(item)) {
+      <div class="fb-flow"
+           [style.padding-left.px]="depth * 24 + 12"
+           (click)="onSelectFlow(asFlowEntry(item).flow.id, $event)">
+        <span class="fb-flow__status" [ngClass]="getStatusClass(asFlowEntry(item).flow.lastRunStatus)"></span>
+        <div class="fb-flow__info">
+          <span class="fb-flow__name">{{ asFlowEntry(item).flow.name }}</span>
+          <span class="fb-flow__meta">
+            {{ asFlowEntry(item).flow.description || 'No description' }}
+          </span>
+        </div>
+        <div class="fb-flow__tags">
+          @for (tag of asFlowEntry(item).flow.tags; track tag) {
+            <span class="fb-flow__tag">{{ tag }}</span>
+          }
+        </div>
+        <span class="fb-flow__badge" [ngClass]="getStatusClass(asFlowEntry(item).flow.lastRunStatus)">
+          {{ asFlowEntry(item).flow.lastRunStatus }}
+        </span>
+        <button class="fb-action-btn fb-action-btn--danger fb-flow__delete"
+                (click)="onDeleteFlow(asFlowEntry(item).flow.id, $event)"
+                title="Delete flow">✕</button>
+      </div>
+    }
+  }
+</div>

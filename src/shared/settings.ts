@@ -135,12 +135,29 @@ export interface DatabaseSettings {
 export interface DatabaseConnection {
   id: string;
   name: string;
-  type: 'redis' | 'postgresql' | 'mysql' | 'mssql';
+  type: 'redis' | 'postgresql' | 'mysql' | 'mssql' | 'sqlite';
   host: string;
   port: number;
   user?: string;
   password?: string;
+  /** DB name (SQL) or Redis logical DB index, depending on `type`. */
   database?: string;
+  /** SQLite file path (when `type` is `sqlite`); if set, host/port are ignored. */
+  filePath?: string;
   tls?: boolean;
+  /**
+   * Max time to wait when opening a TCP/TLS connection (ms).
+   * Not used for SQLite file open; see `busyTimeoutMs`.
+   */
+  connectTimeoutMs?: number;
+  /**
+   * Max time for a single command or query (ms). Omit or 0 for driver default.
+   * Redis: ioredis `commandTimeout`. SQL: enforced per query in the desktop runtime.
+   */
+  commandTimeoutMs?: number;
+  /**
+   * SQLite: `busy_timeout` / better-sqlite3 open timeout (ms) while waiting on locks.
+   */
+  busyTimeoutMs?: number;
 }
 

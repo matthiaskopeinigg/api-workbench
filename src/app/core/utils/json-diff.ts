@@ -1,4 +1,9 @@
-import type { SnapshotFieldDiff } from '@models/testing/test-suite';
+export interface SnapshotFieldDiff {
+  path: string;
+  change: 'added' | 'removed' | 'changed';
+  expected?: string;
+  actual?: string;
+}
 
 /**
  * Structural diff between two JSON-ish values. Returns a flat list of

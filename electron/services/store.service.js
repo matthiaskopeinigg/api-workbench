@@ -1,27 +1,24 @@
 const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { logInfo, logError } = require('./logger.service');
+const { logInfo, logError, reconfigure: reconfigureLogger } = require('./logger.service');
 const db = require('../db/database');
+const { readOverrideTargetFromDisk } = require('../user-data-override');
 
 /**
- * Prefer repo-local `config/` (dev) over legacy `configs/`; packaged builds
- * also check beside the exe (configs) for backward compatibility.
+ * Optional one-time seed JSON beside the app (dev: repo `config/`, packaged: `config/` next to exe).
+ * Not read from the user data directory — see {@link importLegacyIfEmpty} for when this runs.
  */
 function getConfigDir() {
   if (app.isPackaged) {
-    const nextToExe = path.join(path.dirname(app.getPath('exe')), 'configs');
-    if (fs.existsSync(nextToExe)) {
-      return nextToExe;
-    }
     return path.join(path.dirname(app.getPath('exe')), 'config');
   }
-  const appPath = app.getAppPath();
-  const devConfig = path.join(appPath, 'config');
-  if (fs.existsSync(devConfig)) {
-    return devConfig;
-  }
-  return path.join(appPath, 'configs');
+  return path.join(app.getAppPath(), 'config');
+}
+
+function shouldSkipBundledConfigSeed() {
+  const o = readOverrideTargetFromDisk();
+  return o.source === 'env' || o.source === 'marker';
 }
 
 /** When true, successful imports rename JSON to *.bak. Skip for `config/` to ease local dev re-runs. */
@@ -65,6 +62,13 @@ function archiveConfigFile(fileBaseName) {
 function importLegacyIfEmpty() {
   const hasAny = db.getDocument('settings') || db.getDocument('collections');
   if (hasAny) {
+    return;
+  }
+
+  if (shouldSkipBundledConfigSeed()) {
+    void logInfo('Skipping bundled workspace JSON seed (custom user data directory)', {
+      override: readOverrideTargetFromDisk(),
+    });
     return;
   }
 
@@ -125,7 +129,7 @@ async function initStores() {
     } else {
       await logInfo('Skipping bundled config seed (packaged build — clean install)');
     }
-    await logInfo('Stores initialized (SQLite)');
+    await logInfo('Stores initialized (JSON workspace under user data)');
   } catch (err) {
     await logError('Failed to initialize stores', err);
     throw err;
@@ -147,6 +151,11 @@ function getSettings() {
 
 function setSettings(settings) {
   db.setDocument('settings', JSON.stringify({ settings }));
+  try {
+    reconfigureLogger(settings && settings.logging);
+  } catch (e) {
+    logError('Logger reconfigure failed', e);
+  }
 }
 
 function getCollections() {
@@ -222,10 +231,8 @@ function setArtifacts(docKey, items) {
 
 const ARTIFACT_KEYS = {
   loadTests: 'loadTests',
-  testSuites: 'testSuites',
   contractTests: 'contractTests',
   flows: 'flows',
-  testSuiteSnapshots: 'testSuiteSnapshots',
 };
 
 /**
@@ -251,6 +258,9 @@ function importArtifactDocumentsFromConfig() {
  * Seed each artifact kind from `config/<kind>.json` only when that document has no items.
  */
 function importArtifactSeedsIfDocumentsEmpty() {
+  if (shouldSkipBundledConfigSeed()) {
+    return false;
+  }
   let any = false;
   for (const key of Object.values(ARTIFACT_KEYS)) {
     const existing = getArtifacts(key);

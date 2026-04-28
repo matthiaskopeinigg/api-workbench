@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { EnvironmentComponent } from './environment.component';
 import { EnvironmentsService } from '@core/environments/environments.service';
 import { TabService, TabType } from '@core/tabs/tab.service';
+import { ConfirmDialogService } from '@core/ui/confirm-dialog.service';
 import { of } from 'rxjs';
 import { CommonModule } from '@angular/common';
 
@@ -11,11 +12,14 @@ describe('EnvironmentComponent', () => {
 
   let environmentsServiceSpy: jasmine.SpyObj<EnvironmentsService>;
   let tabServiceSpy: jasmine.SpyObj<TabService>;
+  let confirmDialogSpy: jasmine.SpyObj<ConfirmDialogService>;
 
-  const mockEnvs = [
-    { id: '1', title: 'Dev', order: 0, variables: [] },
-    { id: '2', title: 'Prod', order: 1, variables: [] }
-  ];
+  function freshMockEnvs(): { id: string; title: string; order: number; variables: never[] }[] {
+    return [
+      { id: '1', title: 'Dev', order: 0, variables: [] },
+      { id: '2', title: 'Prod', order: 1, variables: [] },
+    ];
+  }
 
   beforeEach(async () => {
     environmentsServiceSpy = jasmine.createSpyObj('EnvironmentsService', [
@@ -26,10 +30,15 @@ describe('EnvironmentComponent', () => {
       'selectEnvironment',
       'getSelectedEnvironmentAsObservable',
       'triggerEnvironmentDeleted',
+      'emitEnvironmentTitleUpdated',
     ]);
     tabServiceSpy = jasmine.createSpyObj('TabService', ['getSelectedTab', 'isEnvironmentTab']);
+    confirmDialogSpy = jasmine.createSpyObj('ConfirmDialogService', ['confirm']);
+    confirmDialogSpy.confirm.and.returnValue(Promise.resolve(true));
 
-    environmentsServiceSpy.getEnvironmentsObservable.and.returnValue(of(mockEnvs));
+    environmentsServiceSpy.getEnvironmentsObservable.and.returnValue(
+      of(freshMockEnvs().map((e) => ({ ...e, variables: [...e.variables] }))),
+    );
     environmentsServiceSpy.getSelectedEnvironmentAsObservable.and.returnValue(of(null as any));
     environmentsServiceSpy.getActiveContextAsObservable.and.returnValue(of(null as any)); 
 
@@ -37,7 +46,8 @@ describe('EnvironmentComponent', () => {
       imports: [EnvironmentComponent, CommonModule],
       providers: [
         { provide: EnvironmentsService, useValue: environmentsServiceSpy },
-        { provide: TabService, useValue: tabServiceSpy }
+        { provide: TabService, useValue: tabServiceSpy },
+        { provide: ConfirmDialogService, useValue: confirmDialogSpy },
       ]
     }).compileComponents();
 
@@ -84,7 +94,7 @@ describe('EnvironmentComponent', () => {
   });
 
   it('should select environment', () => {
-    const env = mockEnvs[1];
+    const env = component.environments.find((e) => e.id === '2')!;
     component.selectEnvironment(env);
 
     expect(component.selectedEnv).toBe(env);
@@ -93,6 +103,18 @@ describe('EnvironmentComponent', () => {
       title: env.title,
       type: TabType.ENVIRONMENT
     });
+  });
+
+  it('should rename environment and notify tab titles', async () => {
+    const env = component.environments.find((e) => e.id === '1');
+    expect(env).toBeTruthy();
+    component.startRenameEnvironment(env!.id);
+    fixture.detectChanges();
+    await component.finishRenameEnvironment(env!, 'NewDev');
+
+    expect(env!.title).toBe('NewDev');
+    expect(environmentsServiceSpy.saveEnvironments).toHaveBeenCalled();
+    expect(environmentsServiceSpy.emitEnvironmentTitleUpdated).toHaveBeenCalledWith('1', 'NewDev');
   });
 
   it('should handle drag and drop', () => {

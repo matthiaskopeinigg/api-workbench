@@ -6,12 +6,521 @@
   min-width: 0;
 }
 
+:host ::ng-deep .mock-rail-cors-dd {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+:host ::ng-deep .mock-rail-cors-dd .dropdown-trigger {
+  min-height: 30px;
+  height: auto;
+  padding: 0 8px 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  width: 100%;
+  text-align: left;
+  background: var(--aw-bg, var(--background));
+  color: var(--text-color);
+  border-color: color-mix(in srgb, var(--border-color), transparent 30%);
+
+  .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/**
+ * Outline: filled like rail inputs so it reads clearly on the `aw-surface` rail
+ * (landing ghost uses translucent surface — too low-contrast here). Stop stays secondary.
+ */
+.mock-sidebar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  cursor: pointer;
+  border-radius: var(--aw-radius-md, 8px);
+  font-weight: 600;
+  font-size: 0.85rem;
+  height: var(--aw-control-height, 34px);
+  letter-spacing: -0.01em;
+  border: 1px solid transparent;
+  transition: background-color var(--aw-duration-fast, 120ms) ease,
+    border-color var(--aw-duration-fast, 120ms) ease,
+    box-shadow var(--aw-duration-fast, 120ms) ease,
+    color var(--aw-duration-fast, 120ms) ease,
+    transform var(--aw-duration-fast, 120ms) ease;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  &:not(:disabled):active {
+    transform: translateY(1px);
+  }
+
+  &--block {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &--outline,
+  &--ghost {
+    background: var(--aw-bg, var(--background));
+    color: var(--aw-text, var(--text-color));
+    border-color: color-mix(in srgb, var(--aw-border, var(--border-color)), transparent 22%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 94%);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--aw-bg, var(--background)) 92%, var(--primary-color) 8%);
+      border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 40%);
+      color: var(--aw-text, var(--text-color));
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--aw-text, var(--text-color)), transparent 92%),
+        0 2px 8px color-mix(in srgb, var(--primary-color), transparent 88%);
+    }
+  }
+
+  &--secondary {
+    background: color-mix(in srgb, #e5484d, transparent 85%);
+    color: #e5484d;
+    border-color: color-mix(in srgb, #e5484d, transparent 70%);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, #e5484d, transparent 75%);
+    }
+  }
+
+  &--pill {
+    height: auto;
+    min-height: 28px;
+    padding: 5px 11px 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+}
+
 .mock-endpoints-sidebar {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--aw-surface, var(--surface));
+
+  .mock-server-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 14px 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color), transparent 70%);
+    flex-shrink: 0;
+  }
+
+  .mock-server-rail-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mock-server-url-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+
+  .mock-server-url-chip {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
+    padding: 4px 9px 5px;
+    border-radius: 8px;
+    font-family: var(--aw-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--aw-surface, var(--surface)) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)) 72%, transparent);
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)) 92%, transparent);
+  }
+
+  .mock-server-url-origin {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mock-server-url-colon {
+    flex-shrink: 0;
+    opacity: 0.55;
+    margin: 0 0.5px;
+  }
+
+  .mock-server-url-port {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)) 72%, transparent);
+  }
+
+  .mock-server-url-copy {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--aw-border, var(--border-color)) 80%, transparent);
+    background: color-mix(in srgb, var(--aw-surface, var(--surface)) 72%, transparent);
+    color: color-mix(in srgb, var(--aw-text, var(--text-color)) 80%, transparent);
+    cursor: pointer;
+    transition:
+      background-color var(--aw-duration-fast, 120ms) ease,
+      border-color var(--aw-duration-fast, 120ms) ease,
+      color var(--aw-duration-fast, 120ms) ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--primary-color) 10%, var(--aw-surface, var(--surface)));
+      border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+      color: var(--primary-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--aw-focus-ring, var(--primary-color));
+      outline-offset: 2px;
+    }
+  }
+
+  .mock-server-pill {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-color), transparent 90%);
+    color: color-mix(in srgb, var(--text-color), transparent 40%);
+    flex-shrink: 0;
+
+    &.running {
+      background: color-mix(in srgb, var(--aw-success, #0a0), transparent 80%);
+      color: color-mix(in srgb, var(--aw-success, #0a0), transparent 0%);
+    }
+
+    &.starting {
+      background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 82%);
+      color: var(--primary-color, #4f8df9);
+    }
+
+    &.error {
+      background: color-mix(in srgb, var(--aw-danger, #c00), transparent 80%);
+      color: var(--aw-danger, #c00);
+    }
+  }
+
+  .mock-rail-quick {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+  }
+
+  .mock-rail-field {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+
+    &--block {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+  }
+
+  .mock-rail-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, var(--text-color), transparent 48%);
+  }
+
+  .mock-rail-input {
+    padding: 5px 8px;
+    background: var(--aw-bg, var(--background));
+    color: var(--text-color);
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
+    border-radius: 6px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+
+    &:focus {
+      outline: none;
+      border-color: color-mix(in srgb, var(--secondary-color, #e87b35), transparent 25%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--secondary-color, #e87b35), transparent 78%);
+    }
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    &--port {
+      width: 5.5rem;
+    }
+
+    &--delay {
+      width: 3.25rem;
+      text-align: right;
+      border: 0;
+      background: transparent;
+      padding: 5px 4px 5px 6px;
+
+      &:focus {
+        box-shadow: none;
+      }
+    }
+  }
+
+  .mock-rail-suffix {
+    display: inline-flex;
+    align-items: center;
+    background: var(--aw-bg, var(--background));
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
+    border-radius: 6px;
+    padding-right: 6px;
+
+    &:focus-within {
+      border-color: color-mix(in srgb, var(--secondary-color, #e87b35), transparent 25%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--secondary-color, #e87b35), transparent 78%);
+    }
+  }
+
+  .mock-rail-suffix-text {
+    font-size: 9px;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--text-color), transparent 45%);
+    letter-spacing: 0.04em;
+  }
+
+  .mock-rail-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    align-self: flex-start;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-color), transparent 94%);
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 45%);
+    color: color-mix(in srgb, var(--text-color), transparent 22%);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+
+    svg {
+      transition: transform 0.18s ease;
+      opacity: 0.75;
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-color), transparent 88%);
+      color: var(--text-color);
+    }
+
+    &.expanded {
+      background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 86%);
+      border-color: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 55%);
+      color: var(--primary-color, #4f8df9);
+
+      svg {
+        transform: rotate(180deg);
+        opacity: 1;
+      }
+    }
+  }
+
+  .mock-rail-advanced {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 10px 8px;
+    margin: 0 -4px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--text-color), transparent 96%);
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 50%);
+  }
+
+  .mock-rail-segmented {
+    display: flex;
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
+    border-radius: 6px;
+    overflow: hidden;
+    width: fit-content;
+    max-width: 100%;
+
+    button {
+      padding: 5px 9px;
+      background: var(--aw-bg, var(--background));
+      color: color-mix(in srgb, var(--text-color), transparent 35%);
+      border: 0;
+      font-size: 11px;
+      font-family: var(--aw-font-mono, ui-monospace, monospace);
+      cursor: pointer;
+
+      &.active {
+        background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 78%);
+        color: var(--primary-color, #4f8df9);
+        font-weight: 700;
+      }
+
+      + button {
+        border-left: 1px solid color-mix(in srgb, var(--border-color), transparent 45%);
+      }
+    }
+  }
+
+  .mock-rail-ct {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-family: var(--aw-font-mono, ui-monospace, monospace);
+    background: var(--aw-bg, var(--background));
+    color: var(--text-color);
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 30%);
+    border-radius: 6px;
+
+    &:focus {
+      outline: none;
+      border-color: color-mix(in srgb, var(--secondary-color, #e87b35), transparent 25%);
+    }
+  }
+
+  .mock-rail-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--border-color), transparent 35%);
+    background: color-mix(in srgb, var(--aw-bg, var(--background)) 65%, transparent);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--border-color), transparent 18%);
+      background: color-mix(in srgb, var(--aw-bg, var(--background)) 88%, transparent);
+    }
+  }
+
+  .mock-rail-toggle-copy {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .mock-rail-toggle-title {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text-color);
+  }
+
+  .mock-rail-toggle-control {
+    position: relative;
+    flex-shrink: 0;
+    width: 44px;
+    height: 26px;
+  }
+
+  .mock-rail-toggle-input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 1;
+
+    &:focus-visible + .mock-rail-toggle-ui {
+      outline: 2px solid color-mix(in srgb, var(--secondary-color, #e87b35), transparent 35%);
+      outline-offset: 2px;
+    }
+  }
+
+  .mock-rail-toggle-ui {
+    position: relative;
+    display: block;
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-color), transparent 82%);
+    transition: background 0.2s ease;
+    pointer-events: none;
+    box-shadow: inset 0 1px 3px color-mix(in srgb, var(--text-color), transparent 88%);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #fff 0%, color-mix(in srgb, #fff 88%, var(--text-color) 12%) 100%);
+      box-shadow:
+        0 1px 4px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 #fff;
+      transition: transform 0.22s cubic-bezier(0.34, 1.3, 0.64, 1);
+    }
+  }
+
+  .mock-rail-toggle-input:checked + .mock-rail-toggle-ui {
+    background: linear-gradient(135deg, var(--primary-color, #4f8df9) 0%, var(--secondary-color, #e87b35) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 2px 8px color-mix(in srgb, var(--primary-color, #4f8df9), transparent 55%);
+
+    &::after {
+      transform: translateX(18px);
+    }
+  }
+
+  .mock-rail-bind-warn {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.35;
+    color: color-mix(in srgb, #e5a42f, transparent 5%);
+  }
+
+  .mock-server-rail-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
 
   .rail-header {
     display: flex;
@@ -96,7 +605,7 @@
 
   .rail-entry {
     display: grid;
-    grid-template-columns: 50px 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     grid-template-areas:
       'method title meta'
@@ -128,9 +637,13 @@
       font-size: 12.5px;
       color: var(--text-color);
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
       font-weight: 500;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .entry-meta {
       grid-area: meta;
@@ -173,10 +686,184 @@
       gap: 8px;
       padding-right: 8px;
     }
+
+    .rail-group-title-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+  }
+
+  .standalone-tree {
+    display: flex;
+    flex-direction: column;
+    min-height: 4px;
+  }
+
+  .standalone-insert-drop {
+    height: 0;
+    margin: 0 8px;
+    border-radius: 999px;
+    border: 1px dashed transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--aw-duration-fast, 120ms) ease,
+      height var(--aw-duration-fast, 120ms) ease,
+      border-color var(--aw-duration-fast, 120ms) ease,
+      background-color var(--aw-duration-fast, 120ms) ease;
+
+    &.active {
+      height: 8px;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    &.target {
+      border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 45%);
+      background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 93%);
+    }
+
+    &--tail {
+      margin-bottom: 2px;
+    }
+  }
+
+  .standalone-tail-drop {
+    height: 0;
+    margin: 2px 8px 0;
+    border-radius: 999px;
+    border: 1px dashed transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: border-color var(--aw-duration-fast, 120ms) ease,
+      background-color var(--aw-duration-fast, 120ms) ease,
+      height var(--aw-duration-fast, 120ms) ease,
+      opacity var(--aw-duration-fast, 120ms) ease;
+
+    &.active {
+      height: 10px;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    &:hover {
+      border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 45%);
+      background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 93%);
+    }
+  }
+
+  .standalone-folder-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 32px;
+    padding: 4px 10px 4px calc(10px + var(--standalone-depth, 0px));
+    margin: 0 4px;
+    border-radius: var(--aw-radius-md, 8px);
+    cursor: grab;
+    user-select: none;
+    color: color-mix(in srgb, var(--text-color), transparent 12%);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition:
+      background-color var(--aw-duration-fast, 120ms) ease,
+      border-color var(--aw-duration-fast, 120ms) ease,
+      box-shadow var(--aw-duration-fast, 120ms) ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-color), transparent 94%);
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    &.drag-over {
+      border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 45%);
+      background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 92%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 60%);
+    }
+
+    &.just-dropped {
+      animation: standalone-drop-flash 420ms ease;
+    }
+  }
+
+  .standalone-folder-chevron {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: color-mix(in srgb, var(--text-color), transparent 45%);
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--text-color), transparent 90%);
+      color: var(--text-color);
+    }
+  }
+
+  .standalone-folder-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .standalone-folder-rename-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 50%);
+    background: var(--aw-bg, var(--background));
+    color: var(--text-color);
   }
 
   .rail-entry.standalone-entry {
     position: relative;
+    padding-left: calc(10px + var(--standalone-depth, 0px)) !important;
+    transition:
+      background-color var(--aw-duration-fast, 120ms) ease,
+      border-color var(--aw-duration-fast, 120ms) ease,
+      box-shadow var(--aw-duration-fast, 120ms) ease;
+
+    &.drag-over {
+      border-color: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 45%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 60%);
+      background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 92%);
+    }
+
+    &.just-dropped {
+      animation: standalone-drop-flash 420ms ease;
+    }
+
+    .standalone-entry-rename-input {
+      min-width: 0;
+      width: 100%;
+      height: 24px;
+      padding: 0 6px;
+      border-radius: 4px;
+      border: 1px solid color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 50%);
+      background: var(--aw-bg, var(--background));
+      color: var(--text-color);
+      font: inherit;
+      outline: none;
+    }
 
     .entry-remove {
       display: inline-flex;
@@ -213,30 +900,12 @@
   }
 }
 
-.rail-add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px 3px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 88%);
-  color: var(--primary-color, #4f8df9);
-  border: 1px solid color-mix(in srgb, var(--primary-color, #4f8df9), transparent 70%);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.12s, transform 0.05s;
-
-  &:hover {
-    background: color-mix(in srgb, var(--primary-color, #4f8df9), transparent 78%);
+@keyframes standalone-drop-flash {
+  0% {
+    background: color-mix(in srgb, var(--secondary-color, var(--primary-color)), transparent 84%);
   }
-  &:active {
-    transform: translateY(1px);
-  }
-  svg {
-    opacity: 0.85;
+  100% {
+    background: transparent;
   }
 }
 

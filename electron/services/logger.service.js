@@ -1,8 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const { getLogsDir, ensureLogsDir } = require('./paths.service');
 
 let logFilePath = null;
+
+/** @type {{ logToFile: boolean, maxBytes: number, resolvedLogFile: string | null }} */
+let fileConfig = {
+  logToFile: false,
+  maxBytes: 1024 * 1024,
+  resolvedLogFile: null,
+};
 
 const ANSI = {
   reset: '\x1b[0m',
@@ -42,43 +50,84 @@ function formatDate() {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Resolve primary log file path from settings or default `logs/app.log`.
+ * @param {import('../../src/shared/settings').LoggingSettings | undefined | null} logging
+ */
+function resolveLogFilePath(logging) {
+  const custom = logging && typeof logging.logFilePath === 'string' ? logging.logFilePath.trim() : '';
+  if (!custom) {
+    return path.join(ensureLogsDir(), 'app.log');
+  }
+  if (path.isAbsolute(custom)) {
+    const dir = path.dirname(custom);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return custom;
+  }
+  return path.join(ensureLogsDir(), custom.replace(/^[\\/]+/, ''));
+}
+
+function applyRotationIfNeeded() {
+  const target = fileConfig.resolvedLogFile;
+  if (!target || !fs.existsSync(target)) return;
+  try {
+    const stats = fs.statSync(target);
+    if (stats.size <= fileConfig.maxBytes) return;
+    const dir = path.dirname(target);
+    const archiveName = `app-${formatDate()}-${Date.now()}.log`;
+    fs.renameSync(target, path.join(dir, archiveName));
+  } catch (err) {
+    console.error('Log rotation failed', err);
+  }
+}
+
 function ensureLogDir() {
   try {
-    let logDir;
-    if (app.isPackaged) {
-      logDir = path.join(path.dirname(app.getPath('exe')), 'logs');
-    } else {
-      logDir = path.join(app.getAppPath(), 'logs');
+    ensureLogsDir();
+    const target = fileConfig.resolvedLogFile || path.join(getLogsDir(), 'app.log');
+    fileConfig.resolvedLogFile = target;
+    const dir = path.dirname(target);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
-    }
-
-    const currentLog = path.join(logDir, 'app.log');
-    if (fs.existsSync(currentLog)) {
-      const stats = fs.statSync(currentLog);
-
-      if (stats.size > 1024 * 1024) {
-        const archiveName = `app-${formatDate()}-${Date.now()}.log`;
-        fs.renameSync(currentLog, path.join(logDir, archiveName));
-      }
-    }
-
-    logFilePath = currentLog;
+    applyRotationIfNeeded();
+    logFilePath = target;
   } catch (err) {
     console.error('Failed to initialize log directory', err);
   }
 }
 
-function writeToFile(line) {
+/**
+ * @param {import('../../src/shared/settings').LoggingSettings | undefined | null} logging
+ */
+function reconfigure(logging) {
+  const logToFile = !!(logging && logging.logToFile);
+  const maxKb = Math.max(64, Number(logging?.maxLogFileSizeKb) || 1024);
+  fileConfig = {
+    logToFile,
+    maxBytes: maxKb * 1024,
+    resolvedLogFile: resolveLogFilePath(logging || undefined),
+  };
+  logFilePath = null;
+  if (logToFile) {
+    ensureLogDir();
+  }
+}
 
-  if (!app.isPackaged && !process.env.ENABLE_FILE_LOGGING) return;
+function shouldWriteToFile() {
+  if (!fileConfig.logToFile) return false;
+  if (!app.isPackaged) return true;
+  return true;
+}
+
+function writeToFile(line) {
+  if (!shouldWriteToFile()) return;
 
   if (!logFilePath) ensureLogDir();
 
   if (logFilePath) {
     try {
+      applyRotationIfNeeded();
       fs.appendFileSync(logFilePath, line + '\n');
     } catch (err) {
       console.error('Failed to write to log file', err);
@@ -172,11 +221,16 @@ async function logDebug(message, data = null) {
   if (shouldSuppress('DEBUG', message)) return;
   const line = formatMessage('DEBUG', message, data);
   consoleWrite('DEBUG', line);
+  if (shouldWriteToFile()) {
+    writeToFile(line);
+  }
 }
 
 module.exports = {
   logInfo,
   logError,
   logWarn,
-  logDebug
+  logDebug,
+  reconfigure,
+  ensureLogDir,
 };

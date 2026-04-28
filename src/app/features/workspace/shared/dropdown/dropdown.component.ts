@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, HostBinding, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface DropdownOption {
@@ -29,7 +29,14 @@ export class DropdownComponent {
     @Input() menuMaxWidth = 'min(100vw - 24px, 24rem)';
     /** Accessible name for the trigger (e.g. filter role). */
     @Input() ariaLabel = '';
+    /** Stretch trigger to parent width (e.g. form fields). */
+    @Input() fullWidth = false;
     @Output() valueChange = new EventEmitter<any>();
+
+    @HostBinding('class.full-width')
+    get hostFullWidth(): boolean {
+        return this.fullWidth;
+    }
 
     isOpen = false;
 

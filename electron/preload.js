@@ -8,9 +8,19 @@ function readIsPackaged() {
   }
 }
 
+function readAppVersion() {
+  try {
+    return ipcRenderer.sendSync('app:get-version');
+  } catch {
+    return '';
+  }
+}
+
 const awElectron = {
   /** True when running from a built app (installer/portable), not `electron .` dev. */
   isPackaged: readIsPackaged(),
+  /** Semantic version from package.json (main process). */
+  appVersion: readAppVersion(),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
@@ -114,10 +124,29 @@ const awElectron = {
 
   getStorageInfo: () => ipcRenderer.invoke('storage:get-info'),
   openUserDataDirectory: () => ipcRenderer.invoke('storage:open-user-data'),
+  openLogsDirectory: () => ipcRenderer.invoke('storage:open-logs-dir'),
   openConfigMarkerDirectory: () => ipcRenderer.invoke('storage:open-marker-dir'),
   chooseDataDirectory: () => ipcRenderer.invoke('storage:choose-data-directory'),
   resetDataDirectoryOverride: () => ipcRenderer.invoke('storage:reset-data-directory-override'),
   dbQuery: (payload) => ipcRenderer.invoke('db:query', payload),
+  dbTestConnection: (connection) => ipcRenderer.invoke('db:test-connection', connection),
+
+  captureStart: (options) => ipcRenderer.invoke('capture:start', options && typeof options === 'object' ? options : {}),
+  captureStop: () => ipcRenderer.invoke('capture:stop'),
+  captureStatus: () => ipcRenderer.invoke('capture:status'),
+  captureList: () => ipcRenderer.invoke('capture:list'),
+  captureClear: () => ipcRenderer.invoke('capture:clear'),
+  onCaptureEntry: (listener) => {
+    const wrapped = (_event, entry) => listener(entry);
+    ipcRenderer.on('capture:entry', wrapped);
+    return () => ipcRenderer.removeListener('capture:entry', wrapped);
+  },
+  onCaptureStopped: (listener) => {
+    const wrapped = (_event, data) => listener(data);
+    ipcRenderer.on('capture:stopped', wrapped);
+    return () => ipcRenderer.removeListener('capture:stopped', wrapped);
+  },
+  e2eExecute: (payload) => ipcRenderer.invoke('e2e:execute', payload),
 };
 
 contextBridge.exposeInMainWorld('awElectron', awElectron);

@@ -174,7 +174,8 @@
           [value]="row.item.title"
           (blur)="finishRenameRequest(row.item, requestInput.value)"
           (keydown.enter)="finishRenameRequest(row.item, requestInput.value)" autofocus />
-        <span *ngIf="editingRequestId !== row.item.id" class="request-title-text" [title]="row.item.title || row.item.url">
+        <span *ngIf="editingRequestId !== row.item.id" class="request-title-text" [title]="row.item.title || row.item.url"
+          (dblclick)="$event.stopPropagation(); startRenameRequest(row.item.id)">
           <span class="starred-dot" *ngIf="row.item.starred" aria-label="Starred">★</span>
           {{ row.item.title || row.item.url }}
         </span>
@@ -387,7 +388,9 @@
                 (blur)="finishRenameFolder(folder, folderInput.value)"
                 (keydown.enter)="finishRenameFolder(folder, folderInput.value)" autofocus />
             </ng-container>
-            <ng-template #showFolderTitle><span class="folder-title-text">{{ folder.title }}</span></ng-template>
+            <ng-template #showFolderTitle>
+              <span class="folder-title-text" (dblclick)="$event.stopPropagation(); startRenameFolder(folder.id)">{{ folder.title }}</span>
+            </ng-template>
           </div>
 
           <button type="button" class="menu-button" (click)="toggleFolderMenu($event, folder.id)" aria-label="Folder actions">

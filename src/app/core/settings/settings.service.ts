@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: Settings = {
     timeoutMs: 10000,
     useCookies: true,
     allowHttp2: false,
-    defaultRequestEditorSection: 'body',
+    defaultRequestEditorSection: 'params',
   },
   retries: {
     retryOnFailure: false,
@@ -60,6 +60,9 @@ const DEFAULT_SETTINGS: Settings = {
   },
   keyboard: {
     bindings: {},
+  },
+  databases: {
+    connections: [],
   },
 };
 

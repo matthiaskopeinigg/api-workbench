@@ -1,0 +1,58 @@
+<div class="reg-sidebar">
+
+  <div class="sidebar-section">
+    <div class="section-header">
+      <span class="section-title">Regression Plans</span>
+      <button class="btn-icon-add" (click)="createRelease()" title="Create New Release">
+        <span class="icon">+</span>
+      </button>
+    </div>
+    @for (run of runs(); track run.id) {
+      <button class="node-row" (click)="openRun(run.id, run.versionTag)">
+        <span class="status-dot" [class]="'status--' + run.status"></span>
+        <span class="icon">📋</span>
+        <span class="label">{{ run.versionTag }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="sidebar-section">
+    <span class="section-title">Projects</span>
+    
+    @for (p of projects(); track p.id) {
+      <div class="project-node">
+        <button class="node-row" (click)="openProject(p.id, p.name)">
+          <span class="status-dot" [class]="'status--' + p.lastRunStatus"></span>
+          <span class="icon">📁</span>
+          <span class="label">{{ p.name }}</span>
+        </button>
+
+        <div class="node-children">
+          <ng-container *ngTemplateOutlet="itemTree; context: { items: p.flows }"></ng-container>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<ng-template #itemTree let-items="items">
+  @for (item of items; track item.id) {
+    @if (item.type === 'flow') {
+      <button class="node-row flow-node" (click)="openFlow(item.flow.id, item.flow.name)">
+        <span class="status-dot" [class]="'status--' + item.flow.lastRunStatus"></span>
+        <span class="icon">⚡️</span>
+        <span class="label">{{ item.flow.name }}</span>
+      </button>
+    } @else {
+      <div class="folder-node">
+        <div class="node-row folder-row">
+          <span class="icon">📂</span>
+          <span class="label">{{ item.name }}</span>
+        </div>
+        <div class="node-children">
+          <ng-container *ngTemplateOutlet="itemTree; context: { items: item.children }"></ng-container>
+        </div>
+      </div>
+    }
+  }
+</ng-template>

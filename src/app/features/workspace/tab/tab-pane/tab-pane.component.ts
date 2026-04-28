@@ -21,11 +21,11 @@ import { HistoryComponent } from '../history/history.component';
 import { RequestComponent } from '../request/request.component';
 import { FolderComponent } from '../folder/folder.component';
 import { WebSocketComponent } from '../websocket/websocket.component';
-import { MockServerComponent } from '../mock-server/mock-server.component';
+import { MockComponent } from '../mock-server/mock-server.component';
 import { LoadTestComponent } from '../load-test/load-test.component';
-import { TestSuiteComponent } from '../test-suite/test-suite.component';
-import { ContractTestComponent } from '../contract-test/contract-test.component';
-import { FlowComponent } from '../flow/flow.component';
+import { CaptureComponent } from '../capture/capture.component';
+import { RegressionComponent } from '../regression/regression.component';
+import { SecurityComponent } from '../security/security.component';
 
 @Component({
   selector: 'app-tab-pane',
@@ -36,11 +36,11 @@ import { FlowComponent } from '../flow/flow.component';
     RequestComponent,
     FolderComponent,
     WebSocketComponent,
-    MockServerComponent,
+    MockComponent,
     LoadTestComponent,
-    TestSuiteComponent,
-    ContractTestComponent,
-    FlowComponent,
+    CaptureComponent,
+    RegressionComponent,
+    SecurityComponent,
   ],
   templateUrl: './tab-pane.component.html',
   styleUrls: ['./tab-pane.component.scss'],
@@ -527,16 +527,17 @@ export class TabPaneComponent implements OnDestroy, OnChanges {
     return this.tabService.isLoadTestTab(tab);
   }
 
-  isTestSuiteTab(tab: TabItem): boolean {
-    return this.tabService.isTestSuiteTab(tab);
+  isCaptureTab(tab: TabItem): boolean {
+    return this.tabService.isCaptureTab(tab);
   }
 
-  isContractTestTab(tab: TabItem): boolean {
-    return this.tabService.isContractTestTab(tab);
+
+  isRegressionTab(tab: TabItem): boolean {
+    return tab.type === TabType.REGRESSION;
   }
 
-  isFlowTab(tab: TabItem): boolean {
-    return this.tabService.isFlowTab(tab);
+  isSecurityTab(tab: TabItem): boolean {
+    return tab.type === TabType.SECURITY;
   }
 
   protected readonly TabType = TabType;

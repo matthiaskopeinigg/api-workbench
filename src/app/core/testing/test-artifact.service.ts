@@ -2,9 +2,6 @@ import { Injectable, NgZone } from '@angular/core';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type { TestingArtifactKind } from '@models/electron';
 import type { LoadTestArtifact } from '@models/testing/load-test';
-import type { TestSuiteArtifact, SnapshotRecord } from '@models/testing/test-suite';
-import type { ContractTestArtifact } from '@models/testing/contract-test';
-import type { FlowArtifact } from '@models/testing/flow';
 
 interface ArtifactBase {
   id: string;
@@ -13,9 +10,9 @@ interface ArtifactBase {
 }
 
 /**
- * Generic CRUD facade over the four test-tab artifact kinds. Each kind has
- * its own in-memory cache + observable so the sidebar list and any open
- * editor tabs stay in sync without separate plumbing.
+ * Generic CRUD facade over test-tab artifact kinds. Each kind has its own
+ * in-memory cache + observable so the sidebar list and any open editor tabs
+ * stay in sync without separate plumbing.
  *
  * Saves are debounced + serialized: while a save is in flight, additional
  * edits buffer; on completion the latest snapshot is flushed.
@@ -24,10 +21,6 @@ interface ArtifactBase {
 export class TestArtifactService {
   private streams: Record<TestingArtifactKind, BehaviorSubject<ArtifactBase[]>> = {
     loadTests: new BehaviorSubject<ArtifactBase[]>([]),
-    testSuites: new BehaviorSubject<ArtifactBase[]>([]),
-    contractTests: new BehaviorSubject<ArtifactBase[]>([]),
-    flows: new BehaviorSubject<ArtifactBase[]>([]),
-    testSuiteSnapshots: new BehaviorSubject<ArtifactBase[]>([]),
   };
 
   private saveInFlight: Partial<Record<TestingArtifactKind, boolean>> = {};
@@ -39,24 +32,10 @@ export class TestArtifactService {
   loadTests$(): Observable<LoadTestArtifact[]> {
     return this.streams.loadTests.asObservable() as unknown as Observable<LoadTestArtifact[]>;
   }
-  testSuites$(): Observable<TestSuiteArtifact[]> {
-    return this.streams.testSuites.asObservable() as unknown as Observable<TestSuiteArtifact[]>;
-  }
-  contractTests$(): Observable<ContractTestArtifact[]> {
-    return this.streams.contractTests.asObservable() as unknown as Observable<ContractTestArtifact[]>;
-  }
-  flows$(): Observable<FlowArtifact[]> {
-    return this.streams.flows.asObservable() as unknown as Observable<FlowArtifact[]>;
-  }
-  testSuiteSnapshots$(): Observable<SnapshotRecord[]> {
-    return this.streams.testSuiteSnapshots.asObservable() as unknown as Observable<SnapshotRecord[]>;
-  }
 
-  loadTests(): LoadTestArtifact[] { return this.streams.loadTests.value as LoadTestArtifact[]; }
-  testSuites(): TestSuiteArtifact[] { return this.streams.testSuites.value as TestSuiteArtifact[]; }
-  contractTests(): ContractTestArtifact[] { return this.streams.contractTests.value as ContractTestArtifact[]; }
-  flows(): FlowArtifact[] { return this.streams.flows.value as FlowArtifact[]; }
-  testSuiteSnapshots(): SnapshotRecord[] { return this.streams.testSuiteSnapshots.value as SnapshotRecord[]; }
+  loadTests(): LoadTestArtifact[] {
+    return this.streams.loadTests.value as LoadTestArtifact[];
+  }
 
   getTestArtifactDeletedObservable(): Observable<{ kind: TestingArtifactKind; id: string }> {
     return this.testArtifactDeletedSubject.asObservable();
@@ -113,8 +92,8 @@ export class TestArtifactService {
   }
 
   /**
-   * Replace the full list for a kind. Used by the regression runner to
-   * apply many snapshot mutations in one IPC round-trip, instead of N.
+   * Replace the full list for a kind. Used for bulk updates in one IPC
+   * round-trip instead of N.
    */
   async bulkReplace<T extends ArtifactBase>(kind: TestingArtifactKind, items: T[]): Promise<void> {
     this.zoneEmit(kind, items);
@@ -139,12 +118,12 @@ export class TestArtifactService {
   }
 
   /**
-   * Kinds that open a workbench tab (`lt:`, `ts:`, …). Not snapshot rows or other data-only stores.
+   * Kinds that open a workbench tab (`lt:`, `ct:`, …).
    */
   private isEditorTabbedTestArtifactKind(
     kind: TestingArtifactKind,
-  ): kind is 'loadTests' | 'testSuites' | 'contractTests' | 'flows' {
-    return kind === 'loadTests' || kind === 'testSuites' || kind === 'contractTests' || kind === 'flows';
+  ): kind is 'loadTests' {
+    return kind === 'loadTests';
   }
 
   /**
