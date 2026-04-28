@@ -119,6 +119,11 @@ describe('TabComponent', () => {
       'clearSelection',
       'loadSelectionFromSession',
     ]);
+    (mockUiSpy as any).selectionKind$ = new BehaviorSubject(null);
+    (mockUiSpy as any).selectedRequestId$ = new BehaviorSubject(null);
+    (mockUiSpy as any).selectedStandaloneId$ = new BehaviorSubject(null);
+    (mockUiSpy as any).groups$ = new BehaviorSubject([]);
+    (mockUiSpy as any).standalones$ = new BehaviorSubject([]);
     mockUiSpy.loadSelectionFromSession.and.resolveTo();
 
     await TestBed.configureTestingModule({

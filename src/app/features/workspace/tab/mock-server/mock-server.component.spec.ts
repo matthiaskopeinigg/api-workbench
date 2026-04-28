@@ -169,7 +169,7 @@ describe('MockComponent', () => {
     mockSpy.listStandalone.and.resolveTo([{ id: 'sa-1', name: '', method: 'GET', path: '/mock/new' } as any]);
     await component.addStandalone();
     expect(mockSpy.registerStandalone).toHaveBeenCalledWith(
-      jasmine.objectContaining({ name: '', method: 'GET', path: '/mock/new' }),
+      jasmine.objectContaining({ name: 'StandaloneMock', method: 'GET', path: '/mock/new' }),
     );
     expect(component.selectedStandaloneId).toBe('sa-1');
   });
@@ -187,7 +187,7 @@ describe('MockComponent', () => {
   it('bodyTypeOf detects JSON / XML / form content types', () => {
     expect(component.bodyTypeOf({ body: '{}', headers: [{ key: 'Content-Type', value: 'application/json' }] })).toBe('json');
     expect(component.bodyTypeOf({ body: '<x/>', headers: [{ key: 'Content-Type', value: 'application/xml' }] })).toBe('xml');
-    expect(component.bodyTypeOf({ body: 'a=b', headers: [{ key: 'Content-Type', value: 'application/x-www-form-urlencoded' }] })).toBe('form');
+    expect(component.bodyTypeOf({ body: 'a=b', headers: [{ key: 'Content-Type', value: 'application/x-www-form-urlencoded' }] })).toBe('urlencoded');
     expect(component.bodyTypeOf({ body: '', headers: [] })).toBe('none');
     expect(component.bodyTypeOf({ body: '<h1></h1>', headers: [{ key: 'Content-Type', value: 'text/html' }] })).toBe('html');
   });
