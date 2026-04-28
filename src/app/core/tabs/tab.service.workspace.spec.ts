@@ -87,8 +87,8 @@ describe('TabService workspace tabs', () => {
   it('strips removed tab types from legacy activeTabs', async () => {
     const legacy = [
       { id: 'r1', title: 'One', type: TabType.REQUEST },
-      { id: 'ts:x', title: 'Suite', type: TabType.TEST_SUITE },
-      { id: '__regression_lab__', title: 'Regression', type: TabType.REGRESSION_LAB },
+      { id: 'singleton:capture', title: 'Capture', type: TabType.CAPTURE },
+      { id: 'singleton:dashboard', title: 'Dashboard', type: TabType.DASHBOARD },
     ];
     sessionStore['activeTabs'] = legacy;
     sessionStore['selectedTab'] = legacy[0];
